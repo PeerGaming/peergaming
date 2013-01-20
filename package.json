@@ -1,0 +1,20 @@
+{
+	"name"			: "PeerGaming",
+
+	"description"	: "A Client-Side Multiplayer Gaming Framework for the Web.",
+
+	"version"		: "0.1.0",
+
+	"homepage"		: "http://peergaming.net",
+
+	"author"		: {
+
+		"name"		: "Stefan/Autarc",
+		"email"		: "autarc@gmail.com",
+		"url"		: "http://fairyco.de"
+	},
+
+	"licence"		: "MIT",
+
+	"keywords"		: [ "Games", "P2P", "DataChannel" ]
+}

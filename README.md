@@ -1,4 +1,4 @@
 PeerGaming
 ==========
 
-A client side multi-player gaming framework for the web
+A Client-Side Multiplayer Gaming Framework for the Web.
