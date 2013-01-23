@@ -19,12 +19,17 @@
 
 	'use strict';
 
-	var pg = function(){};
+	var pg = {};
+
+
+
 
 	//= require utils
 	//= require data
 	//= require network
 	//= require game
+
+
 
 	return pg;
 });

@@ -5,7 +5,6 @@ ToDo
 ## Utilities
 
 * implement promises
-* implement mediator/events
 
 
 ## Connection
