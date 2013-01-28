@@ -20,15 +20,28 @@
 	'use strict';
 
 	var pg = {};
-/* Message Handling using PubSub/Mediator */
 
-(function(){
 
-	// export
-	pg.on = subscribe;
-	pg.emit = publish;
-	pg.off = unsubscribe;
+	function extend ( target ) {
 
+		var source, key;
+
+		for ( var i = 1, length = arguments.length; i < length; i++ ) {
+
+			source = arguments[i];
+
+			for ( key in source ) if ( source.hasOwnProperty(key) ) target[key] = source[key];
+		}
+
+		return target;
+	}
+
+
+
+	/* Message Handling using PubSub/Mediator */
+extend( pg, function(){
+
+	'use strict';
 
 	// cache
 	var channels = {};
@@ -91,16 +104,121 @@
 		}
 	}
 
-})();
+
+	return {
+
+		on	: subscribe,
+		emit: publish,
+		off	: unsubscribe
+	};
+
+}());
+
 
 /* flow control via promises */
+extend( pg, function(){
+
+	'use strict';
+
+	var promise = {};
+
+	return {
+
+
+	};
+
+}());
+
+
+	/* data structure - linkedList */
+extend( pg, function(){
+
+	'use strict';
+
+	var linkedListe = {};
+
+	return {
+
+
+	};
+
+
+}());
 
 /* data structure - hashtable */
-/* data structure - linkedList */
+extend( pg, function(){
 
-/* peerconnection */
+	'use strict';
 
-/* game elements */
+	var hashtable = {};
+
+
+	return {
+
+
+	};
+
+}());
+
+
+	/* request connection */
+extend( pg, function(){
+
+	'use strict';
+
+	return {
+
+
+	};
+
+}());
+
+/* connect with another peer */
+extend( pg, function(){
+
+	'use strict';
+
+	var connect = {};
+
+	return {
+
+
+
+	};
+
+}());
+
+
+	/* game loop */
+extend( pg, function(){
+
+	'use strict';
+
+	var loop = {};
+
+
+	return {
+
+
+	};
+
+
+}());
+
+/* Handling different steps */
+extend( pg, function(){
+
+	'use strict';
+
+	var state = {};
+
+	return {
+
+
+	};
+
+
+}());
 
 
 
