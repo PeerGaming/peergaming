@@ -109,7 +109,7 @@ if ( config.test ) {
 
 	var cwd = process.cwd(), root = cwd.substr( 0, cwd.lastIndexOf('/') ),
 
-		info, code;
+		info, code, tmp;
 
 	init();
 
@@ -129,6 +129,7 @@ if ( config.test ) {
 
 			if ( !info ) {
 
+				// TODO: just check the single variants
 				for ( var i = 0, l = files.length; i < l; i++ ) {
 
 					if ( files[i].match('(P|p)ackage.json') ) {
@@ -206,19 +207,25 @@ if ( config.test ) {
 
 		for ( var i = 0, l = keys.length; i < l; i++ ) {
 
-			fs.readFile( file[ keys[i] ], 'utf8', replace || parse ); // reusage
+			parsing++;
+
+			fs.readFile( file[ keys[i] ], 'utf8', !replace ? parse : replace.bind(keys[i]) ); // re-usage
 		}
 	}
 
-
-	var DIRECTIVE_PATTERN = /^\W*=\s*require\s*(.*?)$/gm;
+	var DIRECTIVE_PATTERN = /\/\/=\s*require\s*(.*?)$/gm;
 
 	function parse ( err, data ) {
 
 		if ( err ) throw err;
 
-		// ToDo: improve regex for verbosity-> later more like sprockets: ./data or "./as"
+		if ( --parsing > 0 ) return;
+
+		// TODO: improve regex for verbosity-> later more like sprockets: ./data
+		// TODO: insert tab for intendation
 		code = data.replace( DIRECTIVE_PATTERN, function ( match, text ) {
+
+			text = text.replace(/\'|\"/g, '');
 
 			if ( cache[text] ) return cache[text];
 
@@ -235,18 +242,45 @@ if ( config.test ) {
 
 	function reserve ( key ) {
 
-		parsing++;
-
-		cache[key] = '';
+		cache[key] = {};
 
 		readFiles( config.src + '/' + key, function ( err, data ) {
 
 			if ( err ) throw err;
 
-			cache[key] += data;
+			cache[key][this] = data;
 
-			if ( !--parsing ) readFiles( config.src );
+
+			if ( !--parsing ) {
+
+				var entries = Object.keys(cache),
+
+					name; // temp
+
+				for ( var i = 0, l = entries.length; i < l; i++ ) {
+
+					name = keys[i];
+
+					tmp = cache[ name ];
+
+					if ( tmp[ name + '.js' ] ) { // summary
+
+						cache[ name ] = tmp[ name + '.js' ].replace( DIRECTIVE_PATTERN, _replace );
+					}
+				}
+
+				readFiles( config.src );
+			}
 		});
+	}
+
+	function _replace ( match, text ) {
+
+		text = text.replace(/\'|\"/g, '');
+
+		if ( tmp[text] ) return tmp[text];
+
+		return match;
 	}
 
 
