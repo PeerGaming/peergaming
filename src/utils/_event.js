@@ -1,12 +1,7 @@
 /* Message Handling using PubSub/Mediator */
+extend( pg, function(){
 
-(function(){
-
-	// export
-	pg.on = subscribe;
-	pg.emit = publish;
-	pg.off = unsubscribe;
-
+	'use strict';
 
 	// cache
 	var channels = {};
@@ -69,5 +64,13 @@
 		}
 	}
 
-})();
+
+	return {
+
+		on	: subscribe,
+		emit: publish,
+		off	: unsubscribe
+	};
+
+}());
 
