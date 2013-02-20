@@ -107,7 +107,10 @@ if ( config.test ) {
 
 	var fs = require('fs');
 
-	var cwd = process.cwd(), root = cwd.substr( 0, cwd.lastIndexOf('/') ),
+	// adjust path for "make"
+	var cwd = process.cwd() + ( ~process.cwd().indexOf('bin') ? '' : '/bin' ),
+
+		root = cwd.substr( 0, cwd.lastIndexOf('/') ),
 
 		info, code, tmp;
 
@@ -129,7 +132,7 @@ if ( config.test ) {
 
 			if ( !info ) {
 
-				// TODO: just check the single variants
+				// TODO: just check the single variant
 				for ( var i = 0, l = files.length; i < l; i++ ) {
 
 					if ( files[i].match('(P|p)ackage.json') ) {
@@ -360,6 +363,25 @@ if ( config.test ) {
 		// if ( config.test && mocha ) {
 		//	console.log('test');
 		// }
+		//
+		// #!/bin/sh
+
+
+		// REST-API Minification
+		if ( !config.watch ) {
+
+			var spawn = require('child_process').spawn,
+
+				minify = spawn('bash' , [ root + '/bin/minify.sh' ]);
+
+			console.log('\nBuild \t\t=> ' + config.dist + '/peergaming-0.1.0.js');
+
+			minify.on('exit', function(){
+
+				console.log('Minified \t=> ' + config.dist + '/peergaming-0.1.0.min.js');
+			});
+		}
+
 	}
 
 })();
