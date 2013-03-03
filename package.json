@@ -1,20 +1,20 @@
 {
-	"name"			: "PeerGaming",
-
-	"description"	: "A Client-Side Multiplayer Gaming Framework for the Web.",
-
-	"version"		: "0.1.0",
-
-	"homepage"		: "http://peergaming.net",
-
-	"author"		: {
-
-		"name"		: "Stefan/Autarc",
-		"email"		: "autarc@gmail.com",
-		"url"		: "http://fairyco.de"
+	"name"				: "PeerGaming",
+	"description"		: "A Client-Side Multiplayer Gaming Framework for the Web",
+	"version"			: "0.1.1",
+	"homepage"			: "http://peergaming.net",
+	"author"			: {
+		"name"			: "Stefan Dühring",
+		"email"			: "Autarc@gmail.com",
+		"url"			: "http://fairyco.de"
 	},
+	"licence"			: "MIT",
+	"keywords"			: [ "Games", "Multiplayer", "Network", "P2P", "DataChannel", "DHT" ],
 
-	"licence"		: "MIT",
-
-	"keywords"		: [ "Games", "P2P", "DataChannel" ]
+	"devDependencies"	: {
+		"uglify-js"	: "~1.3.4",
+		"jshint"	: "*",
+		"mocha"		: "*",
+		"chai"		: "*"
+	}
 }
