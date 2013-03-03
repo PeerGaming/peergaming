@@ -1,4 +1,4 @@
 default: build
 
 build:
-	@node bin/build.js
+	@node bin/build.js -m

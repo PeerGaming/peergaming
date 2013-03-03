@@ -1,7 +1,7 @@
 #! /bin/bash
 
-INPUT="../dist/peergaming-0.1.0.js"
-OUTPUT="../dist/peergaming-0.1.0.min.js"
+INPUT="../dist/peergaming.js"
+OUTPUT="../dist/peergaming.min.js"
 
 if [ -r $INPUT ];
 

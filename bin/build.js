@@ -2,19 +2,18 @@
 
 /*global node, require, console, process */
 
-/*
-	A custom build script to concatinate multiple files in
-	a declarative way (inspired by Sprockets).
-
-	Following additional parameters are possible:
-
-	-w || --watch	: watch files for changes
-	-h || --hint	: hint for common mistakes
-	-m || --min		: creates an additional minified version
-	-t || --test	: running the tests
-
-	-d || --dev		: enable all flags
-*/
+/**
+ *	Build script to concatinate multiple files in a declerative way (inspired by Sprockets).
+ *
+ *	Following optional parameters are possible:
+ *
+ *	-w || --watch	: watch files for changes
+ *	-h || --hint	: hint for common mistakes
+ *	-m || --min		: creates a minified version
+ *	-t || --test	: running tests
+ *
+ *	-d || --dev		: enable all flags
+ */
 
 
 /* default settings */
@@ -27,7 +26,7 @@ var config = {
 	watch	: false,
 	hint	: false,
 	test	: false,
-	min		: true
+	min		: false
 };
 
 /* input */
@@ -112,9 +111,10 @@ if ( config.test ) {
 
 		root = cwd.substr( 0, cwd.lastIndexOf('/') ),
 
-		info, code, tmp;
+		fileName, info, code, tmp;
 
 	init();
+
 
 	var directories, pending, keys, parsing, cache;
 
@@ -212,11 +212,13 @@ if ( config.test ) {
 
 			parsing++;
 
-			fs.readFile( file[ keys[i] ], 'utf8', !replace ? parse : replace.bind(keys[i]) ); // re-usage
+			// delegate function call, re-usage
+			fs.readFile( file[ keys[i] ], 'utf8', !replace ? parse : replace.bind(keys[i]) );
 		}
 	}
 
-	var DIRECTIVE_PATTERN = /\/\/=\s*require\s*(.*?)$/gm;
+	var DIRECTIVE_PATTERN	= /\/\/=\s*require\s*(.*?)$/gm,
+		TABBED_PATTERN		= new RegExp( '\t' + DIRECTIVE_PATTERN.source, 'gm' );
 
 	function parse ( err, data ) {
 
@@ -224,9 +226,8 @@ if ( config.test ) {
 
 		if ( --parsing > 0 ) return;
 
-		// TODO: improve regex for verbosity-> later more like sprockets: ./data
-		// TODO: insert tab for intendation
-		code = data.replace( DIRECTIVE_PATTERN, function ( match, text ) {
+		// TODO: improve regex for verbosity -> e.g. path like sprockets: ./data
+		code = data.replace( TABBED_PATTERN, function ( match, text ) {
 
 			text = text.replace(/\'|\"/g, '');
 
@@ -239,7 +240,10 @@ if ( config.test ) {
 
 			for ( var i = 0, l = keys.length; i < l; i++ ) reserve( keys[i] );
 
-		} else { write( code );	}
+		} else {
+
+			write( code );
+		}
 	}
 
 
@@ -289,16 +293,19 @@ if ( config.test ) {
 
 	function write ( text ) {
 
-		var fileName = '/';
+		if ( info && info.name ) {
 
-		if ( info ) {
+			fileName = info.name.toLowerCase();
 
-			if ( info.name ) fileName += info.name.toLowerCase();
-			if ( info.version ) fileName += '-' + info.version;
+			// include Banner
+			text = addHeader( fileName + '.js', text );
 
-		} else { fileName += 'bundled';	}
+		} else {
 
-		fs.writeFile( root + config.dist + fileName +'.js', text, 'utf8', function ( err ) {
+			fileName = 'default-build';
+		}
+
+		fs.writeFile( root + config.dist + '/' + fileName + '.js', text, 'utf8', function ( err ) {
 
 			if ( err ) throw err;
 
@@ -307,7 +314,7 @@ if ( config.test ) {
 			if ( !config.watch ) return;
 
 
-			// set watching
+			// set unique watching
 			config.watch = null;
 
 			console.log('\n\t\t:: Watching ::\n');
@@ -331,6 +338,30 @@ if ( config.test ) {
 		});
 	}
 
+	function addHeader ( filename, content ) {
+
+		var date = new Date(),
+			year = date.getFullYear(),
+			month = date.getMonth() + 1,
+			day = date.getDate();
+
+		if ( month < 10 ) month = '0' + month;
+		if ( day < 10 )	day = '0' + day;
+
+		date = year + '-' + month + '-' + day;
+
+		var header = [
+			'/**\n',
+			' *\t', filename, ' - ', 'v' + info.version, ' | ', date, '\n',
+			' *\t', info.homepage, '\n',
+			' *\t', 'Copyright (c) ', year, ', ', info.author.name, '\n',
+			' *\t', info.licence, ' License\n',
+			' */\n'
+		].join('');
+
+		return header + '\n' + content;
+	}
+
 
 	// workaround unstable API
 	var changed = false;
@@ -341,11 +372,23 @@ if ( config.test ) {
 
 		if  ( changed === false ) return;
 
-		var date = new Date();
+		var date = new Date(),
+			year = date.getFullYear(),
+			month = date.getMonth() + 1,
+			day = date.getDate(),
+			hours = date.getHours(),
+			minutes = date.getMinutes(),
+			seconds = date.getSeconds();
 
-		console.log('[ ' + date.getFullYear() + '-' + date.getMonth()+1 + '-' + date.getDate() + ' | ' +
-							date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds() + ' ] ' +
-							event + 'd "' + filename  + '"' );
+		if ( month < 10 ) month = '0' + month;
+		if ( day < 10 )	day = '0' + day;
+		if ( hours < 10 ) hours = '0' + hours;
+		if ( minutes < 10 ) minutes = '0' + minutes;
+		if ( seconds < 10 ) seconds = '0' + seconds;
+
+		console.log(['[ ', year, '-', month, '-', day, ' | ',
+						hours, ':', minutes, ':', seconds, ' ] ',
+						event + 'd "', filename, '"'].join('') );
 		init();
 	}
 
@@ -363,23 +406,38 @@ if ( config.test ) {
 		// if ( config.test && mocha ) {
 		//	console.log('test');
 		// }
-		//
-		// #!/bin/sh
 
 
 		// REST-API Minification
-		if ( !config.watch ) {
+		if ( config.min ) {
+
+			console.log('\nBuild \t\t=> ' + config.dist + '/' + fileName + '.js');
 
 			var spawn = require('child_process').spawn,
 
 				minify = spawn('bash' , [ root + '/bin/minify.sh' ]);
 
-			console.log('\nBuild \t\t=> ' + config.dist + '/peergaming-0.1.0.js');
-
 			minify.on('exit', function(){
 
-				console.log('Minified \t=> ' + config.dist + '/peergaming-0.1.0.min.js');
+				fileName = fileName + '.min.js';
+
+				var path = config.dist + '/' + fileName;
+
+				fs.readFile( root + path, 'utf8', function ( err, data ) {
+
+					if ( err ) throw err;
+
+					data = addHeader( fileName, data );
+
+					fs.writeFile( root + path, data, 'utf8', function ( err ) {
+
+						if ( err ) throw err;
+
+						console.log('Minified \t=> ' + path + '\n');
+					});
+				});
 			});
+
 		}
 
 	}
