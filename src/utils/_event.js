@@ -1,4 +1,9 @@
-/* Message Handling using PubSub/Mediator */
+/**
+ *	Event:
+ *
+ *	Message handling using a Mediator (publish/subscribe).
+ */
+
 extend( pg, function(){
 
 	'use strict';

@@ -1,14 +1,20 @@
-/* data structure - linkedList */
-extend( pg, function(){
+/**
+ *	LinkedList:
+ *
+ *	A data structure
+ */
+
+var LinkedList = (function(){
 
 	'use strict';
 
-	var linkedListe = {};
+	var linkedList = function(){
+
+	};
 
 	return {
 
 
 	};
-
 
 }());

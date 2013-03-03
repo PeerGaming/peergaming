@@ -1,14 +1,14 @@
 /**
- *	Connect:
+ *	Statemachine:
  *
- *	Connection with another Peer
+ *	Handling different steps
  */
 
 extend( pg, function(){
 
 	'use strict';
 
-	var connect = {};
+	var statemachine = {};
 
 	return {
 

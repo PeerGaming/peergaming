@@ -1,7 +1,7 @@
 /**
- *	Promise:
+ *	Stats:
  *
- *	Async flow control handling.
+ *	Tracking stats, providing them to an external interface
  */
 
 extend( pg, function(){

@@ -1,10 +1,16 @@
-/* data structure - hashtable */
-extend( pg, function(){
+/**
+ *	Hashtable:
+ *
+ *	A data structure
+ */
+
+var Hashtable = (function(){
 
 	'use strict';
 
-	var hashtable = {};
+	var hashtable = function(){
 
+	};
 
 	return {
 
