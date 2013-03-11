@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+	<meta charset="utf-8">
+
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+	<meta http-equiv="content-type" content="text/html,charset=utf-8" />
+
+	<title>:: PeerGaming - Test ::</title>
+
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+	<style>
+
+		body {
+
+			width: 100%;
+			height: 100%;
+			margin: 0;
+			padding: 0;
+			background: #eee;
+			padding-top: 10px;
+		}
+
+
+
+
+		:invalid {
+  border-color: #e88;
+  -webkit-box-shadow: 0 0 5px rgba(255, 0, 0, .8);
+  -moz-box-shadow: 0 0 5px rbba(255, 0, 0, .8);
+  -o-box-shadow: 0 0 5px rbba(255, 0, 0, .8);
+  -ms-box-shadow: 0 0 5px rbba(255, 0, 0, .8);
+  box-shadow:0 0 5px rgba(255, 0, 0, .8);
+}
+
+:required {
+  border-color: #88a;
+  -webkit-box-shadow: 0 0 5px rgba(0, 0, 255, .5);
+  -moz-box-shadow: 0 0 5px rgba(0, 0, 255, .5);
+  -o-box-shadow: 0 0 5px rgba(0, 0, 255, .5);
+  -ms-box-shadow: 0 0 5px rgba(0, 0, 255, .5);
+  box-shadow: 0 0 5px rgba(0, 0, 255, .5);
+}
+
+form {
+  width:300px;
+  margin: 20px auto;
+}
+
+input {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  border:1px solid #ccc;
+  font-size:20px;
+  width:300px;
+  min-height:30px;
+  display:block;
+  margin-bottom:15px;
+  margin-top:5px;
+  outline: none;
+
+  -webkit-border-radius:5px;
+  -moz-border-radius:5px;
+  -o-border-radius:5px;
+  -ms-border-radius:5px;
+  border-radius:5px;
+}
+
+input[type=submit] {
+  background:none;
+  padding:10px;
+}
+
+
+
+.fading {
+
+	transition: 1s opacity ease-in-out;
+}
+
+.fadeOut {	opacity: 0; }
+.fadeIn {	opacity: 1; }
+
+.name {
+
+	text-align: center;
+	margin: 10px;
+	line-height: 50px;
+	font-weight: bold;
+};
+
+
+	</style>
+
+</head>
+<body>
+
+
+	<video autoplay id="vid1"></video>
+	<video autoplay id="vid2"></video>
+
+	<form class="fading" id="form">
+
+		<label for="name">Login:</label>
+		<input type="name" required id="name" />
+		<button type="submit">Enter</button>
+
+	</form>
+
+	<script type="env/benchmark.js"></script>
+	<script src="../dist/peergaming.js"></script>
+	<script src="temp.js"></script>
+
+</body>
+</html>
