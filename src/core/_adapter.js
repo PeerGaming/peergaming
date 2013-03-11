@@ -5,68 +5,46 @@
  *	Normalize different browser behavior.
  */
 
+var win = window;
+
+
+/**
+ *  Performance
+ */
+
+if ( win.performance && !win.performance.now ) {
+
+	win.performance.now = win.performance.webkitNow;
+}
+
 
 /**
  *	Blob & ObjectURL
  */
 
-if ( !window.URL ) {
+if ( !win.URL ) {
 
-	window.URL = window.webkitURL || window.msURL || window.oURL;
+	win.URL = win.webkitURL || win.msURL || win.oURL;
 }
 
-if ( !window.BlobBuilder ) {
+if ( !win.Blob && !win.BlobBuilder ) {
 
-	window.BlobBuilder =	window.BlobBuilder			||
-							window.WebKitBlobBuilder	||
-							window.MozBlobBuilder		||
-							window.MSBlobBuilder		||
-							window.OBlobBuilder;
+	win.BlobBuilder =	win.BlobBuilder			||
+						win.WebKitBlobBuilder	||
+						win.MozBlobBuilder		||
+						win.MSBlobBuilder		||
+						win.OBlobBuilder;
 }
-
-
-/**
- *	IndexedDB
- */
-
-if ( !window.indexedDB ) {
-
-	if ( window.mozIndexedDB ) {
-
-		window.indexedDB = window.mozIndexedDB;
-
-	} else if ( window.webkitIndexedDB ) {
-
-		window.indexedDB =  window.webkitIndexedDB;
-
-		IDBCursor = webkitIDBCursor;
-		IDBDatabaseException = webkitIDBDatabaseException;
-		IDBRequest = webkitIDBRequest;
-		IDBKeyRange = webkitIDBKeyRange;
-		IDBTransaction = webkitIDBTransaction;
-
-	} else {
-
-		throw new Error('IndexedDB is currently not supported by your browser.');
-	}
-}
-
-if ( !window.indexedDB.deleteDatabase ) {
-
-	throw new Error('IndexedDB is currently not supported by your browser.');
-}
-
-
 
 
 /**
  *	PeerConnection & User Media
  */
 
-if ( !window.RTCPeerConnection ) {
+if ( !win.RTCPeerConnection ) {
 
-	window.RTCPeerConnection =	window.mozRTCPeerConnection		||
-								window.webkitRTCPeerConnection;
+	win.RTCPeerConnection =	win.mozRTCPeerConnection		||
+							win.webkitRTCPeerConnection;
 }
 
 if ( !navigator.getUserMedia ) {
@@ -76,7 +54,42 @@ if ( !navigator.getUserMedia ) {
 								navigator.msGetUserMedia;
 }
 
-if ( !window.RTCSessionDescription ) {
+// Firefox handling
+if ( !win.RTCSessionDescription ) {
 
-	window.RTCSessionDescription = window.mozRTCSessionDescription;
+	win.RTCSessionDescription = win.mozRTCSessionDescription;
+}
+
+
+if ( !win.RTCIceCandidate ) {
+
+	win.RTCIceCandidate = win.mozRTCIceCandidate;
+}
+
+
+// Chrome handling
+if ( win.webkitRTCPeerConnection && !win.webkitRTCPeerConnection.prototype.getLocalStreams ) {
+
+	// New Syntax of getXXStreams in M26
+	win.webkitRTCPeerConnection.prototype.getLocalStreams = function(){
+		return this.localStreams;
+	};
+
+	win.webkitRTCPeerConnection.prototype.getRemoteStreams = function(){
+		return this.remoteStreams;
+	};
+
+
+	// Streaming tracks got changed in M26
+	if ( !win.webkitMediaStream.prototype.getVideoTracks ) {
+
+		win.webkitMediaStream.prototype.getVideoTracks = function(){
+			return this.videoTracks;
+		};
+
+		win.webkitMediaStream.prototype.getAudioTracks = function(){
+			return this.audioTracks;
+		};
+	}
+
 }

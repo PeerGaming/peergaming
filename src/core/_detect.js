@@ -2,7 +2,7 @@
  *	Detect
  *	======
  *
- *	Checks if the required features are supported by the browser.
+ *	Checks if the required features or status is supported by the browser.
  *
  *	ToDo:
  *
@@ -10,16 +10,13 @@
  *	- ServerSent Events/WebSocket
  */
 
-var missing = [];
+var moz = !!navigator.mozGetUserMedia,
 
-if ( !window.URL )							missing.push('window.URL - createObjectURL()');
-if ( !window.Blob && !window.BlobBuilder )	missing.push('Blob / BlobBuilder');
-if ( !window.indexedDB )					missing.push('IndexedDB');
-if ( !window.RTCPeerConnection )			missing.push('RTCPeerConnection');
-if ( !navigator.getUserMedia )				missing.push('getUserMedia');
+	features = [ 'URL', 'Blob', 'indexedDB', 'RTCPeerConnection' ];
 
-if ( missing.length ) {
+for ( var i = 0, l = features.length; i < l; i++ ) {
 
-	alert('Your Browser doesn\'t support the framework :(');
-	throw new Error( '\n\n\tMissing support of:\n\n\t' + missing.join('\n\t') );
+	if ( !(features[i] in win ) ) console.log( 'Missing: ', features[i] );
 }
+
+if ( !win.RTCPeerConnection ) throw new Error('Your browser doesn\'t support PeerConnections yet.');
