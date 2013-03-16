@@ -3,11 +3,11 @@
  */
 
 var http		= require('http'),
-	sse			= require('./transport.sse');
-	// ws			= require('./transport.socket');
+	config		= require('./config.js'),
+	sse			= require('./scripts/transport.sse.js');
+	ws			= require('./scripts/transport.socket.js');
 
-
-http.createServer( function ( req, res ) {
+var server = http.createServer( function ( req, res ) {
 
 	// SSE
 	if ( req.headers && req.headers.accept !== 'text/event-stream' && req.method !== 'POST' ) {
@@ -18,7 +18,12 @@ http.createServer( function ( req, res ) {
 	}
 
 	sse.handle( req, res );
+});
 
-	// ws.handle( req, res );
+server.listen( config.port, function(){
 
-}).listen(2020);
+	ws.init( server, config.origin );
+
+	console.log( new Date() + ' - Server is listening on port: ' + config.port );
+});
+

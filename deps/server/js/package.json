@@ -1,0 +1,8 @@
+{
+	"name"				: "PeerGaming",
+	"description"		: "An initial handshake server for PeerConnections",
+	"version"			: "0.1.0",
+	"devDependencies"	: {
+		"websocket"	: "~1.0.8"
+	}
+}
