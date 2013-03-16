@@ -19,7 +19,7 @@
 	//= require "utils"
 	//= require "data"
 	//= require "network"
-	//= require "game"
+	//= require "meta"
 
 	return pg;
 });
