@@ -116,7 +116,8 @@ if ( config.test ) {
 	init();
 
 
-	var directories, pending, keys, parsing, cache;
+	var directories, pending, keys, parsing, cache, ready;
+
 
 	function init(){
 
@@ -132,12 +133,12 @@ if ( config.test ) {
 
 			if ( !info ) {
 
-				// TODO: just check the single variant
+				// TODO: just check the single variant - just parse via require('package')
 				for ( var i = 0, l = files.length; i < l; i++ ) {
 
 					if ( files[i].match('(P|p)ackage.json') ) {
 
-						getPackage( root +'/' + files[i] );
+						getPackage( root + '/' + files[i] );
 						return;
 					}
 				}
@@ -180,7 +181,7 @@ if ( config.test ) {
 
 	function getStats ( path, current, file ) {
 
-		path = path + '/' + file;
+		path += '/' + file;
 
 		fs.stat( path, function ( err, stats ) {
 
@@ -311,6 +312,8 @@ if ( config.test ) {
 
 			check();
 
+			ready = true;
+
 			if ( !config.watch ) return;
 
 
@@ -364,13 +367,16 @@ if ( config.test ) {
 
 
 	// workaround unstable API
-	var changed = false;
+	var changed = false,
+		exists = false;
 
 	function cycle ( event, filename ) {
 
 		changed = !changed;
+		// console.log('ready');
+		if  ( !changed || !ready ) return;
 
-		if  ( changed === false ) return;
+		ready = false;
 
 		var date = new Date(),
 			year = date.getFullYear(),
@@ -386,10 +392,51 @@ if ( config.test ) {
 		if ( minutes < 10 ) minutes = '0' + minutes;
 		if ( seconds < 10 ) seconds = '0' + seconds;
 
-		console.log(['[ ', year, '-', month, '-', day, ' | ',
-						hours, ':', minutes, ':', seconds, ' ] ',
-						event + 'd "', filename, '"'].join('') );
-		init();
+		var msg = ['[ ', year, '-', month, '-', day, ' | ',
+					hours, ':', minutes, ':', seconds, ' ] ',
+					event + 'd "', filename, '"'].join(''),
+
+			dir = root + '/bin/log/',
+
+			file = dir + [year,'-',month,'-',day].join('');
+
+		if ( exists ) {
+
+			log( file, msg );
+
+		} else {
+
+			fs.exists( dir, function ( e ) {
+
+				if ( !e ) {
+
+					fs.mkdir( dir, function(){
+
+						exists = true;
+
+						log( file, msg );
+					});
+
+				}  else {
+
+					exists = true;
+
+					log( file, msg );
+				}
+			});
+		}
+	}
+
+
+	function log ( file, msg ) {
+
+		fs.appendFile( file, msg + '\n', function ( err ) {
+
+			if ( err ) throw err;
+
+			console.log(msg);
+			init();
+		});
 	}
 
 
@@ -421,19 +468,25 @@ if ( config.test ) {
 
 				fileName = fileName + '.min.js';
 
-				var path = config.dist + '/' + fileName;
+				var dir		= config.dist + '/' + fileName,
+					path	= root + dir;
 
-				fs.readFile( root + path, 'utf8', function ( err, data ) {
+				fs.exists( path, function ( exists ) {
 
-					if ( err ) throw err;
+					if ( !exists ) return;
 
-					data = addHeader( fileName, data );
-
-					fs.writeFile( root + path, data, 'utf8', function ( err ) {
+					fs.readFile( path, 'utf8', function ( err, data ) {
 
 						if ( err ) throw err;
 
-						console.log('Minified \t=> ' + path + '\n');
+						data = addHeader( fileName, data );
+
+						fs.writeFile( path, data, 'utf8', function ( err ) {
+
+							if ( err ) throw err;
+
+							console.log('Minified \t=> ' + dir + '\n');
+						});
 					});
 				});
 			});
