@@ -5,37 +5,24 @@
  *	Basic wrapper definitions.
  */
 
-var pg = function(){
+var pg = function(){};
 
+pg.VERSION = '0.1.7';
+
+
+// Collection of all connected peers
+pg.peers = {};
+
+
+var READY_STATES = {
+
+	0: 'connecting',
+	1: 'open',
+	2: 'closing',
+	3: 'closed'
 };
 
-pg.VERSION = '0.1.5';
 
+// internal variables
 
-var ready = false;
-
-var instance;	// used for single reference !
-
-pg.queue = [];
-
-
-/**
- *	Extends properties of an Object.
- *
- *	@param  {[type]} target [description]
- *	@return {[type]}        [description]
- */
-
-function extend ( target ) {
-
-	var source, key;
-
-	for ( var i = 1, length = arguments.length; i < length; i++ ) {
-
-		source = arguments[i];
-
-		for ( key in source ) if ( source.hasOwnProperty(key) ) target[key] = source[key];
-	}
-
-	return target;
-}
+var instance;				// Singleton reference

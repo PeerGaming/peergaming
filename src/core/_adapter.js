@@ -12,10 +12,15 @@ var win = window;
  *  Performance
  */
 
-if ( win.performance && !win.performance.now ) {
+if ( !win.performance ) {
+
+	win.performance = { now: Date().now() };
+
+} else if ( !win.performance.now ) {
 
 	win.performance.now = win.performance.webkitNow;
 }
+
 
 
 /**

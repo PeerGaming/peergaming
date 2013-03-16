@@ -12,6 +12,8 @@
 
 var moz = !!navigator.mozGetUserMedia,
 
+	reliable = false,
+
 	features = [ 'URL', 'Blob', 'indexedDB', 'RTCPeerConnection' ];
 
 for ( var i = 0, l = features.length; i < l; i++ ) {
