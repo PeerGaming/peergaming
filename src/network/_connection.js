@@ -10,17 +10,18 @@ var Connection = (function(){
 	'use strict';
 
 
-	var media = !false;
+	var media = false;
 
-	var Connection = function ( localID, remoteID, input ) { //
+	var Connection = function ( localID, remoteID, initiator, transport ) {
 
 		this.localID	= localID;
 		this.remoteID	= remoteID;
-		this.input		= input;
+		this.initiator	= initiator;
+		this.transport	= transport;
 
 		this.channels = {};
 
-		this.conn = new RTCPeerConnection( peerconfig, connectionConstraints );
+		this.conn = new RTCPeerConnection( config.peerConfig, config.connectionConstraints );
 
 		if ( media ) {
 
@@ -35,51 +36,25 @@ var Connection = (function(){
 
 	Connection.prototype.init = function(){
 
-		var input		= this.input,
-			localID		= this.localID,
-			remoteID	= this.remoteID;
-
-		if ( !input ) {
+		if ( this.initiator ) {
 
 			this.createOffer();
-
-			// this.createDataChannel( 'sendChannel' );
-
-		} else {
-
-			if ( input.candidate ) {	// inital command was ICE
-
-				console.log('[input - candidate]');
-
-				this.setIceCandidates( input );
-
-			} else {					// initial command was SDP
-
-				console.log('[input - offer]');
-
-				this.setConfigurations( input );
-			}
 		}
 
-		// this.handleChanges();
+		this.detectChanges();
 
-		this.receiveDataChannel();
+		this.receiveDataChannels();
 
 		this.findICECandidates();
+
+		if ( this.SDP ) {
+
+			this.setConfigurations( this.SDP );
+			delete this.SDP;
+		}
 	};
 
 
-	//
-	Connection.prototype.handleChanges = function(){
-
-		this.conn.onnegotiationneeded = function ( e ) {
-
-			console.log('[negotiation needed]');
-
-			this.createOffer();
-
-		}.bind(this);
-	};
 
 
 	// SDP enhancemend
@@ -91,16 +66,16 @@ var Connection = (function(){
 
 			console.log('[added stream]');
 
-			var video = document.createElement('video');
-			video.src = URL.createObjectURL( e.stream );
-			video.autoplay = true;
+			// var video = document.createElement('video');
+			// video.src = URL.createObjectURL( e.stream );
+			// video.autoplay = true;
 
-			var box = document.createElement('div');
-			box.textContent = this.remoteID;
-			box.className = 'name';
-			box.appendChild(video);
+			// var box = document.createElement('div');
+			// box.textContent = this.remoteID;
+			// box.className = 'name';
+			// box.appendChild(video);
 
-			document.body.appendChild( box );
+			// document.body.appendChild( box );
 
 		}.bind(this);
 
@@ -117,6 +92,8 @@ var Connection = (function(){
 
 		navigator.getUserMedia( permissions, function ( stream ) {
 
+			this.stream = stream;
+
 			conn.addStream( stream );
 
 			// document.getElementById('vid1').src = URL.createObjectURL(stream);
@@ -130,94 +107,75 @@ var Connection = (function(){
 	};
 
 
-	Connection.prototype.receiveDataChannel = function(){
+	Connection.prototype.detectChanges = function(){
 
-		var conn = this.conn;
-
-		// remote created channel
-		conn.ondatachannel = function ( e ) {
-
-			console.log('[remote channel]');
-
-			var channel = e.channel;
-
-			//channel.binaryType = 'arraybuffer'; // 'blob'
-
-			channel.onopen = function ( e ) {
-
-				console.log('[opened channel]');
-				console.log(e);
-			};
-
-			channel.onmessage = function ( e ) {
-
-				console.log('[message]');
-				console.log( e );
-				console.log( e.data );
-
-				// if ( e.data instanceof Blob ) {
-				//	console.log('blob');
-				// } else {
-
-				// console.log('msg');
-				// }
-			};
-
-			channel.onclose = function ( e ) {
-
-				console.log('[closed channel]');
-				console.log(e);
-			};
+		var conn	= this.conn,
+			length	= Object.keys( defaultHandlers ).length;
 
 
-			this.channel = channel;
+		conn.onnegotiationneeded = function ( e ) {
 
-			pg.emit('connection', channel );
+			// console.log('[negotiation needed]');
+
+			if ( !--length ) {
+
+				this.createOffer();
+			}
+
+		}.bind(this);
+
+
+		conn.onstatechange = function ( e ) {
+
+			// console.log('[state changed]');
+			// console.log(e);
+		};
+
+
+		conn.onicechange = function ( e ) {
+			// console.log('[ice changed]');
+			// console.log(e);
+		};
+	};
+
+
+	Connection.prototype.receiveDataChannels = function(){
+
+		// receive remote created channel
+		this.conn.ondatachannel = function ( e ) {
+
+			// console.log('[remote channel]');
+
+			var channel = e.channel,
+
+				name = channel.label,
+
+				handler = new Handler( this.remoteID, defaultHandlers[ name ] );
+
+			channel.onopen = handler.open.bind(handler);
 
 		}.bind(this);
 	};
 
 
-	Connection.prototype.createDataChannel = function ( name ) {
+	Connection.prototype.createDataChannel = function ( name, options ) {
 
-		var channel = this.conn.createDataChannel( name, moz ? {} : { reliable: false });
+		if ( options ) customHandlers[ name ] = options;
 
-		channel.onopen = function ( e ) {
+		try {
 
-			// var readyState = channel.readyState;
-			// console.log(readyState);
+			var channel = this.conn.createDataChannel( name, moz ? {} : { reliable: false }),
 
-			console.log('[open channel]');
-			console.log(e);
+				handler = new Handler( this.remoteID, defaultHandlers[ name ] );
 
-			channel.onmessage = function ( e ) {
+			channel.onopen = handler.open.bind(handler);
 
-				console.log('[message]');
-				console.log(e);
+		} catch ( e ) {	// getting: a "NotSupportedError" - but is working !
 
-				var msg = e.data;
-				console.log(msg);
-			};
-
-			channel.onclose = function ( e ) {
-
-				console.log('[close]');
-				console.log(e);
-			};
-
-			channel.onerror = function ( e ) {
-
-				console.log('[error]');
-				console.log(e);
-			};
-
-			this.channels[name] = channel;
-
-			pg.emit('connection', channel );
-
-		}.bind(this);
+			console.log('[Error] - Creating DataChannel (*)');
+			// console.log(e);
+		}
 	};
-
 
 
 	// find ICE candidates
@@ -234,26 +192,21 @@ var Connection = (function(){
 	};
 
 
-
 	Connection.prototype.createOffer = function() {
 
 		var conn = this.conn;
 
-		conn.createOffer( function ( offer ) {	// desc
+		conn.createOffer( function ( offer ) {
 
-			// interOp ?
+			// console.log('[create offer]');
 
 			conn.setLocalDescription( offer, function(){
-
-				console.log('[created offer]');
 
 				this.send({ action: 'setConfigurations', data: offer });
 
 			}.bind(this));
 
-		}.bind(this), function(eer){
-			console.log(eer);
-		});
+		}.bind(this), loggerr );
 	};
 
 
@@ -262,7 +215,23 @@ var Connection = (function(){
 
 		var conn = this.conn;
 
-		if ( conn.remoteDescription || conn.localDescription ) {
+		if ( conn.remoteDescription ) {//|| conn.localDescription ) {
+
+			if ( this.test ) {
+
+				if ( !this._candidates ) this._candidates = [];
+
+				this._candidates.push( data );
+
+				// console.log(this.test++);
+				return;
+			}
+
+
+			this.test = 1;
+			// ICE wird vor dem 2.offer gesetzt und ist evlt in kompatible
+			// 10 candiadtes - just after received offer - answer...	// second offer !
+
 
 			if ( this._candidates ) delete this._candidates;
 
@@ -283,20 +252,26 @@ var Connection = (function(){
 
 
 
-	// SDP exchange
+
+
+	// exchange settings
 	Connection.prototype.setConfigurations = function ( msg ) {
 
-		console.log('[Description | SDP - ' +  msg.type + ' ]');
+		// ensure stream
+		if ( media && !this.stream ) {
+
+			this.SDP = msg; return;
+		}
+
+		// console.log('[SDP] - ' +  msg.type );	// description
 
 		var conn = this.conn,
 
 			desc = new RTCSessionDescription( msg );
 
-
-		// ToDo:
-
 		conn.setRemoteDescription( desc, function(){
 
+			delete this.test;
 			if ( this._candidates ) this.setIceCandidates( this._candidates );
 
 			if ( msg.type === 'offer' ) {
@@ -307,60 +282,142 @@ var Connection = (function(){
 
 						this.send({ action: 'setConfigurations', data: answer });
 
-					}.bind(this), function(eer){
-						console.log(eer);
-					});
+					}.bind(this), loggerr );
 
-				}.bind(this), null, mediaConstrains );
+				}.bind(this), null, config.mediaConstraints );
+
+			} else {
+
+				if ( this.created ) {
+
+					delete this.created;
+					return;
+				}
+
+				this.created = true;
+
+				// console.log('[createDataChannel]');
+
+				// establish the basic channels
+
+				var defaultChannels = Object.keys( defaultHandlers );
+
+				for ( var i = 0, l = defaultChannels.length; i < l ; i++ ) {
+
+					this.createDataChannel( defaultChannels[i] );
+				}
 			}
 
-		}.bind(this), function(eer){
-
-			console.log(eer);
-		});
+		}.bind(this), loggerr );
 	};
 
 
+	Connection.prototype.send = function ( channel, msg ) {
 
-	Connection.prototype.send = function ( msg ) {
+		if ( !msg ) {
 
-		msg.local = this.localID,
-		msg.remote = this.remoteID;
+			msg = channel;
+			channel = null;
+		}
 
-		// will be replace by a reference to the channel - as its established
-		transport.send( msg );
+		var channels = this.channels,
+			keys = Object.keys( channels );
+
+		if ( keys.length ) {
+
+			// match earlier - see socket stringify ?
+			msg = JSON.stringify( msg );
+
+			if ( msg.length < config.channelConfig.MAX_BYTES ) {
+
+				if ( !channel ) channel = keys;
+
+				if ( !Array.isArray( channel ) ) {
+
+					channel = [ channel ];
+				}
+
+				for ( var i = 0, l = channel.length; i < l; i++ ) {
+
+					channels[ channel[i] ].send( msg );
+				}
+
+			} else {	// too large
+
+				chunkMessage.apply( this, [ channel, msg ] );
+			}
+
+		} else { // initializing handshake
+
+			msg.local = this.localID,
+			msg.remote = this.remoteID;
+
+			// mesh work	// this.transport -> the connection ||	delegates to the call aboe !
+			if ( this.transport ) {
+
+				this.transport.send( 'register', msg );
+
+			} else {
+
+				socket.send( msg );
+			}
+		}
 	};
 
 
-	Connection.prototype.close = function(){
+	function chunkMessage ( channel, msg ) {
+
+		var	maxBytes	= config.channelConfig.MAX_BYTES,
+			chunkSize	= config.channelConfig.CHUNK_SIZE,
+			size		= msg.length,
+			chunks		= [];
+
+		var start		= 0,
+			end			= chunkSize;
+
+		// console.log(JSON.parse(msg));
+
+		while ( start < size ) {
+
+			chunks.push( msg.slice( start, end ) );
+
+			start = end;
+			end = start + chunkSize;
+		}
+
+		// buffer - object (see default)
+
+		// console.log( '[too large] - split: ' + size + ' || ' + chunks.length );
+
+		var id = Date.now();
+
+		// buffer[ id ] = { timer: null, chunks: chunks }; //.reverse() };
+		buffer[ id ] = chunks.reverse();
+
+		this.send( 'chunk', { id: id, size: chunks.length });
+	}
+
+
+	Connection.prototype.close = function( channel ) {
 
 		var channels = this.channels,
 			keys = Object.keys(channels);
 
-		for ( var i = 0, l = keys.length; i < l; i++ ) {
+		if ( !channel ) channel = keys;
 
-			channels[ keys[i] ].close();
-			delete channels[ keys[i] ];
+		if ( !Array.isArray( channel ) ) {
+
+			channel = [ channel ];
+		}
+
+		for ( var i = 0, l = channel.length; i < l; i++ ) {
+
+			channels[ channel[i] ].close();
+			delete channels[ channel[i] ];
 		}
 	};
 
 	return Connection;
 
 })();
-
-
-
-// local logger !
-
-// logger( ) - enumerates the way - used for backtracing // remote logger !
-
-// function loggerr ( e ) {
-
-// 	console.log( e );
-
-// 	transport.send({ type: debug, data: })
-// }
-
-
-
 
