@@ -1,10 +1,11 @@
 /**
- *	Event:
+ *	Event
+ *	=====
  *
  *	Message handling using a Mediator (publish/subscribe).
  */
 
-extend( pg, function(){
+utils.extend( utils, function(){
 
 	'use strict';
 
@@ -12,6 +13,13 @@ extend( pg, function(){
 	var channels = {};
 
 
+	/**
+	 * Register callbacks to topics.
+	 *
+	 * @param  {String}   topics	- topics to subscribe
+	 * @param  {Function} callback	- function which should be executed on call
+	 * @param  {Object}   context	- specific context of the execution
+	 */
 	function subscribe ( topics, callback, context ) {
 
 		topics = topics.split(' ');
@@ -29,6 +37,12 @@ extend( pg, function(){
 	}
 
 
+	/**
+	 * Send data to subscribed functions.
+	 *
+	 * @param  {String}		topic		-	topic to send the data
+	 * @params	......		arguments	-	arbitary data
+	 */
 	function publish ( topic ) {
 
 		var listeners = channels[ topic ];
@@ -47,6 +61,12 @@ extend( pg, function(){
 	}
 
 
+	/**
+	 * Unsubscribe callbacks from a topic.
+	 *
+	 * @param  {String}		topic		- topic of which listeners should be removed
+	 * @param  {Function}	callback	- specific callback which should be removed
+	 */
 	function unsubscribe ( topic, callback ) {
 
 		if ( !callback ) {
