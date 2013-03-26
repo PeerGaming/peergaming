@@ -1,11 +1,11 @@
-![PeerGaming](https://raw.github.com/Autarc/PeerGaming/blob/master/material/logo-temp.png)
+![PeerGaming](https://github.com/Autarc/PeerGaming/blob/master/material/logo-temp.png)
 
 PeerGaming - Share the Fun
 ==========================
 
 A Client-Side Multiplayer Gaming Framework for the Web.
 
-_Latest Release: 0.2.0 ([view changelog](https:github.com/Autarc/PeerGaming/blob/master/HISTORY.md))_
+_Latest Release: 0.2.0 ([changelog](https://github.com/Autarc/PeerGaming/blob/master/HISTORY.md))_
 
 
 ## Introduction
