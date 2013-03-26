@@ -10,9 +10,10 @@ var config = {
 
 	channelConfig: {
 
-		MAX_BYTES	: 1024,					// max bytes throughput of a DataChannel
-		CHUNK_SIZE	:  600,					// size of the chunks - in which the data will be splitt
-		CHUNK_DELAY	:  400					// time to delay sending chunks through a channel
+		BANDWIDTH	: 1024 * 1000,		// 1MB			// prev:  1638400	|| 1600 - increase DataChannel width
+
+		MAX_BYTES	: 1024 *   1,		// 1kb			// max bytes throughput of a DataChannel
+		CHUNK_SIZE	:  600								// size of the chunks - in which the data will be splitt
 	},
 
 
@@ -45,13 +46,24 @@ var config = {
 
 	mediaConstraints: {
 
-		optional: [],
-
 		mandatory: {										// required permissions
 
 			OfferToReceiveAudio		: true,
 			OfferToReceiveVideo		: true
-		}
+		},
+
+		optional: []
+	},
+
+	videoConstraints: {										// e.g. android
+
+		mandatory: {
+
+			maxHeight	: 320,
+			maxWidth	: 240
+		},
+
+		optional: []
 	}
 
 };

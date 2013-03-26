@@ -3,8 +3,9 @@
  *  ======
  *
  *  Interface for the player - will extend the peer wrapper.
+ *  // A wrapper for a Peer/Node. Using singleton pattern.
  */
-// A wrapper for a Peer/Node. Using singleton pattern.
+
 
 pg.Player = function ( name ) {
 
@@ -12,32 +13,22 @@ pg.Player = function ( name ) {
 
 	var Player = (function(){
 
-		// custom settings overwrite default
-		utils.extend( config, pg.config );
-
 
 		var Player = function ( name ) {
 
-			// inherits( this, pg.Peer );
-
 			var data = {
 
-				id		: utils.createUID(), //createID(),
+				id		: utils.createUID(),
 				name	: name
 			};
 
-			// this.init( data );
-			this.id		= data.id;
-			this.name	= data.name;
-
-
-			// player specific - as private
-			this.stores = {};	// current layer= network (e.g. DHT for global)
+			this.init( data );
 
 			this.connections = {};
 
-			// console.log('[Player] id - ' + this.id);
+
 			console.log('\n\t\t:: ' + this.id + ' ::\n');
+
 
 			var register = function(){
 
@@ -67,6 +58,9 @@ pg.Player = function ( name ) {
 		};
 
 
+		utils.inherits( Player, Peer );
+
+
 		Player.prototype.checkNewConnections = function ( list, transport ) {
 
 			var connections = this.connections,
@@ -79,10 +73,11 @@ pg.Player = function ( name ) {
 
 				if ( remoteID !== localID && !connections[ remoteID ] ) {
 
-					instance.connect( remoteID, true, transport );
+					this.connect( remoteID, true, transport );
 				}
 			}
 		};
+
 
 		// perhaps hide interfaces, include the check new connections into the 'instance.connect' ?
 		Player.prototype.connect = function ( remoteID, initiator, transport ) {
@@ -95,11 +90,8 @@ pg.Player = function ( name ) {
 
 			this.connections[ remoteID ] = connection;
 
-			pg.peers[ remoteID ] = new pg.Peer({ id: remoteID, connection: connection });
+			pg.peers[ remoteID ] = new Peer({ id: remoteID, connection: connection });
 		};
-
-
-		Player.prototype.on = utils.on;
 
 
 		Player.prototype.send = function ( channel, msg ) {
@@ -124,11 +116,10 @@ pg.Player = function ( name ) {
 
 				for ( n = 0, k = channel.length; n < k; n++ ) {
 
-					conn.send( 'delegate', { action: channel[n], data: msg });
+					conn.send( channel, { local: this.name, msg: msg });
 				}
 			}
 		};
-
 
 		return Player;
 
@@ -137,3 +128,4 @@ pg.Player = function ( name ) {
 
 	return instance || ( instance = new Player( name ) );
 };
+

@@ -5,113 +5,87 @@
  *  A wrapper for PeerConnections.
  */
 
+
 var Connection = (function(){
 
 	'use strict';
 
 
-	var media = false;
+	// var media = false;
 
-	var Connection = function ( localID, remoteID, initiator, transport ) {
+	var Connection = function ( local, remote, initiator, transport ) {
 
-		this.localID	= localID;
-		this.remoteID	= remoteID;
-		this.initiator	= initiator;
-		this.transport	= transport;
+		this.info = {
+
+			local	: local,
+			remote	: remote,
+			pending	: true
+		};
+
+		if ( initiator ) this.info.initiator = true;
+		if ( transport ) this.info.transport = transport;
 
 		this.channels = {};
 
-		this.conn = new RTCPeerConnection( config.peerConfig, config.connectionConstraints );
-
-		if ( media ) {
-
-			this.attachMediaStreams();
-
-		} else {
-
-			this.init();
-		}
+		this.init();
 	};
 
 
 	Connection.prototype.init = function(){
 
-		if ( this.initiator ) {
+		this.conn = new RTCPeerConnection( config.peerConfig, config.connectionConstraints );
 
-			this.createOffer();
-		}
-
-		this.detectChanges();
+		this.checkStateChanges();
 
 		this.receiveDataChannels();
 
 		this.findICECandidates();
 
-		if ( this.SDP ) {
+		if ( this.info.initiator ) {
 
-			this.setConfigurations( this.SDP );
-			delete this.SDP;
+			this.createOffer();
 		}
 	};
 
 
+	Connection.prototype.checkStateChanges = function(){
+
+		var conn	= this.conn;
+
+		conn.onstatechange = function ( e ) {
+		// conn.onsignalingstatechange = function ( e ) {
+
+			// console.log('[state changed]');
+
+			// var state = e.currentTarget.signalingState;
+			// if ( state === 'stable' ) {
+			//	console.log('stable');
+			// }
+			// console.log(state);
 
 
-	// SDP enhancemend
-	Connection.prototype.attachMediaStreams = function(){
+			// will be leeverae over the state change - refering callbacks 1 !
 
-		var conn = this.conn;
+			// console.log(conn);
+			// console.log(conn.onconnecting);
+			// console.log(conn.onopen);
 
-		conn.onaddstream = function ( e ){
+			// connection.onconnecting = onSessionConnecting;
+			// connection.onopen = onSessionOpen;
+			//
+			// ToDo: closing state could perhaps be used to clean up, not relying on datachannel itself
+			//		but the missing peer connection !
+			//
+			//// pass
+			//
+			//-- error
+			//-- open
+			//-- close...
 
-			console.log('[added stream]');
 
-			// var video = document.createElement('video');
-			// video.src = URL.createObjectURL( e.stream );
-			// video.autoplay = true;
-
-			// var box = document.createElement('div');
-			// box.textContent = this.remoteID;
-			// box.className = 'name';
-			// box.appendChild(video);
-
-			// document.body.appendChild( box );
-
-		}.bind(this);
-
-		conn.onremovestream = function ( e ) {
-
-			console.log('[removed stream]');
-
-			// document.getElementById('vid2').src = null;
-			// URL.revokeObjectURL( e.stream );
 		};
 
-		// device access
-		var permissions = { audio: true, video: true };
-
-		navigator.getUserMedia( permissions, function ( stream ) {
-
-			this.stream = stream;
-
-			conn.addStream( stream );
-
-			// document.getElementById('vid1').src = URL.createObjectURL(stream);
-
-			// var videoTracks = stream.getVideoTracks(),
-				// audioTracks = stream.getAudioTracks();
-
-			this.init();
-
-		}.bind(this));
-	};
-
-
-	Connection.prototype.detectChanges = function(){
-
-		var conn	= this.conn,
-			length	= Object.keys( defaultHandlers ).length;
-
+		var length	= Object.keys( defaultHandlers ).length;
 
 		conn.onnegotiationneeded = function ( e ) {
 
@@ -125,56 +99,27 @@ var Connection = (function(){
 		}.bind(this);
 
 
-		conn.onstatechange = function ( e ) {
-
-			// console.log('[state changed]');
-			// console.log(e);
-		};
-
-
 		conn.onicechange = function ( e ) {
+		// conn.oniceconnectionstatechange = function ( e ) {
 			// console.log('[ice changed]');
 			// console.log(e);
 		};
+
 	};
 
 
+	// receive remote created channel
 	Connection.prototype.receiveDataChannels = function(){
 
-		// receive remote created channel
 		this.conn.ondatachannel = function ( e ) {
-
-			// console.log('[remote channel]');
 
 			var channel = e.channel,
 
-				name = channel.label,
+				label = channel.label;
 
-				handler = new Handler( this.remoteID, defaultHandlers[ name ] );
-
-			channel.onopen = handler.open.bind(handler);
+			this.channels[ label ] = new Handler( channel, this.info.remote );
 
 		}.bind(this);
-	};
-
-
-	Connection.prototype.createDataChannel = function ( name, options ) {
-
-		if ( options ) customHandlers[ name ] = options;
-
-		try {
-
-			var channel = this.conn.createDataChannel( name, moz ? {} : { reliable: false }),
-
-				handler = new Handler( this.remoteID, defaultHandlers[ name ] );
-
-			channel.onopen = handler.open.bind(handler);
-
-		} catch ( e ) {	// getting: a "NotSupportedError" - but is working !
-
-			console.log('[Error] - Creating DataChannel (*)');
-			// console.log(e);
-		}
 	};
 
 
@@ -191,47 +136,15 @@ var Connection = (function(){
 		}.bind(this);
 	};
 
-
-	Connection.prototype.createOffer = function() {
-
-		var conn = this.conn;
-
-		conn.createOffer( function ( offer ) {
-
-			// console.log('[create offer]');
-
-			conn.setLocalDescription( offer, function(){
-
-				this.send({ action: 'setConfigurations', data: offer });
-
-			}.bind(this));
-
-		}.bind(this), loggerr );
-	};
-
+	// perhaps ease on clean up later, just ensure simplier handler, check
+	// http://html5videoguide.net/presentations/LCA_2013_webrtc/#page21
 
 	// needs a description first !
 	Connection.prototype.setIceCandidates = function ( data ) {
 
 		var conn = this.conn;
 
-		if ( conn.remoteDescription ) {//|| conn.localDescription ) {
-
-			if ( this.test ) {
-
-				if ( !this._candidates ) this._candidates = [];
-
-				this._candidates.push( data );
-
-				// console.log(this.test++);
-				return;
-			}
-
-
-			this.test = 1;
-			// ICE wird vor dem 2.offer gesetzt und ist evlt in kompatible
-			// 10 candiadtes - just after received offer - answer...	// second offer !
-
+		if ( conn.remoteDescription || conn.localDescription ) {
 
 			if ( this._candidates ) delete this._candidates;
 
@@ -251,17 +164,26 @@ var Connection = (function(){
 	};
 
 
+	Connection.prototype.createOffer = function() {
 
+		var conn = this.conn;
+
+		conn.createOffer( function ( offer ) {
+
+			offer.sdp = adjustSDP( offer.sdp );
+
+			conn.setLocalDescription( offer, function(){
+
+				this.send({ action: 'setConfigurations', data: offer });
+
+			}.bind(this) );
+
+		}.bind(this), loggerr );	// 3.param || media contrain
+	};
 
 
 	// exchange settings
 	Connection.prototype.setConfigurations = function ( msg ) {
-
-		// ensure stream
-		if ( media && !this.stream ) {
-
-			this.SDP = msg; return;
-		}
 
 		// console.log('[SDP] - ' +  msg.type );	// description
 
@@ -269,14 +191,16 @@ var Connection = (function(){
 
 			desc = new RTCSessionDescription( msg );
 
+
 		conn.setRemoteDescription( desc, function(){
 
-			delete this.test;
 			if ( this._candidates ) this.setIceCandidates( this._candidates );
 
 			if ( msg.type === 'offer' ) {
 
 				conn.createAnswer( function ( answer ) {
+
+					answer.sdp = adjustSDP( answer.sdp );
 
 					conn.setLocalDescription( answer, function(){
 
@@ -288,74 +212,75 @@ var Connection = (function(){
 
 			} else {
 
-				if ( this.created ) {
-
-					delete this.created;
-					return;
-				}
-
-				this.created = true;
-
-				// console.log('[createDataChannel]');
-
-				// establish the basic channels
-
-				var defaultChannels = Object.keys( defaultHandlers );
-
-				for ( var i = 0, l = defaultChannels.length; i < l ; i++ ) {
-
-					this.createDataChannel( defaultChannels[i] );
-				}
+				createDefaultChannels( this );
 			}
 
 		}.bind(this), loggerr );
 	};
 
 
+	Connection.prototype.createDataChannel = function ( label, options ) {
+
+		try {
+
+			var channel = this.conn.createDataChannel( label, moz ? {} : { reliable: false });
+
+			this.channels[ label ] = new Handler( channel, this.info.remote );
+
+		} catch ( e ) {	// getting: a "NotSupportedError" - but is working !
+
+			console.log('[Error] - Creating DataChannel (*)');
+		}
+	};
+
+
+	// messed up, as already assigned to the id , cant be used for inital messaging !
+
 	Connection.prototype.send = function ( channel, msg ) {
 
 		if ( !msg ) {
 
-			msg = channel;
-			channel = null;
+			msg = channel; channel = null;
 		}
 
-		var channels = this.channels,
-			keys = Object.keys( channels );
+		if ( !this.info.pending ) {		// established set through defaultHandler
 
-		if ( keys.length ) {
+			this.send = function useChannels ( channel, msg ) {
 
-			// match earlier - see socket stringify ?
-			msg = JSON.stringify( msg );
+				var channels = this.channels;
 
-			if ( msg.length < config.channelConfig.MAX_BYTES ) {
+				if ( !channel ) channel = keys = Object.keys( channels );
 
-				if ( !channel ) channel = keys;
+				if ( !Array.isArray( channel ) ) channel = [ channel ];
 
-				if ( !Array.isArray( channel ) ) {
-
-					channel = [ channel ];
-				}
+				// ToDo: closing issue
+				// missing - message will be send - injected as , new icecandidates will be created etc.
 
 				for ( var i = 0, l = channel.length; i < l; i++ ) {
 
-					channels[ channel[i] ].send( msg );
+					// try {
+
+					if ( channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
+
+					// } catch ( err ) {
+						// console.log(channel);
+						// console.log(msg);
+					// }
 				}
 
-			} else {	// too large
+			}.bind(this);
 
-				chunkMessage.apply( this, [ channel, msg ] );
-			}
+			this.send( channel, msg );
 
 		} else { // initializing handshake
 
-			msg.local = this.localID,
-			msg.remote = this.remoteID;
+			msg.local = this.info.local,
+			msg.remote = this.info.remote;
 
 			// mesh work	// this.transport -> the connection ||	delegates to the call aboe !
-			if ( this.transport ) {
+			if ( this.info.transport ) {
 
-				this.transport.send( 'register', msg );
+				this.info.transport.send( 'register', msg );
 
 			} else {
 
@@ -363,39 +288,6 @@ var Connection = (function(){
 			}
 		}
 	};
-
-
-	function chunkMessage ( channel, msg ) {
-
-		var	maxBytes	= config.channelConfig.MAX_BYTES,
-			chunkSize	= config.channelConfig.CHUNK_SIZE,
-			size		= msg.length,
-			chunks		= [];
-
-		var start		= 0,
-			end			= chunkSize;
-
-		// console.log(JSON.parse(msg));
-
-		while ( start < size ) {
-
-			chunks.push( msg.slice( start, end ) );
-
-			start = end;
-			end = start + chunkSize;
-		}
-
-		// buffer - object (see default)
-
-		// console.log( '[too large] - split: ' + size + ' || ' + chunks.length );
-
-		var id = Date.now();
-
-		// buffer[ id ] = { timer: null, chunks: chunks }; //.reverse() };
-		buffer[ id ] = chunks.reverse();
-
-		this.send( 'chunk', { id: id, size: chunks.length });
-	}
 
 
 	Connection.prototype.close = function( channel ) {
@@ -417,7 +309,48 @@ var Connection = (function(){
 		}
 	};
 
+	// @Sharefest
+	// modifying the SDP parameters for interoperability and bandwidth
+	function adjustSDP ( sdp ) {
+
+		// crypto
+		if ( !~sdp.indexOf('a=crypto') ) {
+
+			var crypto = [], length = 4;
+
+			while ( length-- ) crypto.push( utils.getToken() );
+
+			sdp += 'a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:' + crypto.join('') + '\r\n';
+		}
+
+		// bandwidth
+		if ( ~sdp.indexOf('b=AS') ) {
+
+			sdp = sdp.replace( /b=AS:([0-9]*)/, function ( match, text ) {
+
+				var size = config.channelConfig.BANDWIDTH;
+
+				return 'b=AS:' + size;
+			});
+		}
+
+		return sdp;
+	}
+
+
+	// create basic channels
+	function createDefaultChannels ( connection )  {
+
+		if ( Object.keys(connection.channels).length ) return;
+
+		var defaultChannels = Object.keys( defaultHandlers );
+
+		for ( var i = 0, l = defaultChannels.length; i < l ; i++ ) {
+
+			connection.createDataChannel( defaultChannels[i] );
+		}
+	}
+
 	return Connection;
 
 })();
-

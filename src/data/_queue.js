@@ -58,6 +58,11 @@ var Queue = (function(){
 	};
 
 
+	Queue.prototype.clear = function(){
+
+		this.list.length = 0;
+	};
+
 	return Queue;
 
 })();

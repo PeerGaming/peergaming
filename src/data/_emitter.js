@@ -5,12 +5,20 @@
  *	Message handling using a Mediator (publish/subscribe).
  */
 
-utils.extend( utils, function(){
+var Emitter = (function(){
 
 	'use strict';
 
-	// cache
-	var channels = {};
+
+	/**
+	 *  Constructor
+	 */
+	var EventEmitter = function(){
+
+		this._events = {};
+
+		return this;
+	};
 
 
 	/**
@@ -20,21 +28,41 @@ utils.extend( utils, function(){
 	 * @param  {Function} callback	- function which should be executed on call
 	 * @param  {Object}   context	- specific context of the execution
 	 */
-	function subscribe ( topics, callback, context ) {
+
+	EventEmitter.prototype.on = function ( topics, callback, context ) {
+
+		if ( typeof callback !== 'function' ) return;
 
 		topics = topics.split(' ');
 
-		var length = topics.length,	topic;
+		var events	= this._events,
+			length	= topics.length,
+			topic;
 
 		while ( length-- ) {
 
 			topic = topics[ length ];
 
-			if ( !channels[ topic ] ) channels[ topic ] = [];
+			if ( !events[ topic ] ) events[ topic ] = [];
 
-			channels[ topic ].push([ callback, context ]);
+			events[ topic ].push([ callback, context ]);
 		}
-	}
+
+		return this;
+	};
+
+
+
+	EventEmitter.prototype.once = function ( topics, callback, context ) {
+
+		this.on( topics, function once() {
+
+			this.off( type, once );
+
+			callback.apply( this, arguments );
+
+		}.bind(this));
+	};
 
 
 	/**
@@ -43,9 +71,11 @@ utils.extend( utils, function(){
 	 * @param  {String}		topic		-	topic to send the data
 	 * @params	......		arguments	-	arbitary data
 	 */
-	function publish ( topic ) {
 
-		var listeners = channels[ topic ];
+	EventEmitter.prototype.emit = function ( topic ) {
+
+		var events		= this._events,
+			listeners	= events[ topic ];
 
 		if ( listeners ) {
 
@@ -58,7 +88,7 @@ utils.extend( utils, function(){
 				listeners[length][0].apply( listeners[length][1], args || [] );
 			}
 		}
-	}
+	};
 
 
 	/**
@@ -67,17 +97,21 @@ utils.extend( utils, function(){
 	 * @param  {String}		topic		- topic of which listeners should be removed
 	 * @param  {Function}	callback	- specific callback which should be removed
 	 */
-	function unsubscribe ( topic, callback ) {
+
+	EventEmitter.prototype.off = function ( topic, callback ) {
+
+		var events		= this._events,
+			listeners	= events[ topic ];
+
+		if ( !listeners ) return;
 
 		if ( !callback ) {
 
-			channels[ topic ].length = 0;
+			events[ topic ].length = 0;
 
 		} else {
 
-			var listeners = channels[ topic ],
-
-				length = listeners ? listeners.length : 0;
+			var length = listeners.length;
 
 			while ( length-- ) {
 
@@ -87,15 +121,9 @@ utils.extend( utils, function(){
 				}
 			}
 		}
-	}
 
-
-	return {
-
-		on	: subscribe,
-		emit: publish,
-		off	: unsubscribe
 	};
 
-}());
+	return EventEmitter;
 
+})();

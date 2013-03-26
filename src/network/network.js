@@ -1,6 +1,4 @@
-//= require "_config.js"
 //= require "_handler.js"
-//= require "_reliable.js"
 //= require "_default.js"
 //= require "_socket.js"
 //= require "_connection.js"

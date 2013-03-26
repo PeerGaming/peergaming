@@ -8,70 +8,119 @@
 
 var Handler = (function(){
 
-	var Handler = function ( remoteID, options ) {
+// if ( options ) customHandlers[ label ] = options;
 
-		this.remoteID = remoteID;
+	var Handler = function ( channel, remote ) {	// remote not required, as already assigned
 
-		this.connection = instance.connections[this.remoteID];
+		var label		= channel.label;
 
-		if ( options ) {
+		this.info		= {
 
-			if ( !options.message ) {
+			label	: label,
+			remote	: remote
+		};
 
-				options = { message: options };
-			}
 
-			var keys = Object.keys( options );
+		this.channel	= channel;
 
-			for ( var i = 0, l = keys.length; i < l; i++ ){
+		this.stream		= new Stream({ readable: true, writeable: true });
 
-				this[ '_' + keys[i] ] = options[ keys[i] ];
-			}
+
+		this.actions	= defaultHandlers[ label ] || defaultHandlers.custom;
+
+		if ( typeof this.actions === 'function' ) this.actions = { end: this.actions };
+
+		channel.addEventListener( 'open', this.init.bind(this) );
+	};
+
+
+	Handler.prototype.init = function ( e ) {
+
+		// console.log('[open] - '  + this.label );
+
+		var channel		= this.channel,
+
+			actions		= this.actions,
+
+			stream		= this.stream,
+
+			connection	= instance.connections[ this.info.remote ],
+
+			events = [ 'open', 'data', 'end', 'close', 'error' ];
+
+
+		for ( var i = 0, l = events.length; i < l; i++ ) {
+
+			stream.on( events[i], actions[ events[i] ], connection );
+		}
+
+		stream.on( 'write', function send ( msg ) { channel.send( msg ); });
+
+
+		channel.onmessage	= stream.handle.bind( stream );
+
+		channel.onclose		= function() { stream.emit( 'close' );	};
+
+		channel.onerror		= function ( err ) { stream.emit( 'error', err ); };
+
+		stream.emit( 'open', e );
+	};
+
+
+	// currently still required to encode arraybuffer to to strings...
+	// // Using Strings instead an arraybuffer....
+	Handler.prototype.send = function ( msg ) {
+
+		var data = JSON.stringify( msg ),
+
+			buffer = data; //utils.StringToBuffer( data );
+
+
+		if ( buffer.length > config.channelConfig.MAX_BYTES ) {
+		// if ( buffer.byteLength > config.channelConfig.MAX_BYTES ) {
+
+			buffer = createChunks( buffer );	// msg.remote...
+
+		} else {
+
+			buffer = [ buffer ];
+		}
+
+		for ( var i = 0, l = buffer.length; i < l; i++ ) {
+
+			this.stream.write( buffer[i] );
 		}
 	};
 
-	Handler.prototype.open = function ( e ) {
 
-		var channel	= e.currentTarget;
+	function createChunks ( buffer ) {
 
-		this.name = channel.label;
+		var	maxBytes	= config.channelConfig.MAX_BYTES,
+			chunkSize	= config.channelConfig.CHUNK_SIZE,
+			size		= buffer.length, //byteLength,
+			chunks		= [],
 
-		// console.log('[open] - '  +this.name);
+			start		= 0,
+			end			= chunkSize;
 
-		//channel.binaryType = 'arraybuffer'; // 'blob'
+		while ( start < size ) {
 
-		channel.addEventListener( 'message',	this.message.bind(this) );
-		channel.addEventListener( 'close',		this.close.bind(this)	);
-		channel.addEventListener( 'error',		this.error.bind(this)	);
+			chunks.push( buffer.slice( start, end ) );
 
-		this.connection.channels[this.name] = channel;
+			start = end;
+			end = start + chunkSize;
+		}
 
-		if ( this._open ) this._open.call( this.connection, e );
-	};
+		var l = chunks.length,
+			i = 0;				// increment
 
-	Handler.prototype.message = function ( e ) {
+		while ( l-- ) {
 
-		// console.log('[message]');
-		// console.log(e);
+			chunks[l] = JSON.stringify({ part: i++, data: chunks[l] });
+		}
 
-		if ( this._message ) this._message.call( this.connection, e );
-	};
-
-	Handler.prototype.error = function ( e ) {
-
-		console.log('[channel - error]');
-		// console.log(e);
-
-		if ( this._error ) this._error.call( this.connection, e );
-	};
-
-	Handler.prototype.close = function(){
-
-		console.log('[channel - closed]');
-		// console.log(e);
-
-		if ( this._close ) this._close.call( this.connection, e );
-	};
+		return chunks;
+	}
 
 
 	return Handler;
