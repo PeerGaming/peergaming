@@ -7,7 +7,7 @@
 
 var pg = function(){};
 
-pg.VERSION = '0.1.7';
+pg.VERSION = '0.2.0';
 
 
 // Collection of all connected peers

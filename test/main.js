@@ -5,18 +5,24 @@
 
 	'use strict';
 
-	var data = 'test';
+	var name = 'test';
 
 	setTimeout(function(){
 
-		pg.login( data, function ( player ) {
+		pg.login( name, function ( player ) {
 
 			window.player = player;
 
 			player.on('connection', function ( peer ) {
 
-				// console.log(peer);
 				console.log('[connected] ID: ' , peer.id );
+			});
+
+			player.on('message', function ( msg ) {
+
+				console.log('[message]');
+
+				console.log(msg);
 			});
 		});
 

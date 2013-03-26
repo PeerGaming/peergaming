@@ -373,7 +373,7 @@ if ( config.test ) {
 	function cycle ( event, filename ) {
 
 		changed = !changed;
-		// console.log('ready');
+
 		if  ( !changed || !ready ) return;
 
 		ready = false;

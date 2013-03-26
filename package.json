@@ -1,7 +1,7 @@
 {
 	"name"				: "PeerGaming",
 	"description"		: "A Client-Side Multiplayer Gaming Framework for the Web",
-	"version"			: "0.1.7",
+	"version"			: "0.2.0",
 	"homepage"			: "http://peergaming.net",
 	"author"			: {
 		"name"			: "Stefan Dühring",
