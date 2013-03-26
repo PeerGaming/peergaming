@@ -22,7 +22,6 @@ if ( !win.performance ) {
 }
 
 
-
 /**
  *	Blob & ObjectURL
  */
@@ -39,6 +38,33 @@ if ( !win.Blob && !win.BlobBuilder ) {
 						win.MozBlobBuilder		||
 						win.MSBlobBuilder		||
 						win.OBlobBuilder;
+}
+
+
+/**
+ *	setImmediate
+ */
+
+if ( !win.setImmediate ) {
+
+	win.setImmediate = (function () {
+
+		var callbacks = [];
+
+		win.addEventListener( 'message', handle, true );
+
+		function handle() { callbacks.shift()(); }
+
+		return function ( fn ) {
+
+			if ( typeof fn !== 'function' ) throw Error('Invalid Argument');
+
+			callbacks.push( fn );
+
+			win.postMessage( 'setImmediate', '*' );
+		};
+
+	})();
 }
 
 
