@@ -1,4 +1,4 @@
-![PeerGaming](https://github.com/Autarc/PeerGaming/blob/master/material/logo-temp.png)
+![PeerGaming](https://github.com/Autarc/PeerGaming/raw/master/material/logo-temp.png)
 
 PeerGaming - Share the Fun
 ==========================
@@ -10,28 +10,41 @@ _Latest Release: 0.2.0 ([changelog](https://github.com/Autarc/PeerGaming/blob/ma
 
 ## Introduction
 
-PeerGaming is an web framework for the browser, which uses WebRTC to connect multiple clients
-and allows them to communicate together. It makes it easy to create & deploy your own Multiplayer game.
+PeerGaming is a web framework for the browser, which uses WebRTC to connect multiple clients
+and allows them to communicate. It makes it easy to create & deploy your own Multiplayer game,
+as no additional server component is required.
 
 - Site: [peergaming.net](http://peergaming.net)
 
 
 ## Features
 
-* library agnostic
+* library agnostic (= standalone)
 * easy setup / simple connection
 * reactive data handling
 
 
 ## Info
 
-The Project is still in early development and changes quite often. The next updates will
-include a proper API to be more usefull in a gaming environment.
+The Project is currently still in early development and changes quite often.
+Within the next updates, a proper API to be more useful in a gaming environment will be provided.
 
 
 ## Example
 
-TODO
+```js
+
+var name = 'user';
+
+pg.login( name, function( player ) {
+
+	player.on('connection', function ( peer ) {
+
+		console.log( '[joined]' + peer.name );
+	});
+});
+
+```
 
 
 ## Usage (API)
@@ -51,7 +64,7 @@ TODO
 * test		: tests
 
 
-### Tribute
+## Tribute
 
 > In remembrance to all connections which doesn't exist.
 
