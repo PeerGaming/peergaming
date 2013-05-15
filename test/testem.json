@@ -1,0 +1,25 @@
+{
+	"framework": "mocha",
+
+	"src_files": [
+
+		"specs/*.coffee"
+	],
+
+	"before_tests"	: "node ../node_modules/.bin/coffee -c specs/*.coffee",
+	"after_tests"		: "rm specs/*.js",
+
+	"serve_files": [
+
+		"../dist/peergaming.js",
+		"specs/*.js"
+	],
+
+	"launch_in_dev": [
+
+		"Chrome",
+		"Firefox"
+	]
+}
+
+
