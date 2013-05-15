@@ -1,11 +1,16 @@
 /**
- *  Brookering Server
+ *  PeerGaming Server
+ *  =================
+ *
+ *  Backend for handling requests.
  */
 
+
 var http		= require('http'),
-	config		= require('./config.js'),
-	sse			= require('./scripts/transport.sse.js');
-	ws			= require('./scripts/transport.socket.js');
+    config	= require('./config.js'),
+    sse     = require('./scripts/transport.sse.js'),
+    ws			= require('./scripts/transport.socket.js');
+
 
 var server = http.createServer( function ( req, res ) {
 
@@ -20,10 +25,10 @@ var server = http.createServer( function ( req, res ) {
 	sse.handle( req, res );
 });
 
+
 server.listen( config.port, function(){
 
 	ws.init( server, config.origin );
 
-	console.log( new Date() + ' - Server is listening on port: ' + config.port );
+	console.log( '[' + new Date() + '] - Server is listening on port: ' + config.port );
 });
-

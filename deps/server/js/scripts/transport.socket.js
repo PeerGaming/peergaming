@@ -1,37 +1,39 @@
-var WebSocketServer	= require('websocket').server,
-	peerlist		= require('./peerlist.js');
+/**
+ *  Transport - Socket
+ *  ==================
+ *
+ *  WebSocket Transport Layer
+ */
+
+var querystring     = require('querystring'),
+    WebSocketServer	= require('websocket').server,
+    peerlist        = require('./peerlist.js');
 
 
 var init = function ( server, origin ) {
 
-
 	var socketServer = new WebSocketServer({
 
-		httpServer: server,
-		autoAcceptConnections: false
-	});
+    httpServer            : server,
+    autoAcceptConnections : false
+  });
 
 
 	socketServer.on('request', function ( req ) {
 
-		if ( req.origin !== origin ) {	// prevent CORS
+    // prevent CORS
+		if ( origin && req.origin !== origin ) { req.reject(); return; }
 
-			req.reject();
-			return;
-		}
+    var query       = querystring.parse( req.httpRequest.url.substr(2) ),
+        connection  = req.accept( null, req.origin );
 
-		var connection	= req.accept( null, req.origin ),
-			id			= req.httpRequest.url.substr(1);
-
-		handle( id, connection );
+		handle( query, connection );
 	});
 
 
-	function handle ( id, connection ) {
+	function handle ( query, connection ) {
 
-
-		peerlist.init( id, connection );
-
+		peerlist.init( query, connection );
 
 		connection.on('message', function ( msg ) {
 
@@ -44,7 +46,7 @@ var init = function ( server, origin ) {
 		});
 
 
-		connection.on('error', function ( e )  {
+		connection.on('error', function ( e ) {
 
 			console.log( '[error] - ' + e );
 		});
@@ -53,11 +55,9 @@ var init = function ( server, origin ) {
 		connection.on('close', function() {
 
 			// console.log('[close]');
-
-			var msg = { action: 'remove', data: id };
-
-			peerlist.handle( msg );
+			peerlist.handle({ action: 'remove', origin: query.origin, local: query.local });
 		});
+
 	}
 };
 
