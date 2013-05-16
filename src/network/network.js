@@ -2,5 +2,4 @@
 //= require "_default.js"
 //= require "_socket.js"
 //= require "_connection.js"
-//= require "_peer.js"
-//= require "_player.js"
+//= require "_manager.js"

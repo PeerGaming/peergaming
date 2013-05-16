@@ -1,129 +1,144 @@
 /**
- *	Event
- *	=====
+ *  Event
+ *  =====
  *
- *	Message handling using a Mediator (publish/subscribe).
+ *  Message handling using a Mediator (publish/subscribe).
  */
 
 var Emitter = (function(){
 
-	'use strict';
+  'use strict';
 
 
-	/**
-	 *  Constructor
-	 */
-	var EventEmitter = function(){
+  /**
+   *  Constructor
+   */
 
-		this._events = {};
+  var EventEmitter = function(){
 
-		return this;
-	};
+    this._events = {};
 
-
-	/**
-	 * Register callbacks to topics.
-	 *
-	 * @param  {String}   topics	- topics to subscribe
-	 * @param  {Function} callback	- function which should be executed on call
-	 * @param  {Object}   context	- specific context of the execution
-	 */
-
-	EventEmitter.prototype.on = function ( topics, callback, context ) {
-
-		if ( typeof callback !== 'function' ) return;
-
-		topics = topics.split(' ');
-
-		var events	= this._events,
-			length	= topics.length,
-			topic;
-
-		while ( length-- ) {
-
-			topic = topics[ length ];
-
-			if ( !events[ topic ] ) events[ topic ] = [];
-
-			events[ topic ].push([ callback, context ]);
-		}
-
-		return this;
-	};
+    return this;
+  };
 
 
+  /**
+   * Register callbacks to topics.
+   *
+   * @param  {string}   topics  - topics to subscribe
+   * @param  {function} callback  - function which should be executed on call
+   * @param  {object}   context - specific context of the execution
+   */
 
-	EventEmitter.prototype.once = function ( topics, callback, context ) {
+  EventEmitter.prototype.on = function ( topics, callback, context ) {
 
-		this.on( topics, function once() {
+    if ( typeof callback !== 'function' ) return;
 
-			this.off( type, once );
+    topics = topics.split(' ');
 
-			callback.apply( this, arguments );
+    var events  = this._events,
+        length  = topics.length,
+        topic;
 
-		}.bind(this));
-	};
+    while ( length-- ) {
 
+      topic = topics[ length ];
 
-	/**
-	 * Send data to subscribed functions.
-	 *
-	 * @param  {String}		topic		-	topic to send the data
-	 * @params	......		arguments	-	arbitary data
-	 */
+      if ( !events[ topic ] ) events[ topic ] = [];
 
-	EventEmitter.prototype.emit = function ( topic ) {
+      events[ topic ].push([ callback, context ]);
+    }
 
-		var events		= this._events,
-			listeners	= events[ topic ];
-
-		if ( listeners ) {
-
-			var args = Array.prototype.slice.call( arguments, 1 ),
-
-				length = listeners.length;
-
-			while ( length-- ) {
-
-				listeners[length][0].apply( listeners[length][1], args || [] );
-			}
-		}
-	};
+    return this;
+  };
 
 
-	/**
-	 * Unsubscribe callbacks from a topic.
-	 *
-	 * @param  {String}		topic		- topic of which listeners should be removed
-	 * @param  {Function}	callback	- specific callback which should be removed
-	 */
+  /**
+   *  [once description]
+   *  @param  {[type]}   topics   [description]
+   *  @param  {Function} callback [description]
+   *  @param  {[type]}   context  [description]
+   *  @return {[type]}            [description]
+   */
 
-	EventEmitter.prototype.off = function ( topic, callback ) {
+  EventEmitter.prototype.once = function ( topics, callback, context ) {
 
-		var events		= this._events,
-			listeners	= events[ topic ];
+    this.on( topics, function once() {
 
-		if ( !listeners ) return;
+      this.off( topics, once );
+      // this.off( type, once );
 
-		if ( !callback ) {
+      callback.apply( this, arguments );
 
-			events[ topic ].length = 0;
+    }.bind(this));
 
-		} else {
+    return this;
+  };
 
-			var length = listeners.length;
 
-			while ( length-- ) {
+  /**
+   * Send data to subscribed functions.
+   *
+   * @param  {string}   topic   - topic to send the data
+   * @params  ......    arguments - arbitary data
+   */
 
-				if ( listeners[ length ] === callback ) {
+  EventEmitter.prototype.emit = function ( topic ) {
 
-					listeners.splice( length, 1 ); break;
-				}
-			}
-		}
+    var events    = this._events,
+        listeners = events[ topic ];
 
-	};
+    if ( listeners ) {
 
-	return EventEmitter;
+      var args    = Array.prototype.slice.call( arguments, 1 ),
+
+          length  = listeners.length;
+
+      while ( length-- ) {
+
+        listeners[length][0].apply( listeners[length][1], args || [] );
+      }
+    }
+
+    return this;
+  };
+
+
+  /**
+   * Unsubscribe callbacks from a topic.
+   *
+   * @param  {string}   topic   - topic of which listeners should be removed
+   * @param  {function} callback  - specific callback which should be removed
+   */
+
+  EventEmitter.prototype.off = function ( topic, callback ) {
+
+    var events    = this._events,
+        listeners = events[ topic ];
+
+    if ( !listeners ) return;
+
+    if ( !callback ) {
+
+      events[ topic ].length = 0;
+
+    } else {
+
+      var length = listeners.length;
+
+      while ( length-- ) {
+
+        if ( listeners[ length ] === callback ) {
+
+          listeners.splice( length, 1 ); break;
+        }
+      }
+    }
+
+    return this;
+  };
+
+
+  return EventEmitter;
 
 })();

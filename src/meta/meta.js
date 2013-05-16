@@ -1,1 +1,6 @@
+//= require "_info.js"
 //= require "_login.js"
+//= require "_router.js"
+//= require "_channel.js"
+//= require "_game.js"
+//= require "_media.js"

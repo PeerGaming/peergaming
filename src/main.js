@@ -1,4 +1,4 @@
-(function ( name, context, definition ) {
+;(function ( name, context, definition ) {
 
 	if ( typeof module !== 'undefined' ) {
 
@@ -13,13 +13,14 @@
 		context[name] = definition( context );
 	}
 
-})('pg', this, function ( context, undefined ) {
+})( 'pg', this, function ( context, undefined ) {
 
 	//= require "core"
 	//= require "utils"
 	//= require "data"
 	//= require "network"
 	//= require "meta"
+	//= require "game"
 
 	return pg;
 });

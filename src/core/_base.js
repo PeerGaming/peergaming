@@ -1,28 +1,42 @@
 /**
- *	Base
- *	====
+ *  Base
+ *  ====
  *
- *	Basic wrapper definitions.
+ *  Basic wrapper definition.
  */
 
-var pg = function(){};
+var reservedReference = context.pg,
 
-pg.VERSION = '0.2.0';
+    pg = Object.create( null );
 
+/**
+ *  [VERSION description]
+ *
+ *  Information about the framework version.
+ *  @type {Object}
+ */
 
-// Collection of all connected peers
-pg.peers = {};
+pg.VERSION = {
 
-
-var READY_STATES = {
-
-	0: 'connecting',
-	1: 'open',
-	2: 'closing',
-	3: 'closed'
+  codeName    : 'salty-goblin',
+  full        : '0.3.0',
+  major       : 0,
+  minor       : 3,
+  dot         : 0
 };
 
 
-// internal variables
 
-var instance;				// Singleton reference
+/**
+ *  [noConflict description]
+ *
+ *  Restore and provide the last reference of the namespace 'pg'.
+ *  @return {[type]} [description]
+ */
+
+pg.noConflict = function(){
+
+  context.pg = reservedReference;
+
+  return this;
+};

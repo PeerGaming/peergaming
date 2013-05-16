@@ -3,21 +3,55 @@
  *  =====
  *
  *  can be used after handling authentication - wrapper to preset the Peer !
+ *
+ *  Can either be a string, which is then just a name, no external service will be used - or an
+ *  secondary parameter with further credentials.
+ *
+ *  e.g.: 'name' or 'name', 'service'
+ *
+ *  // callback of "next" is also optional, as it wouldn't be required ||
+ *   if it exists - will be called before the default join  ||
+ *
+ *
+ *      additional hook can m
+ *
+ *  optional: hook && service (required just name etc.) ||
  */
 
 
-pg.login = (function(){
+pg.login = function ( name, service, hook ) {
 
-	var login = function ( data, next ) {
+  if ( typeof service === 'function' ) {
 
-		var name = data.name || data,
+    hook    = service;
+    service = null;
+  }
 
-			player = pg.Player( name );
+  if ( service ) return requestOAuth( name, service, hook );
 
-		next( player );
-	};
+  var account = { name: name };
+
+  createPlayer( account, hook );
+};
 
 
-	return login;
+// allow to login and use 3rd party data
+function requestOAuth ( name, service, hook ) {
 
-})();
+  var account = { name: name };
+
+  createPlayer( account, hook );
+}
+
+
+// assign value
+function createPlayer ( account, hook ) {
+
+  var origin = win.location.hash.substr(3) || DEFAULT_ROUTE.substr(1);
+
+  pg.player = instance = new Player( account, origin );
+
+  if ( hook ) hook( instance );
+
+  instance.join( origin );
+}

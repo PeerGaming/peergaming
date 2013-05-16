@@ -1,103 +1,93 @@
-var peers = {};
+/**
+ *  Peerlist
+ *  ========
+ *
+ *  Brookering - seperating channels
+ *
+ */
+
+
+var rooms = {};   // seperated by address
+
 
 var peerlist = {
 
-	handle: function ( msg, res ) {
+  handle: function ( msg, res ) {
 
-		if ( this[msg.action] ) {
+    if ( this[ msg.action ] ) {
 
-			this[msg.action].apply( this, [ msg, res ] );
+      // changed from msg -> msg.data
+      this[ msg.action ].apply( this, [ msg, res ] );
 
-		} else { console.log('Invalid command: ' + msg.action); }
-	},
-
-
-	remove: function ( msg, res ) {
-
-		delete peers[ msg.data ];
-		if ( res ) res.end();
-
-		// console.log(Object.keys(peers).length);
-	},
+    } else { console.log('Invalid command: ' + msg.action); }
+  },
 
 
+  remove: function ( msg, res ) {
+
+    delete rooms[ msg.origin ][ msg.local ];
+
+    if ( res ) res.end();
+  },
 
 
-	// assign
-	init: function ( id, res ) {
+  // assign
+  init: function ( msg, res ) {
 
-		peers[id] = res;
+    if ( !rooms[ msg.origin ] ) rooms[ msg.origin ] = {};
 
-		if ( res.write ) {	// XHR - keep open
+    rooms[ msg.origin ][ msg.local ] = res;
 
-			res.write('\n\n');
-		}
-	},
-
-
-	// request...// register... // noew you are also there...
-
-	lookup: function ( msg, res ) {
-
-		var partnerID = this.getPartner( msg.data );
-
-		if ( res ) {
-
-			res.end( partnerID );
-
-		} else {
-
-			var conn = peers[msg.data];
-
-			conn.send( JSON.stringify(partnerID) );
-		}
-	},
-
-	getPartner: function ( id ) {
-
-		var keys = Object.keys(peers),
-			partnerID = null;
-
-		if ( keys.length > 1 ) {
-
-			partnerID = keys[ ~~( Math.random() * keys.length ) ];
-		}
-
-		return ( partnerID !== id ) ? partnerID : this.getPartner( id );
-	},
+    // XHR - keep open
+    if ( res.write ) res.write('\n\n');
+  },
 
 
+  // request...// register...
+  lookup: function ( msg, res ) {
 
-	setIceCandidates: function ( msg, res ) {
+    var partnerID = this.getPartner( msg.origin, msg.local );
 
-		this.exchange( msg, res );
-	},
+    if ( res ) return res.end( partnerID );
 
-	setConfigurations: function ( msg, res ) {
+    var conn = rooms[ msg.origin ][ msg.local ];
 
-		this.exchange( msg, res );
-	},
+    conn.send( JSON.stringify(partnerID) );
+  },
 
 
-	// ICE & SDP
-	exchange: function ( msg, res )  {
+  getPartner: function ( addr, id ) {
 
-		var conn = peers[msg.remote];
+    var keys = Object.keys( rooms[ addr ] ),
 
-		if ( conn.write ) {
+        partnerID = null;
 
-			conn.write('data: ' + JSON.stringify( msg ) + '\n\n');
+    if ( keys.length > 1 ) partnerID = keys[ ~~( Math.random() * keys.length ) ];
 
-		} else {
+    return ( partnerID !== id ) ? partnerID : this.getPartner( addr, id );
+  },
 
-			conn.send( JSON.stringify(msg) );
-		}
 
-		if ( res ) res.end();
-	}
+  // ICE & SDP
+  setIceCandidates  : function() {  this.exchange.apply( this, arguments );  },
+  setConfigurations : function() {  this.exchange.apply( this, arguments );  },
+
+  exchange: function ( msg, res )  {
+
+    var conn = rooms[ msg.origin ][ msg.remote ];
+
+    if ( conn.send ) {
+
+      conn.send( JSON.stringify( msg ) );
+
+    } else {
+
+      conn.write('data: ' + JSON.stringify( msg ) + '\n\n');
+    }
+
+    if ( res ) res.end();
+  }
 
 };
 
-
 module.exports = peerlist;
-

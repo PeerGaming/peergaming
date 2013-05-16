@@ -10,119 +10,119 @@ var Handler = (function(){
 
 // if ( options ) customHandlers[ label ] = options;
 
-	var Handler = function ( channel, remote ) {	// remote not required, as already assigned
+  var Handler = function ( channel, remote ) {  // remote not required, as already assigned
 
-		var label		= channel.label;
+    var label   = channel.label;
 
-		this.info		= {
+    this.info   = {
 
-			label	: label,
-			remote	: remote
-		};
-
-
-		this.channel	= channel;
-
-		this.stream		= new Stream({ readable: true, writeable: true });
+      label : label,
+      remote  : remote
+    };
 
 
-		this.actions	= defaultHandlers[ label ] || defaultHandlers.custom;
+    this.channel  = channel;
 
-		if ( typeof this.actions === 'function' ) this.actions = { end: this.actions };
-
-		channel.addEventListener( 'open', this.init.bind(this) );
-	};
+    this.stream   = new Stream({ readable: true, writeable: true });
 
 
-	Handler.prototype.init = function ( e ) {
+    this.actions  = defaultHandlers[ label ] || defaultHandlers.custom;
 
-		// console.log('[open] - '  + this.label );
+    if ( typeof this.actions === 'function' ) this.actions = { end: this.actions };
 
-		var channel		= this.channel,
-
-			actions		= this.actions,
-
-			stream		= this.stream,
-
-			connection	= instance.connections[ this.info.remote ],
-
-			events = [ 'open', 'data', 'end', 'close', 'error' ];
+    channel.addEventListener( 'open', this.init.bind(this) );
+  };
 
 
-		for ( var i = 0, l = events.length; i < l; i++ ) {
+  Handler.prototype.init = function ( e ) {
 
-			stream.on( events[i], actions[ events[i] ], connection );
-		}
+    // console.log('[open] - '  + this.label );
 
-		stream.on( 'write', function send ( msg ) { channel.send( msg ); });
+    var channel     = this.channel,
 
+        actions     = this.actions,
 
-		channel.onmessage	= stream.handle.bind( stream );
+        stream      = this.stream,
 
-		channel.onclose		= function() { stream.emit( 'close' );	};
+        connection  = instance.connections[ this.info.remote ],
 
-		channel.onerror		= function ( err ) { stream.emit( 'error', err ); };
-
-		stream.emit( 'open', e );
-	};
+        events = [ 'open', 'data', 'end', 'close', 'error' ];
 
 
-	// currently still required to encode arraybuffer to to strings...
-	// // Using Strings instead an arraybuffer....
-	Handler.prototype.send = function ( msg ) {
+    for ( var i = 0, l = events.length; i < l; i++ ) {
 
-		var data = JSON.stringify( msg ),
+      stream.on( events[i], actions[ events[i] ], connection );
+    }
 
-			buffer = data; //utils.StringToBuffer( data );
-
-
-		if ( buffer.length > config.channelConfig.MAX_BYTES ) {
-		// if ( buffer.byteLength > config.channelConfig.MAX_BYTES ) {
-
-			buffer = createChunks( buffer );	// msg.remote...
-
-		} else {
-
-			buffer = [ buffer ];
-		}
-
-		for ( var i = 0, l = buffer.length; i < l; i++ ) {
-
-			this.stream.write( buffer[i] );
-		}
-	};
+    stream.on( 'write', function send ( msg ) { channel.send( msg ); });
 
 
-	function createChunks ( buffer ) {
+    channel.onmessage = stream.handle.bind( stream );
 
-		var	maxBytes	= config.channelConfig.MAX_BYTES,
-			chunkSize	= config.channelConfig.CHUNK_SIZE,
-			size		= buffer.length, //byteLength,
-			chunks		= [],
+    channel.onclose   = function() { stream.emit( 'close' );  };
 
-			start		= 0,
-			end			= chunkSize;
+    channel.onerror   = function ( err ) { stream.emit( 'error', err ); };
 
-		while ( start < size ) {
-
-			chunks.push( buffer.slice( start, end ) );
-
-			start = end;
-			end = start + chunkSize;
-		}
-
-		var l = chunks.length,
-			i = 0;				// increment
-
-		while ( l-- ) {
-
-			chunks[l] = JSON.stringify({ part: i++, data: chunks[l] });
-		}
-
-		return chunks;
-	}
+    stream.emit( 'open', e );
+  };
 
 
-	return Handler;
+  // currently still required to encode arraybuffer to to strings...
+  // // Using Strings instead an arraybuffer....
+  Handler.prototype.send = function ( msg ) {
+
+    var data    = JSON.stringify( msg ),
+
+        buffer  = data; //utils.StringToBuffer( data );
+
+
+    if ( buffer.length > config.channelConfig.MAX_BYTES ) {
+    // if ( buffer.byteLength > config.channelConfig.MAX_BYTES ) {
+
+      buffer = createChunks( buffer );  // msg.remote...
+
+    } else {
+
+      buffer = [ buffer ];
+    }
+
+    for ( var i = 0, l = buffer.length; i < l; i++ ) {
+
+      this.stream.write( buffer[i] );
+    }
+  };
+
+
+  function createChunks ( buffer ) {
+
+    var maxBytes  = config.channelConfig.MAX_BYTES,
+        chunkSize = config.channelConfig.CHUNK_SIZE,
+        size      = buffer.length, //byteLength,
+        chunks    = [],
+
+        start     = 0,
+        end       = chunkSize;
+
+    while ( start < size ) {
+
+      chunks.push( buffer.slice( start, end ) );
+
+      start = end;
+      end   = start + chunkSize;
+    }
+
+    var l = chunks.length,
+        i = 0;        // increment
+
+    while ( l-- ) {
+
+      chunks[l] = JSON.stringify({ part: i++, data: chunks[l] });
+    }
+
+    return chunks;
+  }
+
+
+  return Handler;
 
 })();

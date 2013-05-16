@@ -8,239 +8,229 @@
  */
 
 
-
 var socketQueue = new Queue();
 
 var socket = (function(){
 
-	'use strict';
+  'use strict';
 
-	// SSE
-	win.addEventListener('beforeunload', logout );
-	win.addEventListener('DOMContentLoaded', logout );
+  // initial
+  logout();
 
+  // close for SSE
+  win.addEventListener('unload',            logout );
+  win.addEventListener('beforeunload',      logout );
 
-	/**
-	 *  [req description]
-	 *
-	 *  Request for EventSource / Polling
-	 *  @param  {[type]}   msg  [description]
-	 *  @param  {Function} next [description]
-	 *  @return {[type]}        [description]
-	 */
 
-	function req ( msg, next ) {
+  /**
+   *  [req description]
+   *
+   *  Request for EventSource / Polling
+   *  @param  {[type]}   msg  [description]
+   *  @param  {Function} next [description]
+   *  @return {[type]}        [description]
+   */
 
-		// ToDo: pooling the request objects
-		var xhr = new XMLHttpRequest();
+  function req ( msg, next ) {
 
-		xhr.open( 'POST', config.socketConfig.server, true );
+    // ToDo: pooling the request objects
+    var xhr = new XMLHttpRequest();
 
-		if ( next ) {
+    xhr.open( 'POST', config.socketConfig.server, true );
 
-			xhr.onload = function ( e ) {
+    if ( next ) {
 
-				xhr.onload = null;
-				next( e.currentTarget.response );
-			};
-		}
+      // ToDo: onprogress + check
+      xhr.onload = function ( e ) {
 
-		xhr.setRequestHeader( 'Content-Type', 'text/plain; charset=UTF-8' );
-		xhr.send( msg );
-	}
+        xhr.onload = null;
+        next( e.currentTarget.response );
+      };
+    }
 
+    xhr.setRequestHeader( 'Content-Type', 'text/plain; charset=UTF-8' );
+    xhr.send( msg );
+  }
 
-	/**
-	 *  [logout description]
-	 *
-	 *  Remove ID from the server.
-	 *  @param  {[type]} e [description]
-	 *  @return {[type]}   [description]
-	 */
 
-	function logout() {
+  /**
+   *  [logout description]
+   *
+   *  Remove ID from the server.
+   *  @param  {[type]} e [description]
+   *  @return {[type]}   [description]
+   */
 
-		// no manual logout required
-		if ( config.socketConfig.server.split(':')[0] !== 'http' ) {	//
+  function logout() {
 
-			socketQueue.ready = true;
-			return;
-		}
+    // WS
+    if ( checkProtocol('ws') ) {
 
-		if ( sessionStorage.id ) {
+      socketQueue.ready = true;
+      return;
+    }
 
-			// XHR
-			var msg = { action: 'remove', data: sessionStorage.id };
 
-			send( msg, function(){
+    if ( SESSION.id ) {
 
-				if ( !socketQueue.ready ) {	// beforeunload callback
+      // XHR
+      var msg = { action: 'remove', data: SESSION.id };
 
-					delete sessionStorage.id;
+      send( msg, function(){
 
-					socketQueue.exec();
-				}
-			});
+        // beforeunload callback
+        if ( !socketQueue.ready ) {
 
-		} else {
+          delete SESSION.id;
 
-			socketQueue.exec();
-		}
-	}
+          socketQueue.exec();
+        }
+      });
 
+    } else {
 
-	/**
-	 *  [init description]
-	 *
-	 *  Register on the server.
-	 *  @param  {[type]}   id   [description]
-	 *  @param  {Function} next [description]
-	 *  @return {[type]}        [description]
-	 */
+      socketQueue.exec();
+    }
+  }
 
-	function init ( id, next ) {
 
-		sessionStorage.id = id;
+  /**
+   *  [init description]
+   *
+   *  Register on the server.
+   *  @param  {[type]}   id   [description]
+   *  @param  {Function} next [description]
+   *  @return {[type]}        [description]
+   */
 
-		connectToServer( id, function(){
+  function init ( id, origin, next ) {
 
-			var msg = {	action: 'lookup', data: id };
+    SESSION.id = id;
 
-			send( msg, function ( remoteID ) {
+    connectToServer( id, origin, function(){
 
-				next( remoteID );
-			});
-		});
-	}
+      send({ action: 'lookup' }, function ( remoteID ) {  next( remoteID ); });
+    });
+  }
 
 
-	/**
-	 *  [listenToServer description]
-	 *
-	 *  Attach Server
-	 *  @param  {[type]}   id   [description]
-	 *  @param  {Function} next [description]
-	 *  @return {[type]}        [description]
-	 */
+  /**
+   *  [listenToServer description]
+   *
+   *  Attach Server
+   *  @param  {[type]}   id   [description]
+   *  @param  {Function} next [description]
+   *  @return {[type]}        [description]
+   */
 
-	var socket;
+  var socket;
 
-	function connectToServer ( id, next ) {
+  function connectToServer ( id, origin, next ) {
 
-		function handleOpen() { next();	}
+    function handleOpen() { next(); }
 
-		if ( config.socketConfig.server.split(':')[0] === 'http' ) {	// XHR
+    var Socket = checkProtocol('http') ? EventSource : WebSocket;
 
-			socket = new EventSource( config.socketConfig.server + '/' + id );
+    socket = new Socket( config.socketConfig.server + '/?local=' + id + '&origin=' + origin );
 
-		} else {		// WS
+    socket.addEventListener( 'open'     , handleOpen );
+    socket.addEventListener( 'message'  , handleMessage );
+    socket.addEventListener( 'error'    , handleError );
+  }
 
-			socket = new WebSocket( config.socketConfig.server + '/' + id );
-		}
 
-		socket.addEventListener( 'open'		, handleOpen );
-		socket.addEventListener( 'message'	, handleMessage );
-		socket.addEventListener( 'error'	, handleError );
-	}
+  /**
+   *  [handleMessage description]
+   *
+   *  Interface for parsing messages.
+   *  @param  {[type]} e [description]
+   *  @return {[type]}   [description]
+   */
 
+  function handleMessage ( e ) {
 
-	/**
-	 *  [handleMessage description]
-	 *
-	 *  Interface for parsing messages.
-	 *  @param  {[type]} e [description]
-	 *  @return {[type]}   [description]
-	 */
+    var msg = JSON.parse( e.data );
 
-	function handleMessage ( e ) {
+    // receive partner via socket & call register
+    if ( !msg || !msg.local ) return socketQueue.exec( msg );
 
-		var msg = JSON.parse( e.data );
+    // create new reference
+    if ( !instance.connections[ msg.local ] ) instance.connect( msg.local );
 
-		if ( !msg || !msg.local ) {	// receive partner via socket
+    // SDP & Candidates
+    instance.connections[ msg.local ][ msg.action ]( msg.data );
+  }
 
-			socketQueue.exec( msg );
-			return;
-		}
 
-		if ( !instance.connections[ msg.local ] ) {
+  /**
+   *  [handleError description]
+   *
+   *  Handling errors.
+   *  @param  {[type]} e [description]
+   *  @return {[type]}   [description]
+   */
 
-			instance.connect( msg.local );
-		}
+  function handleError ( e ) {
 
-		// SDP & Candidates
-		instance.connections[ msg.local ][ msg.action ]( msg.data );
-	}
 
+    // XHR
+    if ( e.eventPhase === EventSource.CLOSED ) {
 
-	/**
-	 *  [handleError description]
-	 *
-	 *  Handling errors.
-	 *  @param  {[type]} e [description]
-	 *  @return {[type]}   [description]
-	 */
+      console.log('[close]');
 
-	function handleError ( e ) {
+    } else {
 
+      throw new Error( e.data );
+    }
 
-		// XHR
-		if ( e.eventPhase === EventSource.CLOSED ) {
+    // socket
+    e.currentTarget.close();
 
-			console.log('[close]');
+    logout();
+  }
 
-		} else {
+  /**
+   *  [send description]
+   *
+   *  Sending messages throug the appropriate transport socket.
+   *
+   *  @param  {[type]} msg [description]
+   *  @return {[type]}     [description]
+   */
 
-			throw new Error( e.data );
-		}
+  function send ( msg, next )  {
 
-		var socket = e.currentTarget;
+    // just for server
+    utils.extend( msg, { local: instance.id, origin: SESSION.currentRoute });
 
-		socket.close();
+    msg = JSON.stringify( msg );
 
-		logout();
-	}
+    if ( checkProtocol('http') ) { // XHR
 
-	// function checkProtocol(){
+      req( msg, next );
 
-	//	var link = document.createElement('a');
-	//	link.href = config.socketConfig.server;
+    } else {  // WS
 
-	//	return link.protocol;
-	// }
+      socketQueue.add( next );
 
+      socket.send( msg );
+    }
+  }
 
-	/**
-	 *  [send description]
-	 *
-	 *  Sending messages throug the appropriate transport socket.
-	 *
-	 *  @param  {[type]} msg [description]
-	 *  @return {[type]}     [description]
-	 */
 
-	function send ( msg, next )  {
+  // required to check everytime/not just on inital start - as the configurations can be customized
+  function checkProtocol ( protocol ) {
 
-		msg = JSON.stringify( msg );
+    return config.socketConfig.server.split(':')[0] === protocol;
+  }
 
-		if ( config.socketConfig.server.split(':')[0] === 'http' ) { // XHR
 
-			req( msg, next );
+  return {
 
-		} else {	// WS
-
-			socketQueue.add( next );
-
-			socket.send( msg );
-		}
-	}
-
-
-	return {
-
-		init	: init,
-		send	: send,
-		handle	: handleMessage
-	};
+    init    : init,
+    send    : send,
+    handle  : handleMessage
+  };
 
 })();
 

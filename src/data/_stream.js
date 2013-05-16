@@ -8,85 +8,85 @@
 
 var Stream = (function(){
 
-	'use strict';
+  'use strict';
 
-	var Stream = function ( options ) {
+  var Stream = function ( options ) {
 
-		Emitter.call(this);
+    Emitter.call(this);
 
-		if ( !options ) options = {};
+    if ( !options ) options = {};
 
-		this.readable	= options.readable;
-		this.writeable	= options.readable;
+    this.readable   = options.readable;
+    this.writeable  = options.readable;
 
-		this.ready		= true;
-		// this.offset		= 0;						// current offset - used to merge chunks ?
+    this.ready      = true;
+    // this.offset    = 0;            // current offset - used to merge chunks ?
 
-		this.writeBuffer	= [];
-		this.readBuffer		= [];
-	};
-
-
-	utils.inherits( Stream, Emitter );
+    this.writeBuffer  = [];
+    this.readBuffer   = [];
+  };
 
 
-	Stream.prototype.handle = function ( e ) {
-
-		var msg		= e.data,
-
-			data	= JSON.parse( msg ),
-
-			buffer	= this.readBuffer;
+  utils.inherits( Stream, Emitter );
 
 
-		if ( data.part !== void 0 ) {
+  Stream.prototype.handle = function ( e ) {
 
-			buffer.push( data.data );
+    var msg     = e.data,
 
-			this.emit( 'data', data, buffer.length );
+        data    = JSON.parse( msg ),
 
-			if ( data.part > 0 ) return;
-
-			msg = buffer.join('');
-
-			buffer.length = 0;
-		}
-
-		this.emit( 'end', msg );
-	};
+        buffer  = this.readBuffer;
 
 
-	// ToDo:	check if others are empty - open ,
-	//			else push on queue and wait till finish !
-	// stream has to handle readystate etc.
+    if ( data.part !== void 0 ) {
 
-	Stream.prototype.write = function ( msg ) {
+      buffer.push( data.data );
 
-		this.writeBuffer.push( msg );
+      this.emit( 'data', data, buffer.length );
 
-		if ( this.ready ) {
+      if ( data.part > 0 ) return;
 
-			this.emit( 'write', this.writeBuffer.shift() );
+      msg = buffer.join('');
 
-		} else {
+      buffer.length = 0;
+    }
 
-			// handle simoultanous accessing - using queue, messages etc.
-		}
-
-		return this.ready;
-	};
+    this.emit( 'end', msg );
+  };
 
 
-	Stream.prototype.pipe = function ( trg ) {
+  // ToDo:  check if others are empty - open ,
+  //      else push on queue and wait till finish !
+  // stream has to handle readystate etc.
 
-		this.on('data', function ( chunk ) {
+  Stream.prototype.write = function ( msg ) {
 
-			trg.handle( chunk );
-		});
+    this.writeBuffer.push( msg );
 
-		return trg;
-	};
+    if ( this.ready ) {
 
-	return Stream;
+      this.emit( 'write', this.writeBuffer.shift() );
+
+    } else {
+
+      // handle simoultanous accessing - using queue, messages etc.
+    }
+
+    return this.ready;
+  };
+
+
+  Stream.prototype.pipe = function ( trg ) {
+
+    this.on('data', function ( chunk ) {
+
+      trg.handle( chunk );
+    });
+
+    return trg;
+  };
+
+  return Stream;
 
 })();
