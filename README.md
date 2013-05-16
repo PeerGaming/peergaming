@@ -1,4 +1,4 @@
-![PeerGaming](https://github.com/Autarc/PeerGaming/raw/master/material/pg-logo_v2.svg)
+![PeerGaming](https://github.com/Autarc/PeerGaming/raw/master/material/pg-logo_v2.png)
 
 PeerGaming - Share the Fun
 ==========================
@@ -54,7 +54,7 @@ TODO
 
 ## Quick-Guide
 
-
+TODO
 
 
 ## Structure
