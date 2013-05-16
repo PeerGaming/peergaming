@@ -6,351 +6,328 @@
  */
 
 
-var Connection = (function(){
 
-	'use strict';
 
+var Connection = function ( local, remote, initiator, transport ) {
 
-	// var media = false;
+  this.info = {
 
-	var Connection = function ( local, remote, initiator, transport ) {
+    local   : local,
+    remote  : remote,
+    pending : true
+  };
 
-		this.info = {
+  if ( initiator ) this.info.initiator = true;
+  if ( transport ) this.info.transport = transport;
 
-			local	: local,
-			remote	: remote,
-			pending	: true
-		};
+  this.channels = {};
 
-		if ( initiator ) this.info.initiator = true;
-		if ( transport ) this.info.transport = transport;
+  this.init();
+};
 
-		this.channels = {};
 
-		this.init();
-	};
+Connection.prototype.init = function(){
 
+  this.conn = new RTCPeerConnection( config.peerConfig, config.connectionConstraints );
 
-	Connection.prototype.init = function(){
+  this.checkStateChanges();
 
-		this.conn = new RTCPeerConnection( config.peerConfig, config.connectionConstraints );
+  this.receiveDataChannels();
 
-		this.checkStateChanges();
+  this.findICECandidates();
 
-		this.receiveDataChannels();
+  if ( this.info.initiator ) {
 
-		this.findICECandidates();
+    this.createOffer();
+  }
+};
 
-		if ( this.info.initiator ) {
 
-			this.createOffer();
-		}
-	};
+Connection.prototype.checkStateChanges = function(){
 
+  var conn    = this.conn,
 
-	Connection.prototype.checkStateChanges = function(){
+      length  = Object.keys( defaultHandlers ).length;
 
-		var conn	= this.conn;
 
-		conn.onstatechange = function ( e ) {
-		// conn.onsignalingstatechange = function ( e ) {
+  conn.onnegotiationneeded = function ( e ) {
 
-			// console.log('[state changed]');
+    // console.log('[negotiation needed]');
+    if ( !--length ) this.createOffer();
 
-			// var state = e.currentTarget.signalingState;
-			// if ( state === 'stable' ) {
-			//	console.log('stable');
-			// }
-			// console.log(state);
+  }.bind(this);
 
 
-			// will be leeverae over the state change - refering callbacks 1 !
+  conn.oniceconnectionstatechange = function ( e ) {
 
-			// console.log(conn);
-			// console.log(conn.onconnecting);
-			// console.log(conn.onopen);
+    var iceState = e.currentTarget.iceConnectionState;
 
-			// connection.onconnecting = onSessionConnecting;
-			// connection.onopen = onSessionOpen;
-			//
-			// ToDo: closing state could perhaps be used to clean up, not relying on datachannel itself
-			//		but the missing peer connection !
-			//
-			//// pass
-			//
-			//-- error
-			//-- open
-			//-- close...
+    // disconnected
+    if ( iceState === 'disconnected' ) pg.peers[ this.info.remote ].remove();
 
+  }.bind(this);
 
-		};
 
-		var length	= Object.keys( defaultHandlers ).length;
+  conn.onsignalingstatechange = function ( e ) {
 
-		conn.onnegotiationneeded = function ( e ) {
+    // console.log('[state changed]');
+    // var signalingState = e.currentTarget.signalingState;
+    // console.log(signalingState);
 
-			// console.log('[negotiation needed]');
+  }.bind(this);
+};
 
-			if ( !--length ) {
 
-				this.createOffer();
-			}
+// receive remote created channel
+Connection.prototype.receiveDataChannels = function(){
 
-		}.bind(this);
+  this.conn.ondatachannel = function ( e ) {
 
+    var channel = e.channel,
 
-		conn.onicechange = function ( e ) {
-		// conn.oniceconnectionstatechange = function ( e ) {
-			// console.log('[ice changed]');
-			// console.log(e);
-		};
+        label   = channel.label;
 
-	};
+    this.channels[ label ] = new Handler( channel, this.info.remote );
 
+  }.bind(this);
+};
 
-	// receive remote created channel
-	Connection.prototype.receiveDataChannels = function(){
 
-		this.conn.ondatachannel = function ( e ) {
+// find ICE candidates
+Connection.prototype.findICECandidates = function(){
 
-			var channel = e.channel,
+  this.conn.onicecandidate = function ( e ) {
 
-				label = channel.label;
+    // var iceGatheringState = e.currentTarget.iceConnectionState;
+    // console.log(iceGatheringState);
 
-			this.channels[ label ] = new Handler( channel, this.info.remote );
+    // the 'null' candidate just because there isn't a onicegatheringcomplete event handler.
 
-		}.bind(this);
-	};
+    if ( e.candidate ) {
 
+      this.send( 'setIceCandidates', e.candidate );
 
-	// find ICE candidates
-	Connection.prototype.findICECandidates = function(){
+    } else {
 
-		this.conn.onicecandidate = function ( e ) {
+      // After ICE completion a callback with a null candidate is supplied.
+      // console.log('iceGatheringState: completed');
+    }
 
-			if ( e.candidate ) {
+  }.bind(this);
+};
 
-				this.send({ action: 'setIceCandidates', data: e.candidate });
-			}
 
-		}.bind(this);
-	};
+// needs a description first !
+Connection.prototype.setIceCandidates = function ( data ) {
 
-	// perhaps ease on clean up later, just ensure simplier handler, check
-	// http://html5videoguide.net/presentations/LCA_2013_webrtc/#page21
+  var conn = this.conn;
 
-	// needs a description first !
-	Connection.prototype.setIceCandidates = function ( data ) {
+  if ( conn.remoteDescription || conn.localDescription ) {
 
-		var conn = this.conn;
+    if ( this._candidates ) delete this._candidates;
 
-		if ( conn.remoteDescription || conn.localDescription ) {
+    data = Array.isArray(data) ? data : [ data ];
 
-			if ( this._candidates ) delete this._candidates;
+    for ( var i = 0, l = data.length; i < l; i++ ) {
 
-			data = Array.isArray(data) ? data : [ data ];
+      conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
+    }
 
-			for ( var i = 0, l = data.length; i < l; i++ ) {
+  } else {
 
-				conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
-			}
+    if ( !this._candidates ) this._candidates = [];
 
-		} else {
+    this._candidates.push( data );
+  }
+};
 
-			if ( !this._candidates ) this._candidates = [];
 
-			this._candidates.push( data );
-		}
-	};
+Connection.prototype.createOffer = function() {
 
+  var conn = this.conn;
 
-	Connection.prototype.createOffer = function() {
+  // initial setup channel for configuration
+  if ( moz ) conn.createDataChannel('[moz]');
 
-		var conn = this.conn;
+  conn.createOffer( function ( offer ) {
 
-		conn.createOffer( function ( offer ) {
+    offer.sdp = adjustSDP( offer.sdp );
 
-			offer.sdp = adjustSDP( offer.sdp );
+    conn.setLocalDescription( offer, function(){
 
-			conn.setLocalDescription( offer, function(){
+      this.send( 'setConfigurations', offer );
 
-				this.send({ action: 'setConfigurations', data: offer });
+    }.bind(this) );
 
-			}.bind(this) );
+  }.bind(this), loggerr, config.mediaConstraints ); // 3.param || media contrain
+};
 
-		}.bind(this), loggerr );	// 3.param || media contrain
-	};
 
+// exchange settings
+Connection.prototype.setConfigurations = function ( msg ) {
 
-	// exchange settings
-	Connection.prototype.setConfigurations = function ( msg ) {
+  // console.log('[SDP] - ' +  msg.type );  // description
 
-		// console.log('[SDP] - ' +  msg.type );	// description
+  var conn = this.conn,
 
-		var conn = this.conn,
+      desc = new RTCSessionDescription( msg );
 
-			desc = new RTCSessionDescription( msg );
 
+  conn.setRemoteDescription( desc, function(){
 
-		conn.setRemoteDescription( desc, function(){
+    if ( this._candidates ) this.setIceCandidates( this._candidates );
 
-			if ( this._candidates ) this.setIceCandidates( this._candidates );
+    if ( msg.type === 'offer' ) {
 
-			if ( msg.type === 'offer' ) {
+      conn.createAnswer( function ( answer ) {
 
-				conn.createAnswer( function ( answer ) {
+        answer.sdp = adjustSDP( answer.sdp );
 
-					answer.sdp = adjustSDP( answer.sdp );
+        conn.setLocalDescription( answer, function(){
 
-					conn.setLocalDescription( answer, function(){
+          this.send( 'setConfigurations', answer );
 
-						this.send({ action: 'setConfigurations', data: answer });
+        }.bind(this), loggerr );//, config.SDPConstraints );
 
-					}.bind(this), loggerr );
+      }.bind(this), null, config.mediaConstraints );
 
-				}.bind(this), null, config.mediaConstraints );
+    } else {
 
-			} else {
+      createDefaultChannels( this );
+    }
 
-				createDefaultChannels( this );
-			}
+  }.bind(this), loggerr );
+};
 
-		}.bind(this), loggerr );
-	};
 
+Connection.prototype.createDataChannel = function ( label, options ) {
 
-	Connection.prototype.createDataChannel = function ( label, options ) {
+  try {
 
-		try {
+    // var channel = this.conn.createDataChannel( label, moz ? {} : { reliable: false });
+    var channel = this.conn.createDataChannel( label, { reliable: false });
 
-			var channel = this.conn.createDataChannel( label, moz ? {} : { reliable: false });
+    this.channels[ label ] = new Handler( channel, this.info.remote );
 
-			this.channels[ label ] = new Handler( channel, this.info.remote );
+  } catch ( e ) { // getting: a "NotSupportedError" - but is working !
 
-		} catch ( e ) {	// getting: a "NotSupportedError" - but is working !
+    console.log('[Error] - Creating DataChannel (*)');
+  }
+};
 
-			console.log('[Error] - Creating DataChannel (*)');
-		}
-	};
 
+Connection.prototype.send = function ( action, data ) {  // msg
 
-	// messed up, as already assigned to the id , cant be used for inital messaging !
+  // direct connection to the peer, established set through defaultHandler
+  if ( !this.info.pending ) {
 
-	Connection.prototype.send = function ( channel, msg ) {
 
-		if ( !msg ) {
+    this.send = function useChannels ( channel, data, proxy ) {
 
-			msg = channel; channel = null;
-		}
+      var msg = { action: channel, local: instance.id, data: data, remote: this.info.remote };
 
-		if ( !this.info.pending ) {		// established set through defaultHandler
+      utils.extend( msg, proxy );
 
-			this.send = function useChannels ( channel, msg ) {
 
-				var channels = this.channels;
+      var channels = this.channels;
 
-				if ( !channel ) channel = keys = Object.keys( channels );
+      if ( !channel ) channel = keys = Object.keys( channels );
 
-				if ( !Array.isArray( channel ) ) channel = [ channel ];
+      if ( !Array.isArray( channel ) ) channel = [ channel ];
 
-				// ToDo: closing issue
-				// missing - message will be send - injected as , new icecandidates will be created etc.
+      // ToDo: closing issue
+      // missing - message will be send - injected as , new icecandidates will be created etc.
 
-				for ( var i = 0, l = channel.length; i < l; i++ ) {
+      for ( var i = 0, l = channel.length; i < l; i++ ) {
 
-					// try {
+        if ( channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
+      }
 
-					if ( channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
+    }.bind(this);
 
-					// } catch ( err ) {
-						// console.log(channel);
-						// console.log(msg);
-					// }
-				}
 
-			}.bind(this);
+    this.send( action, data );
 
-			this.send( channel, msg );
+  } else { // initializing handshake
 
-		} else { // initializing handshake
 
-			msg.local = this.info.local,
-			msg.remote = this.info.remote;
+    var remote = this.info.remote;
 
-			// mesh work	// this.transport -> the connection ||	delegates to the call aboe !
-			if ( this.info.transport ) {
+    // mesh work  // this.transport -> the connection ||  delegates to the call above !
+    if ( this.info.transport ) {
 
-				this.info.transport.send( 'register', msg );
+      var proxy = { action: action, local: instance.id, remote: remote };
 
-			} else {
+      return this.info.transport.send( 'register', data, proxy );
+    }
 
-				socket.send( msg );
-			}
-		}
-	};
+    // send via server
+    socket.send({ action: action, data: data, remote: remote });
+  }
+};
 
 
-	Connection.prototype.close = function( channel ) {
+// closing by dev != disconnect
+Connection.prototype.close = function( channel ) {
 
-		var channels = this.channels,
-			keys = Object.keys(channels);
+  var channels  = this.channels,
+      keys      = Object.keys(channels);
 
-		if ( !channel ) channel = keys;
+  if ( !channel ) channel = keys;
 
-		if ( !Array.isArray( channel ) ) {
+  if ( !Array.isArray( channel ) ) {
 
-			channel = [ channel ];
-		}
+    channel = [ channel ];
+  }
 
-		for ( var i = 0, l = channel.length; i < l; i++ ) {
+  for ( var i = 0, l = channel.length; i < l; i++ ) {
 
-			channels[ channel[i] ].close();
-			delete channels[ channel[i] ];
-		}
-	};
+    channels[ channel[i] ].close();
+    delete channels[ channel[i] ];
+  }
+};
 
-	// @Sharefest
-	// modifying the SDP parameters for interoperability and bandwidth
-	function adjustSDP ( sdp ) {
 
-		// crypto
-		if ( !~sdp.indexOf('a=crypto') ) {
+// @Sharefest
+// modifying the SDP parameters for interoperability and bandwidth
+// + // See RFC for more info: http://www.ietf.org/rfc/rfc2327.txt
+function adjustSDP ( sdp ) {
 
-			var crypto = [], length = 4;
+  // crypto
+  if ( !~sdp.indexOf('a=crypto') ) {
 
-			while ( length-- ) crypto.push( utils.getToken() );
+    var crypto = [], length = 4;
 
-			sdp += 'a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:' + crypto.join('') + '\r\n';
-		}
+    while ( length-- ) crypto.push( utils.getToken() );
 
-		// bandwidth
-		if ( ~sdp.indexOf('b=AS') ) {
+    sdp += 'a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:' + crypto.join('') + '\r\n';
+  }
 
-			sdp = sdp.replace( /b=AS:([0-9]*)/, function ( match, text ) {
+  // bandwidth
+  if ( ~sdp.indexOf('b=AS') ) {
 
-				var size = config.channelConfig.BANDWIDTH;
+    sdp = sdp.replace( /b=AS:([0-9]*)/, function ( match, text ) {
 
-				return 'b=AS:' + size;
-			});
-		}
+      var size = config.channelConfig.BANDWIDTH;
 
-		return sdp;
-	}
+      return 'b=AS:' + size;
+    });
+  }
 
+  return sdp;
+}
 
-	// create basic channels
-	function createDefaultChannels ( connection )  {
 
-		if ( Object.keys(connection.channels).length ) return;
+// create basic channels
+function createDefaultChannels ( connection )  {
 
-		var defaultChannels = Object.keys( defaultHandlers );
+  // just once
+  if ( Object.keys(connection.channels).length ) return;
 
-		for ( var i = 0, l = defaultChannels.length; i < l ; i++ ) {
+  var defaultChannels = Object.keys( defaultHandlers );
 
-			connection.createDataChannel( defaultChannels[i] );
-		}
-	}
+  for ( var i = 0, l = defaultChannels.length; i < l ; i++ ) {
 
-	return Connection;
-
-})();
+    connection.createDataChannel( defaultChannels[i] );
+  }
+}

@@ -16,54 +16,51 @@
 var Queue = (function(){
 
 
-	var Queue = function(){
+  var Queue = function(){
 
-		this.ready	= false;
+    this.ready  = false;
 
-		this.list	= [];
-	};
-
-
-	/**
-	 *  add a function to the list
-	 *  @param {Function} fn [description]
-	 */
-
-	Queue.prototype.add = function ( fn ) {
-
-		if ( typeof fn === 'function' ) {
-
-			this.list.push( fn );
-		}
-	};
+    this.list   = [];
+  };
 
 
-	/**
-	 *  Execute the stored functions
-	 *  @return {[type]} [description]
-	 */
+  /**
+   *  add a function to the list
+   *  @param {Function} fn [description]
+   */
 
-	Queue.prototype.exec = function() {
+  Queue.prototype.add = function ( fn ) {
 
-		this.ready = true;
+    if ( typeof fn === 'function' ) {
 
-		var args = Array.prototype.slice.call( arguments ),
-
-			list = this.list;
-
-		while ( list.length ) {
-
-			list.pop().apply( null, args );
-		}
-	};
+      this.list.push( fn );
+    }
+  };
 
 
-	Queue.prototype.clear = function(){
+  /**
+   *  Execute the stored functions
+   *  @return {[type]} [description]
+   */
 
-		this.list.length = 0;
-	};
+  Queue.prototype.exec = function() {
 
-	return Queue;
+    this.ready = true;
+
+    var args = Array.prototype.slice.call( arguments ),
+
+        list = this.list;
+
+    while ( list.length ) list.pop().apply( null, args );
+  };
+
+
+  Queue.prototype.clear = function(){
+
+    this.list.length = 0;
+  };
+
+  return Queue;
 
 })();
 

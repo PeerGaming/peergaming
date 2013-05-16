@@ -50,3 +50,34 @@ function loggerr ( err )  {
 	console.log( err , err.name + ': ' + err.message );
 }
 
+
+/**
+ *  Check debugging state
+ *
+ *	See https://github.com/adamschwartz/chrome-inspector-detector and
+ *  http://stackoverflow.com/questions/7527442/how-to-detect-chrome-inspect-element-is-running-or-not/15567735#15567735
+ */
+
+function isDebugging(){
+
+	// firebug
+	if ( moz ) return !!console.log;
+
+	// chrome
+	var existingProfiles = console.profiles.length;
+
+	console.profile();
+	console.profileEnd();
+
+	if ( console.clear ) console.clear();
+
+	return console.profiles.length > existingProfiles;
+}
+
+
+// extend profiler - http://smnh.me/javascript-profiler/
+
+
+// stopbefore
+
+// https://gist.github.com/NV/5376464

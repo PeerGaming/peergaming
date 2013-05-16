@@ -13,83 +13,77 @@
 
 var defaultHandlers = {
 
-	init: {
+  init: {
 
-		open: function() {
+    open: function() {
 
-			// channel established && open
-			delete this.info.pending;
+      // channel established && open
+      delete this.info.pending;
 
-			this.send( 'init', {
+      this.send( 'init', { name: instance.account.name, list: Object.keys( instance.connections ) });
+    },
 
-				name: instance.name,
+    end: function ( msg ) {
 
-				list: Object.keys( instance.connections )
-			});
-		},
+      msg = JSON.parse( msg );
 
-		end: function ( msg ) {
+      var peer = pg.peers[ this.info.remote ],
 
-			var data = JSON.parse( msg ),
+          data = msg.data;
 
-				peer = pg.peers[ this.info.remote ];
+      utils.extend( peer, { account: { name: data.name } });
 
-			utils.extend( peer, { name: data.name });
+      instance.emit( 'connection', peer );
 
-			instance.emit( 'connection', peer );
+      // ToDo: refactor with .connect()
+      // providing transport - register delegation
+      instance.checkNewConnections( data.list, this );
+    },
 
-			// ToDo: refactor with .connect()
-			instance.checkNewConnections( data.list, this );
-			// providing transport - register delegation
-		},
+    close: function ( msg ) {
 
-		close: function ( msg ) {
+      console.log('[closed]');
 
-			console.log('[closed]');
+      console.log(msg);
+    }
 
-			console.log(msg);
-		}
-
-	},
+  },
 
 
-	register: function ( msg ) {
+  register: function ( msg ) {
 
-		var data = JSON.parse( msg );
+    msg = JSON.parse( msg );
 
-		if ( data.remote !== instance.id ) {	// proxy
+    if ( msg.remote !== instance.id ) {  // proxy || same as info.transport
 
-			// just handler between - setting up for remote delegation
-			// console.log( '[proxy] ' + data.local + ' -> ' + data.remote );
-			instance.connections[ data.remote ].send( 'register', data );
+      // just handler between - setting up for remote delegation
+      // console.log( '[proxy] ' + msg.local + ' -> ' + msg.remote );
 
-		} else {
+      var proxy = { action: msg.action, local: msg.local, remote: msg.remote };
 
-			if ( !instance.connections[ data.local ] ) {
+      return instance.connections[ msg.remote ].send( 'register', msg.data, proxy );
+    }
 
-				instance.connect( data.local, false, this );
-			}
+    if ( !instance.connections[ msg.local ] ) instance.connect( msg.local, false, this );
 
-			instance.connections[ data.local ][ data.action ]( data.data );
-		}
-	},
+    instance.connections[ msg.local ][ msg.action ]( msg.data );
+  },
 
 
-	custom: function ( msg ) {
+  // here again: action can be called for remote handling...
+  custom: function ( msg ) {
 
-		console.log('[channel doesn\'t exist yet - local delegation');
+    console.log('[channel doesn\'t exist yet - local delegation');
 
-		var data = JSON.parse( msg );
+    msg = JSON.parse( msg );
 
-		console.log(data.action);
+    console.log(msg.action);
+  },
 
-	},
 
+  message: function ( msg ) {
 
-	message: function ( msg ) {
-
-		instance.emit( 'message', msg );
-	}
+    instance.emit( 'message', msg );
+  }
 
 };
-
