@@ -1,0 +1,16 @@
+{
+  "name": "PeerGaming",
+  "version": "0.3.0",
+  "main": "dist/peergaming.js",
+  "ignore": [
+    "examples",
+    "node_modules"
+    "test",
+    "src",
+    "docs",
+    "bin"
+  ]
+}
+
+// https://github.com/twitter/bower
+// bower register <my-package-name> <git-endpoint>

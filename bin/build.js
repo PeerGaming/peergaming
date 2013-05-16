@@ -56,7 +56,7 @@ var jshint, UglifyJS, mocha, chai;
 // linting through jshint
 if ( config.hint ) {
 
-	try { jshint = require('jshint');	} catch ( err ) {
+	try { jshint = require('../node_modules/.bin/jshint');	} catch ( err ) {
 
 		if ( err.code === 'MODULE_NOT_FOUND' ) {
 
@@ -68,7 +68,7 @@ if ( config.hint ) {
 // using uglify for minification
 if ( config.min ) {
 
-	try { UglifyJS = require('uglify-js');	} catch ( err ) {
+	try { UglifyJS = require('../node_modules/.bin/uglify-js');	} catch ( err ) {
 
 		if ( err.code === 'MODULE_NOT_FOUND' ) {
 
@@ -80,7 +80,7 @@ if ( config.min ) {
 // running tests via mocha + chai
 if ( config.test ) {
 
-	try { mocha = require('mocha'); } catch ( err ) {
+	try { mocha = require('../node_modules/.bin/mocha'); } catch ( err ) {
 
 		if ( err.code === 'MODULE_NOT_FOUND' ) {
 
@@ -88,7 +88,7 @@ if ( config.test ) {
 		}
 	}
 
-	try { chai = require('chai'); } catch ( err ) {
+	try { chai = require('../node_modules/.bin/chai'); } catch ( err ) {
 
 		if ( err.code === 'MODULE_NOT_FOUND' ) {
 
@@ -219,7 +219,7 @@ if ( config.test ) {
 	}
 
 	var DIRECTIVE_PATTERN	= /\/\/=\s*require\s*(.*?)$/gm,
-		TABBED_PATTERN		= new RegExp( '\t' + DIRECTIVE_PATTERN.source, 'gm' );
+      TABBED_PATTERN    = new RegExp( '\t' + DIRECTIVE_PATTERN.source, 'gm' );
 
 	function parse ( err, data ) {
 
@@ -358,7 +358,7 @@ if ( config.test ) {
 			' *\t', filename, ' - ', 'v' + info.version, ' | ', date, '\n',
 			' *\t', info.homepage, '\n',
 			' *\t', 'Copyright (c) ', year, ', ', info.author.name, '\n',
-			' *\t', info.licence, ' License\n',
+			' *\t', info.license, ' License\n',
 			' */\n'
 		].join('');
 
