@@ -1,11 +1,11 @@
-![PeerGaming](https://github.com/Autarc/PeerGaming/raw/master/material/logo-temp.png)
+![PeerGaming](https://github.com/Autarc/PeerGaming/raw/master/material/pg-logo_v2.svg)
 
 PeerGaming - Share the Fun
 ==========================
 
 A Client-Side Multiplayer Gaming Framework for the Web.
 
-_Latest Release: 0.2.0 ([changelog](https://github.com/Autarc/PeerGaming/blob/master/HISTORY.md))_
+_Latest Release: 0.3.0 ([changelog](https://github.com/Autarc/PeerGaming/blob/master/HISTORY.md))_
 
 
 ## Introduction
@@ -52,21 +52,26 @@ pg.login( name, function( player ) {
 TODO
 
 
+## Quick-Guide
+
+
+
+
 ## Structure
 
-* bin		: build script
-* deps		: brokering server
-* dist		: release
-* docs		: documentation
+* bin       : build script
+* deps		  : brokering server
+* dist		  : release
+* docs		  : documentation
 * examples	: lobby & games
 * material	: report, assets
-* src		: source files
-* test		: tests
+* src		    : source files
+* test		  : tests
 
 
 ## Tribute
 
-> In remembrance to all connections which doesn't exist.
+> In remembrance to all connections which don't exist.
 
 
 ## License
