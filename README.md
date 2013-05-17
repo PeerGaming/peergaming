@@ -1,4 +1,4 @@
-![PeerGaming](https://github.com/PeerGaming/thesis/raw/logo/pg-logo_v2.png)
+![PeerGaming](https://raw.github.com/PeerGaming/thesis/master/raw/logo/pg-logo_v2.png)
 
 PeerGaming - Share the Fun
 ==========================
