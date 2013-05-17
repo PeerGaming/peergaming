@@ -12,17 +12,28 @@
 
 ## 0.4.0 / 2013-05-30
 
-(* Connection handler)
+(* connection handler)
 (* update loop)
+(* simple oauth - "Github")
+
+(* fix ".join" + invalid socket connection)
+(* include a hook for missing browser support)
+(* create "pg-catch" for custom testing)
+
+
+## 0.3.1 / 2013-05-18
+
+* divide into multiple repositories
+* improve error handling of socket connection
 
 
 ## 0.3.0 / 2013-05-15
 
 __Codename: Salty Goblin__
 
-- require ".login" to create ".player"
-- handle disconnect + scale ".data" references
-- server side seperation of rooms
+* require ".login" to create ".player"
+* handle disconnect + scale ".data" references
+* server side seperation of rooms
 
 
 ## 0.2.6 / 2013-05-07

@@ -1,16 +1,7 @@
 {
-  "name": "PeerGaming",
-  "version": "0.3.0",
-  "main": "dist/peergaming.js",
-  "ignore": [
-    "examples",
-    "node_modules"
-    "test",
-    "src",
-    "docs",
-    "bin"
-  ]
+  "name"        : "PeerGaming",
+  "description" : "A Client-Side Multiplayer Gaming Framework for the Web",
+  "version"     : "0.3.1",
+  "main"        : "dist/peergaming.js",
+  "ignore"      : [ "bin", "src", "test" ]
 }
-
-// https://github.com/twitter/bower
-// bower register <my-package-name> <git-endpoint>

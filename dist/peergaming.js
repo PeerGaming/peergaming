@@ -1,5 +1,5 @@
 /**
- *	peergaming.js - v0.3.0 | 2013-05-16
+ *	peergaming.js - v0.3.1 | 2013-05-18
  *	http://peergaming.net
  *	Copyright (c) 2013, Stefan Dühring
  *	MIT License
@@ -340,10 +340,10 @@ var reservedReference = context.pg,
 pg.VERSION = {
 
   codeName    : 'salty-goblin',
-  full        : '0.3.0',
+  full        : '0.3.1',
   major       : 0,
   minor       : 3,
-  dot         : 0
+  dot         : 1
 };
 
 
@@ -1280,8 +1280,8 @@ var socket = (function(){
   logout();
 
   // close for SSE
-  win.addEventListener('unload',            logout );
-  win.addEventListener('beforeunload',      logout );
+  win.addEventListener( 'unload'        , logout );
+  win.addEventListener( 'beforeunload'  , logout );
 
 
   /**
@@ -1389,15 +1389,18 @@ var socket = (function(){
 
   function connectToServer ( id, origin, next ) {
 
-    function handleOpen() { next(); }
-
     var Socket = checkProtocol('http') ? EventSource : WebSocket;
 
     socket = new Socket( config.socketConfig.server + '/?local=' + id + '&origin=' + origin );
 
-    socket.addEventListener( 'open'     , handleOpen );
-    socket.addEventListener( 'message'  , handleMessage );
-    socket.addEventListener( 'error'    , handleError );
+    socket.addEventListener( 'open', function(){
+
+      socket.addEventListener( 'message', handleMessage );
+      socket.addEventListener( 'error'  , handleError   );
+      socket.addEventListener( 'close'  , handleClose   );
+
+      next();
+    });
   }
 
 
@@ -1434,11 +1437,10 @@ var socket = (function(){
 
   function handleError ( e ) {
 
-
     // XHR
     if ( e.eventPhase === EventSource.CLOSED ) {
 
-      console.log('[close]');
+      console.log('[socket - close]');
 
     } else {
 
@@ -1450,6 +1452,18 @@ var socket = (function(){
 
     logout();
   }
+
+
+  /**
+   *
+   */
+
+  function handleClose(){
+
+    console.log('[closed]');
+  }
+
+
 
   /**
    *  [send description]
@@ -1926,6 +1940,9 @@ pg.login = function ( name, service, hook ) {
 // allow to login and use 3rd party data
 function requestOAuth ( name, service, hook ) {
 
+  // using the socket to request credentials
+  // socket.
+
   var account = { name: name };
 
   createPlayer( account, hook );
@@ -1943,6 +1960,7 @@ function createPlayer ( account, hook ) {
 
   instance.join( origin );
 }
+
 
 /**
  *  Routes
@@ -2667,28 +2685,22 @@ Player.prototype.send = function ( channel, msg ) {
  */
 
 
-pg.loop = (function(){
+pg.loop = function ( render ) {
+
+  // delta = 100;
+
+  // while ( delta >= LOOP_TIME ) {
+
+  //   delta -= LOOP_TIME;
+
+  //   // render()
+  // }
 
 
-  var loop = function ( next ) {
+  // // next( );
+  // requestAnimationFame( loop );
+};
 
-    delta = 100;
-
-    while ( delta >= LOOP_TIME ) {
-
-      delta -= LOOP_TIME;
-
-      // render()
-    }
-
-
-    // next( );
-    requestAnimationFame( loop );
-  };
-
-  return loop;
-
-})();
 
 
 // requestAniation frame
@@ -2758,6 +2770,132 @@ pg.loop = (function(){
 // } else {
 //     uhOhWeAreProbablyButNotDefinitelyOffline();
 // }
+
+
+
+// http://updates.html5rocks.com/2012/05/requestAnimationFrame-API-now-with-sub-millisecond-precision
+//
+
+
+
+
+
+
+
+// pg.loop(function(){
+
+//   will loop how it likes
+
+//   // as to stop-pause ?
+
+// });
+
+
+// pg.loop.stop();
+
+//
+
+
+// http://updates.html5rocks.com/2012/08/When-milliseconds-are-not-enough-performance-now
+
+// http://stackoverflow.com/questions/12095276/navigationstart-time-set-to-0-when-using-html5-navigation-timing-api
+
+
+// http://updates.html5rocks.com/2012/05/requestAnimationFrame-API-now-with-sub-millisecond-precision
+
+
+
+// https://developer.mozilla.org/en-US/docs/Navigation_timing
+
+
+
+// You'll also notice the two above values are many orders of magnitude different. performance.now() is a measurement of floating point milliseconds since that particular page started to load (the performance.navigationStart to be specific).
+
+
+
+
+
+//  this.startTime = window.performance.now ?
+//                     (performance.now() + performance.timing.navigationStart) :
+//                     Date.now();
+
+
+
+
+
+
+//    var last = 0,
+
+//      delta;
+
+
+//    function loop ( time ) {
+
+//      delta = time - last;
+//      last  = time;
+
+//  if ( this.runningGame ) {
+
+//                 requestAnimationFrame( loop.bind(this) );
+
+//             } else {
+
+//                 this.screen.clear();
+//             }
+// requestAnimationFrame( function(time) {
+
+//      last = time;
+
+//      loop.call(this, time);
+
+//    }.bind(this) );
+
+
+
+
+
+
+
+// var running = true;
+
+// function loop ( time ) {
+
+//   delta = time - last;
+//   last  = time;
+
+//   /* passing the delta */
+//   update(delta);
+
+//   if ( running ) requestAnimationFrame( loop );
+// }
+
+// var FPS = 1000,
+//   diffFPS = 0;
+
+// function update( delta ) {
+
+//   diffFPS += delta;
+
+//   while ( diffFPS > FPS ) {
+
+//       diffFPS -= FPS;
+
+//       doSomething();
+//   }
+// }
+
+// function doSomething(){
+
+
+// }
+
+
+// requestAnimationFrame( function(time) {
+
+//   last = time;
+
+//   loop(time);
+// });
 
 
 

@@ -1,11 +1,11 @@
-![PeerGaming](https://github.com/Autarc/PeerGaming/raw/master/material/pg-logo_v2.png)
+![PeerGaming](https://github.com/PeerGaming/thesis/raw/logo/pg-logo_v2.png)
 
 PeerGaming - Share the Fun
 ==========================
 
 A Client-Side Multiplayer Gaming Framework for the Web.
 
-_Latest Release: 0.3.0 ([changelog](https://github.com/Autarc/PeerGaming/blob/master/HISTORY.md))_
+_Latest Release: 0.3.1 ([changelog](https://github.com/PeerGaming/peergaming/blob/master/HISTORY.md))_
 
 
 ## Introduction
@@ -34,39 +34,18 @@ Within the next updates, a proper API to be more useful in a gaming environment 
 
 ```js
 
-var name = 'user';
+pg.channel( function ( channel ) {
 
-pg.login( name, function( player ) {
+  channel.on( 'enter', function( user ) {
 
-	player.on('connection', function ( peer ) {
+    console.log( '[entered] User: ' + user.account.name + ' - Channel: ' + channel.id  + ' ]');
+  });
 
-		console.log( '[joined]' + peer.name );
-	});
 });
 
+pg.login( 'test' );
+
 ```
-
-
-## Usage (API)
-
-TODO
-
-
-## Quick-Guide
-
-TODO
-
-
-## Structure
-
-* bin       : build script
-* deps		  : brokering server
-* dist		  : release
-* docs		  : documentation
-* examples	: lobby & games
-* material	: report, assets
-* src		    : source files
-* test		  : tests
 
 
 ## Tribute
@@ -78,4 +57,4 @@ TODO
 
 Copyright (c) 2013, Stefan Dühring
 
-Distributed under [MIT License](https://github.com/Autarc/PeerGaming/blob/master/LICENSE).
+Distributed under [MIT License](https://github.com/PeerGaming/peergaming/blob/master/LICENSE).
