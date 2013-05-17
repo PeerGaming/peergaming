@@ -18,8 +18,8 @@ var socket = (function(){
   logout();
 
   // close for SSE
-  win.addEventListener('unload',            logout );
-  win.addEventListener('beforeunload',      logout );
+  win.addEventListener( 'unload'        , logout );
+  win.addEventListener( 'beforeunload'  , logout );
 
 
   /**
@@ -127,15 +127,18 @@ var socket = (function(){
 
   function connectToServer ( id, origin, next ) {
 
-    function handleOpen() { next(); }
-
     var Socket = checkProtocol('http') ? EventSource : WebSocket;
 
     socket = new Socket( config.socketConfig.server + '/?local=' + id + '&origin=' + origin );
 
-    socket.addEventListener( 'open'     , handleOpen );
-    socket.addEventListener( 'message'  , handleMessage );
-    socket.addEventListener( 'error'    , handleError );
+    socket.addEventListener( 'open', function(){
+
+      socket.addEventListener( 'message', handleMessage );
+      socket.addEventListener( 'error'  , handleError   );
+      socket.addEventListener( 'close'  , handleClose   );
+
+      next();
+    });
   }
 
 
@@ -172,11 +175,10 @@ var socket = (function(){
 
   function handleError ( e ) {
 
-
     // XHR
     if ( e.eventPhase === EventSource.CLOSED ) {
 
-      console.log('[close]');
+      console.log('[socket - close]');
 
     } else {
 
@@ -188,6 +190,18 @@ var socket = (function(){
 
     logout();
   }
+
+
+  /**
+   *
+   */
+
+  function handleClose(){
+
+    console.log('[closed]');
+  }
+
+
 
   /**
    *  [send description]
