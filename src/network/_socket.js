@@ -131,14 +131,16 @@ var socket = (function(){
 
     socket = new Socket( config.socketConfig.server + '/?local=' + id + '&origin=' + origin );
 
-    socket.addEventListener( 'open', function(){
+    socket.addEventListener( 'error' , handleError );
+
+    socket.addEventListener( 'open'  , function(){
 
       socket.addEventListener( 'message', handleMessage );
-      socket.addEventListener( 'error'  , handleError   );
       socket.addEventListener( 'close'  , handleClose   );
 
       next();
     });
+
   }
 
 
@@ -176,16 +178,10 @@ var socket = (function(){
   function handleError ( e ) {
 
     // XHR
-    if ( e.eventPhase === EventSource.CLOSED ) {
+    if ( e.eventPhase === EventSource.CLOSED ) return handleClose();
 
-      console.log('[socket - close]');
+    throw new Error( e.data );
 
-    } else {
-
-      throw new Error( e.data );
-    }
-
-    // socket
     e.currentTarget.close();
 
     logout();
@@ -193,14 +189,13 @@ var socket = (function(){
 
 
   /**
-   *
+   *  [handleClose description]
+   *  @return {[type]} [description]
    */
-
   function handleClose(){
 
-    console.log('[closed]');
+    console.log('[SOCKET] - CLOSE');
   }
-
 
 
   /**
