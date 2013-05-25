@@ -66,32 +66,21 @@ Player.prototype.join = function ( channel, params ) {
 };
 
 
-Player.prototype.message = function ( channel, msg ) {
+// idlist -! todo change from channel to IDlist !
+Player.prototype.message = function ( list, msg ) {
 
-  if ( !msg ) { msg = channel; channel = null; }
+  if ( !msg ) { msg = list; list = null; }
 
-  if ( !channel ) channel = [ 'message' ];
+  if ( !list ) list = Object.keys( CONNECTIONS );
 
-  if ( !Array.isArray( channel ) ) channel = [ channel ];
+  if ( !Array.isArray( list ) ) list = [ list ];
 
-  var keys = Object.keys( CONNECTIONS ),
-      conn, i, l, n, k;
+  for ( var i = 0, l = list.length; i < l; i++ ) {
 
-  for ( i = 0, l = keys.length; i < l; i++ ) {
-
-    conn = CONNECTIONS[ keys[i] ];
-
-    for ( n = 0, k = channel.length; n < k; n++ ) {
-
-      conn.send( channel, { local: this.name, msg: msg });
-    }
+    CONNECTIONS[ list[i] ].send( 'message', { local: this.name, msg: msg });
   }
-
 };
 
 
 // offer and creates a media stream
-Player.prototype.media = function ( id, config, callback ) {
-
-
-};
+Player.prototype.media = function ( id, config, callback ) {};
