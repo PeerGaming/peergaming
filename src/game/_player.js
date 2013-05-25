@@ -100,7 +100,8 @@ Player.prototype.checkNewConnections = function ( list, transport ) {
 
     remoteID = list[i];
 
-    if ( remoteID !== localID && !connections[ remoteID ] ) {
+    // prevent [null]
+    if ( remoteID && remoteID !== localID && !connections[ remoteID ] ) {
 
       this.connect( remoteID, true, transport );
     }
@@ -127,15 +128,13 @@ Player.prototype.connect = function ( remoteID, initiator, transport ) {
 // change URL for router communication
 Player.prototype.join = function ( channel, params ) {
 
-  if ( channel.charAt(0) == '/' ) channel = channel.substr(1);
+  if ( channel.charAt(0) === '/' ) channel = channel.substr(1);
 
   var path = [ '!/', channel, utils.createQuery( params ) ].join('');
 
+  if ( path.charAt( path.length - 1 ) !== '/' ) path += '/';
 
-  if ( path === '!/' + SESSION.currentRoute || win.location.hash ) { // && ?
-
-    return checkRoute();
-  }
+  if ( path === '!/' + SESSION.currentRoute ) return checkRoute();
 
   win.location.hash = path;
 };

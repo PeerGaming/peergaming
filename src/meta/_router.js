@@ -4,7 +4,9 @@
  *
  *  Matching request/URL routes.
  *
+ *  allows to define customRoutes & default (which will be called in initalization !)
  *
+ * // setting up routes - optional setting, can provide a dictionary for custom routes + default route
  *  ToDo:
  *
  *  - add History API support (see server side support)
@@ -31,24 +33,11 @@
  */
 
 
-// using the speeration of the channels, games ?s
-
-
 var channelRoutes   = {},               // collection of the channel routes
     gameRoutes      = {},               // collection of the game  routes
-
-    // CUSTOM_PATTERNS = null,             // custom Patterns (which are used for the customRoutes)
-
-    // DEFAULT_CHANNEL = '/:channel/',
-    // DEFAULT_GAME    = '/:game/:id/',
+    LAST_ROUTE      = null,
     DEFAULT_ROUTE   = '/lobby/';
 
-
-
-
-// setting up routes
-
-// optional setting, can provide a dictionary for custom routes + default route
 
 pg.routes = function ( customRoutes, defaultRoute ) {
 
@@ -68,17 +57,11 @@ pg.routes = function ( customRoutes, defaultRoute ) {
 // var CHANNEL_PATTERN = /\/(.*?)\//g,
 //     ARGS_PATTERN    = /(\?)?:\w+/g;
 
-// TODO
 function defineCustomRoutes ( customRoutes ) {
 
   channelRoutes = {};
   gameRoutes = {};
 }
-
-
-
-
-// parsing routing behavior
 
 
 // extract params
@@ -87,7 +70,7 @@ function checkRoute() {
   var path    = win.location.hash.substr(3),
       args    = path.split('/');
 
-  SESSION.currentRoute = path;
+  INFO.room = SESSION.currentRoute = path;
 
   if ( args.length < 1 ) return;
 
@@ -97,8 +80,7 @@ function checkRoute() {
 }
 
 
-// execute wrapped function
-// cann be a channel or game
+// execute wrapped function, cann be a channel or game
 function matchRoute ( args ) {
 
   var room = args.shift();
@@ -114,13 +96,23 @@ function matchRoute ( args ) {
   var match = !args[0].length ? channels[ room ] || channels[ '*' ]  :
                                    games[ room ] ||    games[ '*' ]  ;
 
-
-  // TODO: parsed by custom routes
+  // TODO: parse for custom routes
   var params = args;
+
+  // prevent re-join the current room...
+  if ( LAST_ROUTE === INFO.room ) return;
 
   if ( match ) {
 
     match.call( match, params );
+
+    if ( LAST_ROUTE  ) {
+
+      // TODO: close all peerconnections else ! (see manager)
+      socket.send({ action: 'change', data: LAST_ROUTE });
+    }
+
+    LAST_ROUTE = INFO.room;
 
   } else {
 
@@ -136,5 +128,18 @@ function matchRoute ( args ) {
 // }
 
 
-// attach listener
-win.addEventListener( 'hashchange', checkRoute );
+function leaveSite ( e ) {
+
+  // prevent initial triggering
+  if ( chrome ) { chrome = !chrome; return; }
+
+  // if ( !history.state ) {
+  // console.log(LAST_ROUTE);
+
+  // return window.history.back();
+  // }
+}
+
+/** attach listener **/
+win.addEventListener( 'hashchange', checkRoute ); // join
+win.addEventListener( 'popstate', leaveSite );    // history navigation

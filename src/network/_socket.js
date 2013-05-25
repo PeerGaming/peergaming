@@ -156,8 +156,12 @@ var socket = (function(){
 
     var msg = JSON.parse( e.data );
 
-    // receive partner via socket & call register
-    if ( !msg || !msg.local ) return socketQueue.exec( msg );
+    // receive partner via socket & call register || or late joins - refere to manager
+    if ( !msg || !msg.local ) {
+
+      return ( socketQueue.list.length ) ? socketQueue.exec( msg )
+                                         : instance.checkNewConnections([ msg ]);
+    }
 
     // create new reference
     if ( !instance.connections[ msg.local ] ) instance.connect( msg.local );
@@ -180,11 +184,15 @@ var socket = (function(){
     // XHR
     if ( e.eventPhase === EventSource.CLOSED ) return handleClose();
 
+    try {
+
+      e.currentTarget.close();
+
+      logout();
+
+    } catch ( err ) { console.log(err); }
+
     throw new Error( e.data );
-
-    e.currentTarget.close();
-
-    logout();
   }
 
 
@@ -210,7 +218,7 @@ var socket = (function(){
   function send ( msg, next )  {
 
     // just for server
-    utils.extend( msg, { local: instance.id, origin: SESSION.currentRoute });
+    utils.extend( msg, { local: instance.id, origin: INFO.room });
 
     msg = JSON.stringify( msg );
 
@@ -220,7 +228,7 @@ var socket = (function(){
 
     } else {  // WS
 
-      socketQueue.add( next );
+      if ( next ) socketQueue.add( next );
 
       socket.send( msg );
     }
