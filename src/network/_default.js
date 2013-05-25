@@ -13,12 +13,12 @@
 
 var defaultHandlers = {
 
+
   init: {
 
     open: function() {
 
-      // channel established && open
-      delete this.info.pending;
+      delete this.info.pending; // channel established + open
 
       this.send( 'init', { name: INSTANCE.account.name, list: Object.keys( CONNECTIONS ) });
     },
@@ -35,8 +35,9 @@ var defaultHandlers = {
 
       INSTANCE.emit( 'connection', peer );
 
-      // providing transport - register delegation
       Manager.check( data.list, this );
+
+      Manager.test( this.info.remote );
     },
 
     close: function ( msg ) {
@@ -67,6 +68,48 @@ var defaultHandlers = {
   },
 
 
+
+  // runs test - measures time for sending packages etc. || later + running tests through creating bytearrays !
+  ping: function ( msg ) {
+
+    msg = JSON.parse( msg );
+
+    var data = msg.data;
+
+    if ( !data.pong ) {
+
+      // benchmark - do performance tests here, to check the hardware, optional: send via pong
+      var time = win.performance.now(),
+
+          arr = new Array( 1000 );
+
+      return this.send( 'ping', { index: data.index, pong: win.performance.now() - time });
+    }
+
+    Manager.test( msg.local, data.index, data.pong );
+  },
+
+
+  update: function ( msg ) {
+
+    msg = JSON.parse( msg );
+
+    console.log('[update]');
+
+    // just a reference to the // TODO: freeze !, shouldnt be able to change directly... internal...
+    pg.peers[ msg.local ].data[ msg.data.key ] = msg.data.value;
+
+    // console.log(pg.peers[msg.local]);
+  },
+
+
+
+  message: function ( msg ) {
+
+    INSTANCE.emit( 'message', msg );
+  },
+
+
   // here again: action can be called for remote handling...
   custom: function ( msg ) {
 
@@ -75,12 +118,6 @@ var defaultHandlers = {
     msg = JSON.parse( msg );
 
     console.log(msg.action);
-  },
-
-
-  message: function ( msg ) {
-
-    INSTANCE.emit( 'message', msg );
   }
 
 };

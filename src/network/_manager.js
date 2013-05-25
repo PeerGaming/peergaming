@@ -8,7 +8,8 @@
  */
 
 // used for structure
-var priorityList = [];
+var LATENCY      = {},
+    priorityList = [];
 
 
 var Manager = (function(){
@@ -74,18 +75,76 @@ var Manager = (function(){
   // change values through a *multicast*
   function update ( key, value ) {
 
+    var ids = Object.keys( CONNECTIONS );
+
     // share with all
-    console.log('[changed] ' + key + ': ' + value );
+    for ( var i = 0, l = ids.length; i < l; i++ ) {
+
+      CONNECTIONS[ ids[i] ].send( 'update', { key: key, value: value });
+    }
   }
 
+
+
+
+  var diff, start;
+
+
+  function pong ( remoteID, data ) {
+
+    var end = win.performance.now();
+
+    diff = end - start;
+
+    console.log( diff );
+  }
+
+
+
+  var timer = {};
 
   // sends a ping - if used with the right parameter | used for starting the benchmark
-  function ping(){
+  function test ( remoteID, index, pong ) {
 
+    var col;
+
+    if ( !pong ) {
+
+      var conn = CONNECTIONS[ remoteID ],
+
+          num  = 100;
+
+      col = timer[ remoteID ] = [ num ];
+
+      for ( var i = 1; i <= num; i++ ) {
+
+        col[i] = win.performance.now();
+
+        conn.send( 'ping', { index: i });
+      }
+
+      return;
+    }
+
+
+    col = timer[ remoteID ];
+
+    col[index] = win.performance.now() - col[index];
+
+    if ( --col[0] > 0 ) return;
+
+    var mean = col.reduce( sum ) / ( col.length - 1 );
+
+    // check the latency
+    LATENCY[ remoteID ] = mean;
+
+
+    // sort - ID - times to priority list
+    //priorityList
   }
 
-  // runs test - measures time for sending packages etc. || later + running tests through creating bytearrays !
-  // function benchmark(){}
+  function sum ( prev, curr ) { return prev + curr; }
+
 
   return {
 
@@ -93,8 +152,8 @@ var Manager = (function(){
     connect    : connect,
     disconnect : disconnect,
     set        : set,
-    update     : update,
-    ping       : ping
+    test       : test,
+    update     : update
   };
 
 })();
