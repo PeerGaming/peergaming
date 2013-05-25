@@ -108,7 +108,10 @@ function matchRoute ( args ) {
 
     if ( LAST_ROUTE  ) {
 
-      // TODO: close all peerconnections else ! (see manager)
+      var keys = Object.keys( CONNECTIONS );
+
+      for ( var i = 0, l = keys.length; i < l; i++ ) Manager.disconnect( keys[i] );
+
       socket.send({ action: 'change', data: LAST_ROUTE });
     }
 
