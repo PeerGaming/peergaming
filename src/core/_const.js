@@ -8,9 +8,11 @@
 
 // global shortcuts
 
-var win = window,
+var win     = window,
 
-    moz     = !!navigator.mozGetUserMedia,
+    moz     = !!win.navigator.mozGetUserMedia,
+
+    chrome  = !!win.chrome,
 
     SESSION = win.sessionStorage;
 
@@ -19,11 +21,14 @@ var win = window,
 // Protocol
 
 
-// internal variables
+// internal variables - capital letters
 
-var instance,          // Singleton reference
+var INSTANCE,         // pg.player
 
-    LOOP_TIME  = 100;  // 100ms      // SYNC_DELAY (dynamcly changed by the manager - regarding connections)
+    INFO,             // pg.info
 
+    CONNECTIONS = {}, // internal variable for accessing
+
+    LOOP_TIME = 100;  // 100ms      // SYNC_DELAY (dynamcly changed by the manager - regarding connections)
 
 // Error Messages

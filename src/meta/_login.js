@@ -21,11 +21,7 @@
 
 pg.login = function ( name, service, hook ) {
 
-  if ( typeof service === 'function' ) {
-
-    hook    = service;
-    service = null;
-  }
+  if ( typeof service === 'function' ) { hook = service; service = null; }
 
   if ( service ) return requestOAuth( name, service, hook );
 
@@ -38,6 +34,8 @@ pg.login = function ( name, service, hook ) {
 // allow to login and use 3rd party data
 function requestOAuth ( name, service, hook ) {
 
+  // using the socket to request credentials
+
   var account = { name: name };
 
   createPlayer( account, hook );
@@ -49,9 +47,9 @@ function createPlayer ( account, hook ) {
 
   var origin = win.location.hash.substr(3) || DEFAULT_ROUTE.substr(1);
 
-  pg.player = instance = new Player( account, origin );
+  pg.player = INSTANCE = new Player( account, origin );
 
-  if ( hook ) hook( instance );
+  if ( hook ) hook( INSTANCE );
 
-  instance.join( origin );
+  INSTANCE.join( origin );
 }

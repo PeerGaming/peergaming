@@ -156,18 +156,13 @@ var socket = (function(){
 
     var msg = JSON.parse( e.data );
 
-    // receive partner via socket & call register || or late joins - refere to manager
+    // receive partnerIDs via socket & call register || or late joins - refere to manager
     if ( !msg || !msg.local ) {
 
-      return ( socketQueue.list.length ) ? socketQueue.exec( msg )
-                                         : instance.checkNewConnections([ msg ]);
+      return ( socketQueue.list.length ) ? socketQueue.exec( msg ) : Manager.check( msg );
     }
 
-    // create new reference
-    if ( !instance.connections[ msg.local ] ) instance.connect( msg.local );
-
-    // SDP & Candidates
-    instance.connections[ msg.local ][ msg.action ]( msg.data );
+    Manager.set( msg );
   }
 
 
@@ -218,7 +213,7 @@ var socket = (function(){
   function send ( msg, next )  {
 
     // just for server
-    utils.extend( msg, { local: instance.id, origin: INFO.room });
+    utils.extend( msg, { local: INSTANCE.id, origin: INFO.room });
 
     msg = JSON.stringify( msg );
 

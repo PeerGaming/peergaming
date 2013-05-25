@@ -104,6 +104,6 @@ function createGame ( handler, game ) {
 
     handler( game, params );
 
-    game.emit( 'enter', instance ); // || peers[id]// see params etc.
+    game.emit( 'enter', INSTANCE ); // || peers[id]// see params etc.
   };
 }

@@ -2,20 +2,13 @@
  *  Connection
  *  ==========
  *
- *  A wrapper for PeerConnections.
+ *  A wrapper for PeerConnection.
  */
-
-
 
 
 var Connection = function ( local, remote, initiator, transport ) {
 
-  this.info = {
-
-    local   : local,
-    remote  : remote,
-    pending : true
-  };
+  this.info = { local: local, remote: remote, pending: true };
 
   if ( initiator ) this.info.initiator = true;
   if ( transport ) this.info.transport = transport;
@@ -63,7 +56,7 @@ Connection.prototype.checkStateChanges = function(){
     var iceState = e.currentTarget.iceConnectionState;
 
     // disconnected
-    if ( iceState === 'disconnected' ) pg.peers[ this.info.remote ].remove();
+    if ( iceState === 'disconnected' ) Manager.disconnect( this.info.remote );
 
   }.bind(this);
 
@@ -102,7 +95,6 @@ Connection.prototype.findICECandidates = function(){
     // console.log(iceGatheringState);
 
     // the 'null' candidate just because there isn't a onicegatheringcomplete event handler.
-
     if ( e.candidate ) {
 
       this.send( 'setIceCandidates', e.candidate );
@@ -126,7 +118,7 @@ Connection.prototype.setIceCandidates = function ( data ) {
 
     if ( this._candidates ) delete this._candidates;
 
-    data = Array.isArray(data) ? data : [ data ];
+    if ( !Array.isArray(data) ) data = [ data ];
 
     for ( var i = 0, l = data.length; i < l; i++ ) {
 
@@ -216,15 +208,16 @@ Connection.prototype.createDataChannel = function ( label, options ) {
 };
 
 
+
+// internal reference
 Connection.prototype.send = function ( action, data ) {  // msg
 
-  // direct connection to the peer, established set through defaultHandler
+  // established set through defaultHandler
   if ( !this.info.pending ) {
-
 
     this.send = function useChannels ( channel, data, proxy ) {
 
-      var msg = { action: channel, local: instance.id, data: data, remote: this.info.remote };
+      var msg = { action: channel, local: INSTANCE.id, data: data, remote: this.info.remote };
 
       utils.extend( msg, proxy );
 
@@ -253,10 +246,10 @@ Connection.prototype.send = function ( action, data ) {  // msg
 
     var remote = this.info.remote;
 
-    // mesh work  // this.transport -> the connection ||  delegates to the call above !
+    // mesh work
     if ( this.info.transport ) {
 
-      var proxy = { action: action, local: instance.id, remote: remote };
+      var proxy = { action: action, local: INSTANCE.id, remote: remote };
 
       return this.info.transport.send( 'register', data, proxy );
     }
@@ -267,7 +260,7 @@ Connection.prototype.send = function ( action, data ) {  // msg
 };
 
 
-// closing by dev != disconnect
+// closing by dev
 Connection.prototype.close = function( channel ) {
 
   var channels  = this.channels,
@@ -275,10 +268,7 @@ Connection.prototype.close = function( channel ) {
 
   if ( !channel ) channel = keys;
 
-  if ( !Array.isArray( channel ) ) {
-
-    channel = [ channel ];
-  }
+  if ( !Array.isArray( channel ) ) channel = [ channel ];
 
   for ( var i = 0, l = channel.length; i < l; i++ ) {
 

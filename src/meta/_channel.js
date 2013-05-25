@@ -54,7 +54,7 @@ function createChannel ( handler, channel ) {
     handler( channel, params );
 
     // you are entering....
-    channel.emit( 'enter', instance );  // otherwise: peers[id]
+    channel.emit( 'enter', INSTANCE );  // otherwise: peers[id]
   };
 }
 

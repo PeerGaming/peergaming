@@ -44,7 +44,7 @@ var Handler = (function(){
 
         stream      = this.stream,
 
-        connection  = instance.connections[ this.info.remote ],
+        connection  = CONNECTIONS[ this.info.remote ],
 
         events = [ 'open', 'data', 'end', 'close', 'error' ];
 
