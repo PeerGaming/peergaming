@@ -12,9 +12,9 @@ pg.peers = {};
 // shortcut to access the stored data
 pg.data  = [];
 
-// internal: mapping data-reference to ids
-var dataMap = {};
 
+// internal: mapping data-reference to ids
+var dataMap   = {};
 
 var Peer = function ( data ) {
 
@@ -28,7 +28,7 @@ utils.inherits( Peer, Emitter );
 
 Peer.prototype.init = function ( id, account ) {
 
-  Emitter.call( this );
+  Emitter.call( this, id );
 
   this.id                     = id;
 
@@ -38,17 +38,3 @@ Peer.prototype.init = function ( id, account ) {
 
   dataMap[ this.id ]          = pg.data.push( this.data ) - 1;
 };
-
-
-// clears references + triggers callbacks on disconnect
-Peer.prototype.remove = function(){
-
-  var id = this.id;
-
-  pg.data.splice( dataMap[id], 1 );
-
-  instance.emit( 'disconnect', this );
-
-  delete pg.peers[ id ];
-  delete instance.connections[ id ];
-}

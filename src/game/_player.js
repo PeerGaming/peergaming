@@ -3,28 +3,14 @@
  *  ======
  *
  *  Interface for the player - will extend the peer wrapper.
- *  // A wrapper for a Peer/Node. Using singleton pattern.
+ *
+ *   this: account, data, id
+ *  - .join( room, params );
+ *  - .message( idList, message ); // or message -> to all connected !
+ *  - .media( constraints, callback ) || or just callback
  */
 
-// join
-// message
-// media
-
-
-// connect will be used internaly ! // hide unrequired task !
-
-
-
-// this: account, data, id
-//
-// != events, connections
-
-// Public:
-// - .join( room, params );
-// - .message()
-
-
-// allow declaring callbacks in advance
+// allow declaring callbacks before creation
 
 var callbackRefs = {};
 
@@ -33,99 +19,39 @@ pg.player = { on: function ( channel, callback, context ) {
   if ( !callbackRefs[ channel ] ) callbackRefs[ channel ] = [];
 
   callbackRefs[ channel ].push([ callback, context ]);
+
 }};
 
 
-
+// player
 
 var Player = function ( account, origin ) {
 
   'use strict';
 
-
   var id = utils.createUID();
 
-  // ToDo: freeze - not allowing to delete the data property
   this.data = getReactor( Manager.update );
-
-  this.connections = {};
 
   this.init( id, account );
 
-  if ( Object.keys( callbackRefs ).length ) this._events = callbackRefs;
+  if ( Object.keys( callbackRefs ).length ) eventMap[ this.id ] = callbackRefs;
 
 
   console.log('\n\t\t:: ' + this.id + ' ::\n');
 
 
-  var register = function(){
+  var register = function(){ socket.init( id, origin, Manager.check ); };
 
-    socket.init( this.id, origin, function ( remoteID ) {
+  if ( socketQueue.ready ) return register();
 
-      if ( remoteID ) {
-
-        this.checkNewConnections([ remoteID ]);
-
-      } else {
-
-        // this.stores.global = new DHT( pg.config.dht );
-      }
-
-    }.bind(this));
-
-  }.bind(this);
-
-
-  if ( socketQueue.ready ) {
-
-    register();
-
-  } else {
-
-    socketQueue.add( register );
-  }
+  socketQueue.add( register );
 };
 
 
 utils.inherits( Player, Peer );
 
-
-Player.prototype.checkNewConnections = function ( list, transport ) {
-
-  var connections = this.connections,
-      localID     = this.id,
-      remoteID;
-
-  for ( var i = 0, l = list.length; i < l; i++ ) {
-
-    remoteID = list[i];
-
-    // prevent [null]
-    if ( remoteID && remoteID !== localID && !connections[ remoteID ] ) {
-
-      this.connect( remoteID, true, transport );
-    }
-  }
-};
-
-
-// perhaps hide interfaces, include the check new connections into the 'instance.connect' ?
-Player.prototype.connect = function ( remoteID, initiator, transport ) {
-
-  if ( this.connections[remoteID] ) return; // as connection is force by the user
-
-  // console.log( '[connect] to - "' + remoteID + '"' );
-
-  var connection = new Connection( this.id, remoteID, initiator || false, transport );
-
-  this.connections[ remoteID ] = connection;
-
-  pg.peers[ remoteID ] = new Peer({ id: remoteID, connection: connection });
-};
-
-
-// check if last entry has the same channel - reload page/anchor
-// change URL for router communication
+// check if last entry has the same channel - reload page/anchor, change URL for router communication
 Player.prototype.join = function ( channel, params ) {
 
   if ( channel.charAt(0) === '/' ) channel = channel.substr(1);
@@ -140,37 +66,32 @@ Player.prototype.join = function ( channel, params ) {
 };
 
 
-// offer and creates a media stream
-Player.prototype.media = function ( id, config, callback ) {
+Player.prototype.message = function ( channel, msg ) {
 
-
-};
-
-
-Player.prototype.send = function ( channel, msg ) {
-
-  if ( !msg ) {
-
-    msg = channel;
-    channel = null;
-  }
+  if ( !msg ) { msg = channel; channel = null; }
 
   if ( !channel ) channel = [ 'message' ];
 
   if ( !Array.isArray( channel ) ) channel = [ channel ];
 
-  var connections = this.connections,
-    keys = Object.keys( connections ),
-    conn, i, l, n, k;
+  var keys = Object.keys( CONNECTIONS ),
+      conn, i, l, n, k;
 
   for ( i = 0, l = keys.length; i < l; i++ ) {
 
-    conn = connections[ keys[i] ];
+    conn = CONNECTIONS[ keys[i] ];
 
     for ( n = 0, k = channel.length; n < k; n++ ) {
 
       conn.send( channel, { local: this.name, msg: msg });
     }
   }
+
 };
 
+
+// offer and creates a media stream
+Player.prototype.media = function ( id, config, callback ) {
+
+
+};

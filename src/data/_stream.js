@@ -12,7 +12,7 @@ var Stream = (function(){
 
   var Stream = function ( options ) {
 
-    Emitter.call(this);
+    Emitter.call( this );
 
     if ( !options ) options = {};
 
@@ -79,10 +79,7 @@ var Stream = (function(){
 
   Stream.prototype.pipe = function ( trg ) {
 
-    this.on('data', function ( chunk ) {
-
-      trg.handle( chunk );
-    });
+    this.on( 'data', function ( chunk ) { trg.handle( chunk ); });
 
     return trg;
   };

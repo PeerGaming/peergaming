@@ -20,7 +20,7 @@ var defaultHandlers = {
       // channel established && open
       delete this.info.pending;
 
-      this.send( 'init', { name: instance.account.name, list: Object.keys( instance.connections ) });
+      this.send( 'init', { name: INSTANCE.account.name, list: Object.keys( CONNECTIONS ) });
     },
 
     end: function ( msg ) {
@@ -33,11 +33,10 @@ var defaultHandlers = {
 
       utils.extend( peer, { account: { name: data.name } });
 
-      instance.emit( 'connection', peer );
+      INSTANCE.emit( 'connection', peer );
 
-      // ToDo: refactor with .connect()
       // providing transport - register delegation
-      instance.checkNewConnections( data.list, this );
+      Manager.check( data.list, this );
     },
 
     close: function ( msg ) {
@@ -50,23 +49,21 @@ var defaultHandlers = {
   },
 
 
+  // just handler between - setting up for remote delegation
   register: function ( msg ) {
 
     msg = JSON.parse( msg );
 
-    if ( msg.remote !== instance.id ) {  // proxy || same as info.transport
+    if ( msg.remote !== INSTANCE.id ) {  // proxy -> info.transport
 
-      // just handler between - setting up for remote delegation
       // console.log( '[proxy] ' + msg.local + ' -> ' + msg.remote );
 
       var proxy = { action: msg.action, local: msg.local, remote: msg.remote };
 
-      return instance.connections[ msg.remote ].send( 'register', msg.data, proxy );
+      return CONNECTIONS[ msg.remote ].send( 'register', msg.data, proxy );
     }
 
-    if ( !instance.connections[ msg.local ] ) instance.connect( msg.local, false, this );
-
-    instance.connections[ msg.local ][ msg.action ]( msg.data );
+    Manager.set( msg, this );
   },
 
 
@@ -83,7 +80,7 @@ var defaultHandlers = {
 
   message: function ( msg ) {
 
-    instance.emit( 'message', msg );
+    INSTANCE.emit( 'message', msg );
   }
 
 };

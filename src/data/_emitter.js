@@ -5,6 +5,9 @@
  *  Message handling using a Mediator (publish/subscribe).
  */
 
+// user: player - peers
+var eventMap = {};
+
 var Emitter = (function(){
 
   'use strict';
@@ -14,9 +17,16 @@ var Emitter = (function(){
    *  Constructor
    */
 
-  var EventEmitter = function(){
+  var EventEmitter = function() {
 
-    this._events = {};
+    if ( this instanceof Peer ) {
+
+      eventMap[ this.id ] = {};
+
+    } else {
+
+      this._events        = {};
+    }
 
     return this;
   };
@@ -36,7 +46,7 @@ var Emitter = (function(){
 
     topics = topics.split(' ');
 
-    var events  = this._events,
+    var events  = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
         length  = topics.length,
         topic;
 
@@ -85,7 +95,7 @@ var Emitter = (function(){
 
   EventEmitter.prototype.emit = function ( topic ) {
 
-    var events    = this._events,
+    var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
         listeners = events[ topic ];
 
     if ( listeners ) {
@@ -113,7 +123,7 @@ var Emitter = (function(){
 
   EventEmitter.prototype.off = function ( topic, callback ) {
 
-    var events    = this._events,
+    var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
         listeners = events[ topic ];
 
     if ( !listeners ) return;
