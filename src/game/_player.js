@@ -8,6 +8,15 @@
  *  - .join( room, params );
  *  - .message( idList, message ); // or message -> to all connected !
  *  - .media( constraints, callback ) || or just callback
+ *
+ *
+ *  ## Events
+ *
+ *  - connection
+ *  - disconnection
+ *
+ *  - media ?
+ *  - message
  */
 
 // allow declaring callbacks before creation
@@ -51,8 +60,11 @@ var Player = function ( account, origin ) {
 
 utils.inherits( Player, Peer );
 
+
 // check if last entry has the same channel - reload page/anchor, change URL for router communication
 Player.prototype.join = function ( channel, params ) {
+
+  if ( typeof channel !== 'string' ) channel = channel.toString();
 
   if ( channel.charAt(0) === '/' ) channel = channel.substr(1);
 
@@ -67,9 +79,11 @@ Player.prototype.join = function ( channel, params ) {
 
 
 // idlist -! todo change from channel to IDlist !
-Player.prototype.message = function ( list, msg ) {
+Player.prototype.send = function ( list, msg ) {
 
   if ( !msg ) { msg = list; list = null; }
+
+  if ( typeof msg !== 'string' ) msg = msg.toString();
 
   if ( !list ) list = Object.keys( CONNECTIONS );
 

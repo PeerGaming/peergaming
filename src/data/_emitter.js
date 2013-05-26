@@ -76,7 +76,6 @@ var Emitter = (function(){
     this.on( topics, function once() {
 
       this.off( topics, once );
-      // this.off( type, once );
 
       callback.apply( this, arguments );
 

@@ -6,15 +6,12 @@
  */
 
 
-// Collection of all connected peers
-pg.peers = {};
+pg.peers      = {}; // Collection of all connected peers
 
-// shortcut to access the stored data
-pg.data  = [];
+pg.data       = []; // shortcut to access the stored data
 
+var dataMap   = {}; // internal: mapping data-reference to ids
 
-// internal: mapping data-reference to ids
-var dataMap   = {};
 
 var Peer = function ( data ) {
 
@@ -28,8 +25,6 @@ utils.inherits( Peer, Emitter );
 
 Peer.prototype.init = function ( id, account ) {
 
-  Emitter.call( this, id );
-
   this.id                     = id;
 
   this.account                = account;
@@ -37,4 +32,6 @@ Peer.prototype.init = function ( id, account ) {
   if ( !this.data ) this.data = {};
 
   dataMap[ this.id ]          = pg.data.push( this.data ) - 1;
+
+  Emitter.call( this, id );
 };
