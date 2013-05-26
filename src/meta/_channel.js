@@ -11,50 +11,63 @@
  *
  *      console.log(channel);
  *    });
+ *
+ *  ## Events
+ *
+ *  - 'enter' : trigger as a user enter the room
+ *  - 'leave' : trigger as a peer leaves the room
+ *
+ *
+ *  - 'media' : trigger as a peer broadcasts a stream || room
+ *  - 'message '?
+ *
  */
 
-
-var channels = {};
+var CHANNELS = {};
 
 
 var Channel = function ( id ) {
 
-  Emitter.call( this );
-
-  this.id = id;
+  this.init( id );
 };
 
 
 utils.inherits( Channel, Emitter );
 
 
+Channel.prototype.init = function ( id ) {
 
-pg.channel = function ( id, handler ) {
+  this.id = id;
 
-  if ( typeof id !== 'string' ) {
-
-    handler = id;
-    id      = '*';
-  }
-
-  var channel = new Channel( id );
-
-  // typeof handler => function
-  channels[ id ] = createChannel( handler, channel );
-
-  return channel;
+  Emitter.call( this );
 };
 
 
+Channel.prototype.config = function ( customConfig ) {
 
-function createChannel ( handler, channel ) {
+};
 
-  return function ( params ) {
 
-    handler( channel, params );
+pg.channel = createRoom( Channel );
 
-    // you are entering....
-    channel.emit( 'enter', INSTANCE );  // otherwise: peers[id]
+
+
+function createRoom ( type ) {
+
+  return function ( id, handler ) {
+
+    if ( typeof id !== 'string' ) { handler = id; id = '*'; }
+
+  // ToDo: look for better handling than instance | typeof handler => function
+    var room = new type( id ),
+
+        list = ( room instanceof Game ) ? GAMES : CHANNELS;
+
+    list[ id ] = room;
+
+    handler( room );
+
+    return room;
   };
 }
 
