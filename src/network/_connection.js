@@ -208,41 +208,17 @@ Connection.prototype.createDataChannel = function ( label, options ) {
 };
 
 
-
 // internal reference
-Connection.prototype.send = function ( action, data ) {  // msg
+Connection.prototype.send = function ( action, data ) {
 
   // established set through defaultHandler
   if ( !this.info.pending ) {
 
-    this.send = function useChannels ( channel, data, proxy ) {
-
-      var msg = { action: channel, local: INSTANCE.id, data: data, remote: this.info.remote };
-
-      utils.extend( msg, proxy );
-
-
-      var channels = this.channels;
-
-      if ( !channel ) channel = keys = Object.keys( channels );
-
-      if ( !Array.isArray( channel ) ) channel = [ channel ];
-
-      // ToDo: closing issue
-      // missing - message will be send - injected as , new icecandidates will be created etc.
-
-      for ( var i = 0, l = channel.length; i < l; i++ ) {
-
-        if ( channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
-      }
-
-    }.bind(this);
-
+    this.send = useChannels.bind(this);
 
     this.send( action, data );
 
   } else { // initializing handshake
-
 
     var remote = this.info.remote;
 
@@ -260,11 +236,11 @@ Connection.prototype.send = function ( action, data ) {  // msg
 };
 
 
-// closing by dev
+// closing channels  + peerConnection
 Connection.prototype.close = function( channel ) {
 
-  var channels  = this.channels,
-      keys      = Object.keys(channels);
+  var handler  = this.channels,
+      keys     = Object.keys( handler );
 
   if ( !channel ) channel = keys;
 
@@ -272,9 +248,11 @@ Connection.prototype.close = function( channel ) {
 
   for ( var i = 0, l = channel.length; i < l; i++ ) {
 
-    channels[ channel[i] ].close();
-    delete channels[ channel[i] ];
+    handler[ channel[i] ].channel.close();
+    delete handler[ channel[i] ];
   }
+
+  if ( !Object.keys( handler ).length ) this.conn.close();
 };
 
 
@@ -298,9 +276,7 @@ function adjustSDP ( sdp ) {
 
     sdp = sdp.replace( /b=AS:([0-9]*)/, function ( match, text ) {
 
-      var size = config.channelConfig.BANDWIDTH;
-
-      return 'b=AS:' + size;
+      return 'b=AS:' + config.channelConfig.BANDWIDTH;
     });
   }
 
@@ -319,5 +295,28 @@ function createDefaultChannels ( connection )  {
   for ( var i = 0, l = defaultChannels.length; i < l ; i++ ) {
 
     connection.createDataChannel( defaultChannels[i] );
+  }
+}
+
+
+// replace socket usage
+function useChannels ( channel, data, proxy ) {
+
+  var msg = { action: channel, local: INSTANCE.id, data: data, remote: this.info.remote };
+
+  utils.extend( msg, proxy );
+
+  var channels = this.channels;
+
+  if ( !channel ) channel = keys = Object.keys( channels );
+
+  if ( !Array.isArray( channel ) ) channel = [ channel ];
+
+  // ToDo: closing issue
+  // missing - message will be send - injected as , new icecandidates will be created etc.
+
+  for ( var i = 0, l = channel.length; i < l; i++ ) {
+
+    if ( channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
   }
 }
