@@ -54,9 +54,14 @@ var Manager = (function(){
   // clears references + triggers callbacks on disconnect
   function disconnect ( remoteID ) {
 
-    INSTANCE.emit( 'disconnect', pg.peers[ remoteID ] );
+    var peer = pg.peers[ remoteID ];
 
-    pg.data.splice( dataMap[remoteID], 1 );
+    INSTANCE.emit( 'disconnect', peer );
+    ROOM    .emit( 'leave'     , peer );
+
+    CONNECTIONS[ remoteID ].close();
+
+    pg.data.splice( dataMap[ remoteID ], 1 );
 
     delete pg.peers[ remoteID ];
     delete CONNECTIONS[ remoteID ];
