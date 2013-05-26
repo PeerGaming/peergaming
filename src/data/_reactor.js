@@ -10,8 +10,9 @@
  */
 
 
-// record of reactors
-var list = [];
+var list = [],    // record of reactors
+
+    SYNC = 500;   // delay for exchange - getter/setter
 
 
 /**
@@ -31,7 +32,6 @@ var getReactor = function() {
 
   return obj;
 };
-
 
 
 /**
@@ -61,7 +61,7 @@ function checkProperties ( id, current ) {
     for ( i = 0, l = remove.length; i < l; i++ ) delete last[ remove[i] ];
   }
 
-  setTimeout( checkProperties, LOOP_TIME, id, current );
+  setTimeout( checkProperties, SYNC, id, current );
 }
 
 
@@ -86,12 +86,12 @@ function getDifferences ( last, current ) {
 
   for ( i = 0, l = lastKeys.length; i < l; i++ ) {
 
-    if ( !current[ lastKeys[i] ] ) remove.push( lastKeys[i] );
+    if ( current[ lastKeys[i] ] !== void 0 ) remove.push( lastKeys[i] );
   }
 
   for ( i = 0, l = currentKeys.length; i < l; i++ ) {
 
-    if ( !last[ currentKeys[i] ] ) add.push( currentKeys[i] );
+    if ( last[ currentKeys[i] ] !== void 0 ) add.push( currentKeys[i] );
   }
 
   return { add: add, remove: remove };
