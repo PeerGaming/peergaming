@@ -70,7 +70,7 @@ function checkRoute() {
   var path    = win.location.hash.substr(3),
       args    = path.split('/');
 
-  INFO.room = SESSION.currentRoute = path;
+  INFO.route = SESSION.currentRoute = path;
 
   if ( args.length < 1 ) return;
 
@@ -92,19 +92,26 @@ function matchRoute ( args ) {
     return;
   }
 
-  // room match -> arguments, defined as a channel or game
-  var match = !args[0].length ? channels[ room ] || channels[ '*' ]  :
-                                   games[ room ] ||    games[ '*' ]  ;
+  // var lastRoom = ROOM; // behavior ?
+
+  // room match -> arguments
+  ROOM = room = !args[0].length ? CHANNELS[ room ] || CHANNELS[ '*' ]  :
+                                     GAMES[ room ] ||    GAMES[ '*' ]  ;
+
 
   // TODO: parse for custom routes
   var params = args;
 
   // prevent re-join the current room...
-  if ( LAST_ROUTE === INFO.room ) return;
+  if ( LAST_ROUTE === INFO.route ) return;
 
-  if ( match ) {
 
-    match.call( match, params );
+  if ( room ) {
+
+    // if ( lastRoom ) lastRoom.emit( 'leave', INSTANCE );
+
+    // initial setup - attach handler
+    room.emit( 'enter', INSTANCE, params );
 
     if ( LAST_ROUTE  ) {
 
@@ -115,7 +122,7 @@ function matchRoute ( args ) {
       socket.send({ action: 'change', data: LAST_ROUTE });
     }
 
-    LAST_ROUTE = INFO.room;
+    LAST_ROUTE = INFO.route;
 
   } else {
 

@@ -17,18 +17,14 @@ var win     = window,
     SESSION = win.sessionStorage;
 
 
+// internal variables - references
 
-// Protocol
+var INSTANCE    = null,   // pg.player
 
+    INFO        = null,   // pg.info
 
-// internal variables - capital letters
+    ROOM        = null,   // current room
 
-var INSTANCE,         // pg.player
+    CONNECTIONS =   {},   // datachannel to peers
 
-    INFO,             // pg.info
-
-    CONNECTIONS = {}, // internal variable for accessing
-
-    LOOP_TIME = 100;  // 100ms      // SYNC_DELAY (dynamcly changed by the manager - regarding connections)
-
-// Error Messages
+    MEDIAS      =   {};   // mediastream to peers

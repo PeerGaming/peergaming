@@ -213,7 +213,7 @@ var socket = (function(){
   function send ( msg, next )  {
 
     // just for server
-    utils.extend( msg, { local: INSTANCE.id, origin: INFO.room });
+    utils.extend( msg, { local: INSTANCE.id, origin: INFO.route });
 
     msg = JSON.stringify( msg );
 

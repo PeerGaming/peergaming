@@ -33,20 +33,17 @@ var defaultHandlers = {
 
       utils.extend( peer, { account: { name: data.name } });
 
+
       INSTANCE.emit( 'connection', peer );
+      ROOM    .emit( 'enter'     , peer );
+
 
       Manager.check( data.list, this );
 
       Manager.test( this.info.remote );
     },
 
-    close: function ( msg ) {
-
-      console.log('[closed]');
-
-      console.log(msg);
-    }
-
+    close: function ( msg ) {  /* console.log('[DatChannel closed]'); */ }
   },
 
 
@@ -68,8 +65,8 @@ var defaultHandlers = {
   },
 
 
-
-  // runs test - measures time for sending packages etc. || later + running tests through creating bytearrays !
+  // runs test - measures time for sending packages etc. ||
+  // later + running tests through creating bytearrays !
   ping: function ( msg ) {
 
     msg = JSON.parse( msg );
@@ -79,11 +76,13 @@ var defaultHandlers = {
     if ( !data.pong ) {
 
       // benchmark - do performance tests here, to check the hardware, optional: send via pong
-      var time = win.performance.now(),
+      var time = win.performance.now();
 
-          arr = new Array( 1000 );
+      return setImmediate(function(){
 
-      return this.send( 'ping', { index: data.index, pong: win.performance.now() - time });
+        this.send( 'ping', { index: data.index, pong: win.performance.now() - time });
+
+      }.bind(this));
     }
 
     Manager.test( msg.local, data.index, data.pong );
