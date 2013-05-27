@@ -38,6 +38,34 @@ if ( !win.requestAnimationFrame ) {
 
 
 /**
+ *  visibility
+ */
+
+var visibilityChange;
+
+if ( !( 'hidden' in doc ) ) {
+
+  var vendors = [ 'webkit', 'moz', 'ms', 'o' ];
+
+  if ( doc.state ) vendors.length = 0;
+
+  for ( var i = 0, l = vendors.length; i < l; i++ ) {
+
+    if ( (vendors[i]+'Hidden') in doc ) {
+
+      doc.state         = doc[ vendors[i] + 'VisibilityState' ];
+      doc.hidden        = doc[ vendors[i] + 'Hidden'          ];
+      visibilityChange  =      vendors[i] + 'visibilitychange' ;
+    }
+  }
+
+  if ( !visibilityChange ) visibilityChange = 'visibilitychange';
+  // var evtname = visProp.replace(/[H|h]idden/,'') + 'visibilitychange';
+  // document.addEventListener(evtname, visChange);
+}
+
+
+/**
  *  Blob & ObjectURL
  */
 

@@ -10,6 +10,8 @@
 
 var win     = window,
 
+    doc     = document,
+
     moz     = !!win.navigator.mozGetUserMedia,
 
     chrome  = !!win.chrome,

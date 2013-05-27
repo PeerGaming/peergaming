@@ -6,101 +6,86 @@
  *
  *  Examples:
  *
- *    pg.loop(function ( delta ) {
- *
+ *    pg.loop(function ( delta ) { *
  *
  *    });
+ *
+ *  ## API
+ *
+ *  .stop
+ *  .resume
  */
 
-
-pg.loop = (function(){
-
-
-  var loop = function ( next ) {
-
-    delta = 100;
-
-    while ( delta >= LOOP_TIME ) {
-
-      delta -= LOOP_TIME;
-
-      // render()
-    }
+var RUNNING = false,
+    REF     = null;
 
 
-    // next( );
-    requestAnimationFame( loop );
-  };
+var loop = function ( render ) {
 
-  return loop;
+  if ( RUNNING ) return;
 
-})();
+  RUNNING = true;
 
+  REF = render;
 
-// requestAniation frame
+  var time  = 0,
+      delta = 0,
+      last  = 0;
 
+  requestAnimationFrame( function () { last = win.performance.now(); sync(); });
 
-// pause:
+  function sync() {
 
-// on disconnect, offline
-// on visibility hidden (trigger pause)
+    // workaround: firefox doesn't use performance.now() but date.now() :(
+    time  = win.performance.now();
+    delta = time - last;
+    last  = time;
 
+    render( delta ); // throttle( render, delta );
 
+    if ( RUNNING ) requestAnimationFrame( sync );
+  }
 
+};
 
-// sync time -? will be define in the inital connection , just for testing 0 or 1 || can be updated
-// internally.....
+// synchronizing delay - using for sync with others | adust the used rate
+var LOOP_TIME = 16.7,
+    DIFF      = 0;
 
-// see property. get passed time since started, request.animatin frame
+function throttle ( render, delta ) {
 
-// function loop ( render ) {
+  DIFF += delta;
 
-//      delta time
+  while ( DIFF >= LOOP_TIME ) {
 
-//      while ( >= SYNC_DELAY ) {
-//
-//          delta -= SYNC_DELAY;
-//
-//          render();
-//      }
+    DIFF -= LOOP_TIME;
 
-
-
-//     render();
-//     requestAnimationFame( loop );
-// }
-
-
-// loop(function(){
-
-//     // .update()
-//     // .draw()
-// });
+    render( delta );
+  }
+}
 
 
+// stop & resumes the loop || ToDo: trigger: pause & unpause
+loop.stop    = function(){ RUNNING = false;  };
+loop.resume  = function(){ loop(REF);        };
 
 
-// as a channel will be called - creating one - coomunicate with others to join ?
-// pg.routes( createChannel, createGame ); //
+pg.loop = loop;
 
 
+function checkPause(){
 
+  var title = doc.title.split('[PAUSE]').pop();
 
-// visibility change etc. as well
+  if ( !doc.hidden ) {
 
+    doc.title = '[PAUSE] - ' + title; //( doc.hidden ? '[PAUSE] ' : '' ) + title;
 
-// // pause... resume
+    loop.stop();
 
-// // We simply subscribe to the offline or online event and pass a function (or function reference)
-// // invoke our handler when the offline event occurs
-// window.addEventListener("offline", whoopsWeAreOffline);
-// // and when the online event occurs....
-// window.addEventListener("online", sweetBackOnLine);
+  // ROOM.emit( 'pause', INSTANCE ); // also - sends to all - pause...
+  }
 
+}
 
-
-// if (navigator.onLine) {
-//     sweetWeAreKindaMaybeOnline();
-// } else {
-//     uhOhWeAreProbablyButNotDefinitelyOffline();
-// }
+doc.addEventListener( visibilityChange, checkPause );
