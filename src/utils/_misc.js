@@ -65,6 +65,8 @@ utils.getToken = function getToken() {
 // Based on @broofa:
 // http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#2117523
 
+// https://github.com/pid/puid
+
 utils.createUID = function createUID() {
 
   var pool = new Uint8Array( 1 ),
@@ -81,6 +83,22 @@ utils.createUID = function createUID() {
     });
 
   return id;
+};
+
+
+
+// Get an identifiying hash coder from a string
+// see: http://jsperf.com/hashing-a-string/3 || http://jsperf.com/hashing-strings/14
+
+utils.getHash = function getHash ( str ) {
+
+  var hash = 0,
+
+      i    = ( str && str.length ) ? str.length : 0;
+
+  while ( i-- ) hash = hash * 31 + str.charCodeAt(i); //result &= result;
+
+  return hash;
 };
 
 

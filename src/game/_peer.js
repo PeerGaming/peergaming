@@ -10,8 +10,6 @@ pg.peers      = {}; // Collection of all connected peers
 
 pg.data       = []; // shortcut to access the stored data
 
-var dataMap   = {}; // internal: mapping data-reference to ids
-
 
 var Peer = function ( data ) {
 
@@ -31,7 +29,7 @@ Peer.prototype.init = function ( id, account ) {
 
   if ( !this.data ) this.data = {};
 
-  dataMap[ this.id ]          = pg.data.push( this.data ) - 1;
+  this.pos                    = pg.data.push( this.data ) - 1;
 
   Emitter.call( this, id );
 };

@@ -48,6 +48,23 @@ var Manager = (function(){
     CONNECTIONS[ remoteID ] = new Connection( INSTANCE.id, remoteID, initiator, transport );
 
     pg.peers[ remoteID ] = new Peer({ id: remoteID });
+
+
+    // unify structure: redefine index + position for data
+    var list = Object.keys( pg.peers ).concat([ INSTANCE.id  ]).sort( order ),
+
+        user; // player + peers
+
+    pg.data.length = 0;
+
+    for ( var i = 0, l = list.length; i < l; i++ ) {
+
+      user = pg.peers[ list[i] ] || INSTANCE;
+
+      user.pos = pg.data.push( user.data ) - 1;
+    }
+
+    function order ( curr, next ) { return utils.getHash(next) - utils.getHash(curr); }
   }
 
 
@@ -61,7 +78,7 @@ var Manager = (function(){
 
     CONNECTIONS[ remoteID ].close();
 
-    pg.data.splice( dataMap[ remoteID ], 1 );
+    pg.data.splice( peer.pos, 1 );
 
     delete pg.peers[ remoteID ];
     delete CONNECTIONS[ remoteID ];
@@ -72,6 +89,8 @@ var Manager = (function(){
   function set ( msg, transport ) {
 
     if ( !CONNECTIONS[ msg.local] ) connect( msg.local, false, transport );
+
+    if ( msg.action ==='update') console.log(msg);
 
     CONNECTIONS[ msg.local ][ msg.action ]( msg.data );
   }
