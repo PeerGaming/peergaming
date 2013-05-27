@@ -12,7 +12,7 @@
 
 var list = [],    // record of reactors
 
-    SYNC = 500;   // delay for exchange - getter/setter
+    SYNC = 100;   // delay for exchange - getter/setter
 
 
 /**
@@ -86,12 +86,12 @@ function getDifferences ( last, current ) {
 
   for ( i = 0, l = lastKeys.length; i < l; i++ ) {
 
-    if ( current[ lastKeys[i] ] !== void 0 ) remove.push( lastKeys[i] );
+    if ( current[ lastKeys[i] ] == void 0 ) remove.push( lastKeys[i] );
   }
 
   for ( i = 0, l = currentKeys.length; i < l; i++ ) {
 
-    if ( last[ currentKeys[i] ] !== void 0 ) add.push( currentKeys[i] );
+    if ( last[ currentKeys[i] ] == void 0 ) add.push( currentKeys[i] );
   }
 
   return { add: add, remove: remove };
@@ -113,7 +113,9 @@ function defineProperty ( id, current, prop ) {
 
       setter = function ( value ) {
 
-        // change in the reference model as well
+        // prevent redundancy: old = new
+        if ( value === list[id].reference[ prop ] ) return;
+
         list[id].reference[ prop ] = value;
 
         var callbacks = list[id].callbacks,
