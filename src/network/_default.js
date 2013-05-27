@@ -93,14 +93,11 @@ var defaultHandlers = {
 
     msg = JSON.parse( msg );
 
-    console.log('[update]');
-
     // just a reference to the // TODO: freeze !, shouldnt be able to change directly... internal...
     pg.peers[ msg.local ].data[ msg.data.key ] = msg.data.value;
 
-    // console.log(pg.peers[msg.local]);
+    // console.log('[update] ', msg.data.key + ':' + msg.data.value );
   },
-
 
 
   message: function ( msg ) {

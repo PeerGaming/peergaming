@@ -20,7 +20,7 @@ for ( var i = 0, l = features.length; i < l; i++ ) {
   if ( !(features[i] in win ) ) console.log( 'Missing: ', features[i] );
 }
 
-if ( !win.RTCPeerConnection ) throw new Error('Your browser doesn\'t support PeerConnections yet.');
+if ( !win.RTCPeerConnection ) alert('Your browser doesn\'t support PeerConnections yet.'); //throw new Error
 
 
 var littleEndian = (function(){

@@ -45,7 +45,7 @@ Media.prototype.init = function(){
 };
 
 
-utils.inherit( Media, Connection );
+utils.inherits( Media, Connection );
 
 
 Media.prototype.attachStream = function(){
