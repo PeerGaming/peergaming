@@ -2,3 +2,4 @@
 //= require "_watch.js"
 //= require "_player.js"
 //= require "_loop.js"
+//= require "_sync.js"
