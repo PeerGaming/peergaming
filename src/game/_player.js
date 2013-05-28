@@ -32,23 +32,26 @@ pg.player = { on: function ( channel, callback, context ) {
 }};
 
 
-// player
 
 var Player = function ( account, origin ) {
 
   'use strict';
 
-  var id = utils.createUID();
+  var id    = utils.createUID(),
 
-  this.data = getReactor( Manager.update );
+      data  = getReactor( Manager.update );
 
-  this.init( id, account );
+  this.time = Date.now();
+
+  this.init( id, account, data );
 
   if ( Object.keys( callbackRefs ).length ) eventMap[ this.id ] = callbackRefs;
 
 
   console.log('\n\t\t:: ' + this.id + ' ::\n');
 
+
+  if ( SERVERLESS ) return setImmediate(function(){ Manager.check([ 'SERVERLESS' ]); });
 
   var register = function(){ socket.init( id, origin, Manager.check ); };
 
@@ -61,7 +64,8 @@ var Player = function ( account, origin ) {
 utils.inherits( Player, Peer );
 
 
-// check if last entry has the same channel - reload page/anchor, change URL for router communication
+// check if last entry has the same channel - reload page/anchor,
+// change URL for router communication
 Player.prototype.join = function ( channel, params ) {
 
   if ( typeof channel !== 'string' ) channel = channel.toString();
@@ -97,4 +101,4 @@ Player.prototype.send = function ( list, msg ) {
 
 
 // offer and creates a media stream
-Player.prototype.media = function ( id, config, callback ) {};
+Player.prototype.media = function ( id, config, callback ) {}; // || TODO: 0.5.0 -> mediaStream()

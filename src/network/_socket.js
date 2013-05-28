@@ -64,7 +64,7 @@ var socket = (function(){
   function logout() {
 
     // WS
-    if ( checkProtocol('ws') ) {
+    if ( checkProtocol('ws') || SERVERLESS ) {
 
       socketQueue.ready = true;
       return;
@@ -224,6 +224,8 @@ var socket = (function(){
     } else {  // WS
 
       if ( next ) socketQueue.add( next );
+
+      if ( SERVERLESS ) return SERVERLESS( msg );
 
       socket.send( msg );
     }

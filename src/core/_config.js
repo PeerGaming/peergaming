@@ -5,6 +5,7 @@
  *  Default configurations for the network.
  */
 
+var SERVERLESS = null;
 
 var config = {
 
@@ -79,17 +80,20 @@ var config = {
  *  @return {[type]}              [description]
  */
 
-pg.config = function ( customConfig ) {
+function setConfig ( customConfig ) {
 
   utils.extend( config, customConfig );
 
   return config;
+}
+
+
+setConfig.noServer = function ( hook ) {
+
+  if ( typeof hook === 'boolean' && hook ) return; // TODO: 0.6.0 -> useLocalDev();
+
+  SERVERLESS = hook;
 };
 
 
-// servers = {"iceServers":[
-//                 {"url":"stun:<stun_server>:<port>},
-//                 { url: "turn:<user>@<turn_server>:<port>",credential:"<password>"}
-//             ]};
-
-// but when I check
+pg.config = setConfig;
