@@ -13,7 +13,7 @@ pg.data       = []; // shortcut to access the stored data
 
 var Peer = function ( data ) {
 
-  this.init( data.id, data.account );
+  this.init( data.id, data.account || {}, data.data || {} );
 };
 
 
@@ -21,15 +21,15 @@ var Peer = function ( data ) {
 utils.inherits( Peer, Emitter );
 
 
-Peer.prototype.init = function ( id, account ) {
+Peer.prototype.init = function ( id, account, data ) {
 
-  this.id                     = id;
+  this.id      = id;
 
-  this.account                = account;
+  this.account = account;
 
-  if ( !this.data ) this.data = {};
+  this.data    = data;
 
-  this.pos                    = pg.data.push( this.data ) - 1;
+  this.pos     = pg.data.push( this.data ) - 1;
 
   Emitter.call( this, id );
 };
