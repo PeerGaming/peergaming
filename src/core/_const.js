@@ -16,7 +16,9 @@ var win     = window,
 
     chrome  = !!win.chrome,
 
-    SESSION = win.sessionStorage;
+    SESSION = win.sessionStorage,
+
+    rand    = Math.random;
 
 
 // internal variables - references

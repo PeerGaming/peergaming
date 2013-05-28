@@ -32,9 +32,9 @@ var loop = function ( render ) {
       delta = 0,
       last  = 0;
 
-  requestAnimationFrame( function () { last = win.performance.now(); sync(); });
+  requestAnimationFrame( function () { last = win.performance.now(); run(); });
 
-  function sync() {
+  function run() {
 
     // workaround: firefox doesn't use performance.now() but date.now() :(
     time  = win.performance.now();
@@ -43,7 +43,7 @@ var loop = function ( render ) {
 
     render( delta ); // throttle( render, delta );
 
-    if ( RUNNING ) requestAnimationFrame( sync );
+    if ( RUNNING ) requestAnimationFrame( run );
   }
 
 };

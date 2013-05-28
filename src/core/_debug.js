@@ -15,7 +15,7 @@
 
 function debug ( text ) {
 
-	if ( !instance || !localStorage.log ) {
+	if ( !INSTANCE || !localStorage.log ) {
 
 		localStorage.log = 0;
 	}
@@ -46,8 +46,8 @@ win.clearDebug = function() {
  */
 function loggerr ( err )  {
 
-	console.log('[error]');
-	console.log( err , err.name + ': ' + err.message );
+	console.log('[error] ', err );
+  console.log( err.name + ': ' + err.message );
 }
 
 
@@ -81,3 +81,5 @@ function isDebugging(){
 // stopbefore
 
 // https://gist.github.com/NV/5376464
+
+// copy(JSON.stringify(data, null, 2))
