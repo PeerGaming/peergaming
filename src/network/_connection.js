@@ -55,8 +55,18 @@ Connection.prototype.checkStateChanges = function(){
 
     var iceState = e.currentTarget.iceConnectionState;
 
-    // disconnected
-    if ( iceState === 'disconnected' ) Manager.disconnect( this.info.remote );
+    if ( iceState === 'disconnected' ) {
+
+      if ( this.info.pending ) { // interrupt
+
+        this.closed = true;
+
+      } else { // cleanup closed connection
+
+        Manager.disconnect( this.info.remote );
+      }
+
+    }
 
   }.bind(this);
 
@@ -64,8 +74,9 @@ Connection.prototype.checkStateChanges = function(){
   conn.onsignalingstatechange = function ( e ) {
 
     // console.log('[state changed]');
-    // var signalingState = e.currentTarget.signalingState;
-    // console.log(signalingState);
+    var signalingState = e.currentTarget.signalingState;
+
+    this.ready = ( signalingState === 'stable' );
 
   }.bind(this);
 };
@@ -165,6 +176,13 @@ Connection.prototype.setConfigurations = function ( msg ) {
       desc = new RTCSessionDescription( msg );
 
 
+
+  // unstabled connection got closed before....
+  if ( this.closed ) return win.location.reload();
+
+  // TODO: connects peers - but now problem with starting the game, initialize etc.
+
+
   conn.setRemoteDescription( desc, function(){
 
     if ( this._candidates ) this.setIceCandidates( this._candidates );
@@ -229,6 +247,8 @@ Connection.prototype.send = function ( action, data ) {
 
       return this.info.transport.send( 'register', data, proxy );
     }
+
+    if ( action === 'update' ) return console.log('[....update]' , data );
 
     // send via server
     socket.send({ action: action, data: data, remote: remote });
@@ -306,17 +326,17 @@ function useChannels ( channel, data, proxy ) {
 
   utils.extend( msg, proxy );
 
-  var channels = this.channels;
+  var ready    = this.ready,
+      channels = this.channels;
 
   if ( !channel ) channel = keys = Object.keys( channels );
 
   if ( !Array.isArray( channel ) ) channel = [ channel ];
 
-  // ToDo: closing issue
-  // missing - message will be send - injected as , new icecandidates will be created etc.
+  // ToDo: closing issue - missing message can be send (bew icecandidates will be created etc.)
 
   for ( var i = 0, l = channel.length; i < l; i++ ) {
 
-    if ( channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
+    if ( ready && channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
   }
 }
