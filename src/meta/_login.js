@@ -34,11 +34,16 @@ pg.login = function ( name, service, hook ) {
 // allow to login and use 3rd party data
 function requestOAuth ( name, service, hook ) {
 
-  // using the socket to request credentials
+  service = service.toUpperCase();
 
-  var account = { name: name };
+  if ( !AUTH[ service ] ) return console.log('[ERROR] The chosen service is not supported yet.');
+
+  // AUTH[ service ]( name , function ( account ) {
+
+  var  account = { name: name };
 
   createPlayer( account, hook );
+  // });
 }
 
 
