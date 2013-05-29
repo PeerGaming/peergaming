@@ -23,12 +23,15 @@
  *
  */
 
+
 var CHANNELS = {};
 
 
 var Channel = function ( id ) {
 
   this.init( id );
+
+  // this.match = function ( type ) {};  // TODO: 0.7.0 -> matchmaking
 };
 
 
@@ -45,6 +48,7 @@ Channel.prototype.init = function ( id ) {
 
 Channel.prototype.config = function ( customConfig ) {
 
+  utils.extend( this.options, customConfig );
 };
 
 
@@ -58,7 +62,6 @@ function createRoom ( type ) {
 
     if ( typeof id !== 'string' ) { handler = id; id = '*'; }
 
-  // ToDo: look for better handling than instance | typeof handler => function
     var room = new type( id ),
 
         list = ( room instanceof Game ) ? GAMES : CHANNELS;

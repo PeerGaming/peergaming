@@ -23,36 +23,119 @@
  */
 
 
-var GAMES  = {};
+var GAMES   = {},
+
+    STARTER = null;
 
 
 var Game = function ( id ) {
 
   this.init( id );
 
-  this.info = {};
+  // this.info    = {};                          // TODO: 0.6.0 -> data & info
 
-  //{ currentPlayers: 2, state: 'running' };
-  // watchable: true // public, privated.., protected...
-  this.config = { minPlayer: 2, maxPlayer: 8 };
+  this.options = { minPlayer: 2, maxPlayer: 8 }; // TODO: 0.5.0 -> room options
+
+  GAMES[ id ] = this;
 };
 
 
 utils.inherits( Game, Channel );
 
 
-/** start a game as minimal got reached **/
-Game.prototype.start = function ( init ) {
+/** start a game as the minimum got reached **/
+Game.prototype.start = function ( initialize ) {
 
-  // just add players ? || not required - as done by data automaticly
-  if ( pg.data.length === this.config.minPlayer ) init();
+  this._start = function(){ initialize(); forward.call( this ); };
+
+
+  var ready = Object.keys( READY ).length;
+
+  if ( ready  <  this.options.minPlayer ) return;     // less player  - wait
+
+  if ( ready === this.options.minPlayer ) {           // condition
+
+    if ( INSTANCE.pos === 0 ) this._start();
+
+    return; // not 0 but same amount
+  }
+
+  if ( ready  >  this.options.minPlayer ) {          // more player   - late join
+
+    if ( INSTANCE.pos >= this.options.minPlayer ) request();
+
+    return;
+  }
+
+  // TODO: 0.5.0 -> maxPlayer will be handled
 };
 
 
-// check for role | voting,as start -end etc. shouldnt be callable by the users afterwards....
+// request previous if ready
+function request() {
 
-Game.prototype.end      = function(){};
-Game.prototype.pause    = function(){};
-Game.prototype.unpause  = function(){};
+  var keys = Object.keys( pg.peers ),
+      curr = INSTANCE.pos;
+
+  for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+    if ( curr - 1 === pg.peers[ keys[i] ].pos ) {
+
+      return CONNECTIONS[ keys[i] ].send( 'start', { request: true });
+    }
+  }
+}
+
+
+// forward to the next peer : remoteID will be provided by late join !
+function forward ( remoteID ) {
+
+  STARTER = function(){
+
+    STARTER = null;
+
+    setTimeout(function(){
+
+      var keys = Object.keys( pg.peers ),
+          curr = INSTANCE.pos;
+
+      for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+        if ( curr + 1 === pg.peers[ keys[i] ].pos ) {
+
+          CONNECTIONS[ keys[i] ].send( 'start' );
+          break;
+        }
+      }
+
+      if ( this._start ) delete this._start;
+
+    }.bind(this), DELAY * pg.data.length ); // see batching the changes
+
+  }.bind(this);
+
+
+  if ( !remoteID ) return; // get sync object
+
+  var conn = CONNECTIONS[ remoteID ],
+
+      keys = Object.keys( pg.sync ),
+
+      prop;
+
+  for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+    prop = keys[i];
+
+    conn.send( 'sync', { resync: true, key: prop, value: pg.sync[prop] });
+  }
+
+  if ( STARTER ) STARTER();
+}
+
+
+// Game.prototype.end      = function(){};      // TODO: 0.6.0 -> player handling
+// Game.prototype.pause    = function(){};      // TODO: 0.6.0 -> player handling
+// Game.prototype.unpause  = function(){};      // TODO: 0.6.0 -> player handling
 
 pg.game = createRoom( Game );
