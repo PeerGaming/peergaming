@@ -24,19 +24,16 @@ var defaultHandlers = {
       // share initial state
       this.send( 'init', {
 
-        account: INSTANCE.account,
-        time   : INSTANCE.time,
-        list   : Object.keys( CONNECTIONS )
+        account : INSTANCE.account,
+        time    : INSTANCE.time,
+        data    : INSTANCE.data,
+        list    : Object.keys( CONNECTIONS )
       });
 
-      // exchange initial data
-      var data = INSTANCE.data,
-          keys = Object.keys( data );
+      // TODO: 0.6.0 -> define values via secure access
 
-      for ( var i = 0, l = keys.length; i < l; i++ ) {
-
-        Manager.update( keys[i], data[ keys[i] ] );
-      }
+      // send performance request here - set latency and share with other ?
+        // latency : INSTANCE.latency,
     },
 
     end: function ( msg ) {
@@ -46,11 +43,13 @@ var defaultHandlers = {
       var peer = pg.peers[ this.info.remote ],
           data = msg.data;
 
+      utils.extend( peer.data, data.data );
+
       peer.time    = data.time;
       peer.account = data.account;
 
       Manager.check( data.list, this  );
-      Manager.setup(  this.info.remote );
+      Manager.setup( this.info.remote );
     },
 
     close: function ( msg ) {  /* console.log('[DatChannel closed]'); */ }
@@ -67,6 +66,8 @@ var defaultHandlers = {
       // console.log( '[proxy] ' + msg.local + ' -> ' + msg.remote );
 
       var proxy = { action: msg.action, local: msg.local, remote: msg.remote };
+
+      // register call ? used for 'message' channel || always by 4 connections !
 
       // not avalaible anymore - left already
       if ( !CONNECTIONS[ msg.remote ] ) return console.log('[MISSING] ', msg.remote );
@@ -95,34 +96,34 @@ var defaultHandlers = {
   },
 
 
+  start: function ( msg ) {
+
+    msg = JSON.parse( msg );
+
+    var data = msg.data || {};
+
+    // late-join
+    if ( data.request ) return forward( msg.local );
+
+    // next in chain
+    ensure();
+
+    function ensure(){
+
+      if ( !ROOM._start ) return setTimeout( ensure, DELAY );
+
+      ROOM._start();
+    }
+  },
+
+
   update: function ( msg ) {
 
     msg = JSON.parse( msg );
 
-    var value = msg.data.value;
-
-    // 1
     pg.peers[ msg.local ].data[ msg.data.key ] = msg.data.value;
 
-    // 2
-    //if ( pg.peers[ msg.local ].data[ msg.data.key ] ) return;
-
-    // Object.defineProperty( pg.peers[ msg.local ].data, msg.data.key, {
-
-    //   enumeable    : true,
-    //   configurable : true,
-    //   get          : function(){ return value; };
-    //   writeable    : false
-    // });
-
-    // 3
-    // Object.defineProperty( pg.peers[ msg.local ].data, msg.data.key, {
-
-    //   value        : msg.data.value,
-    //   enumeable    : true,
-    //   configurable : true,
-    //   writeable    : false
-    // });
+    // TODO: 0.6.0 -> secure property access
 
     // console.log('[update] ', msg.data.key + ':' + msg.data.value );
   },
@@ -132,34 +133,11 @@ var defaultHandlers = {
 
     msg = JSON.parse( msg );
 
-    resync( msg.local, msg.data.key, msg.data.value );
+    var data = msg.data;
 
-    // if ( msg.data.resync ) return
+    if ( !data.resync ) return resync( msg.local, data.key, data.value );
 
-
-    // var key   = msg.data.key,
-    //     value = msg.data.value;
-
-    // if ( !CACHE[key] ) {
-
-    //  CACHE[key] = { value: value };
-
-    //  console.log('[set cache]', value );
-
-    // } else {
-
-    //   console.log('[load cache]', CACHE[key].value );
-    // }
-
-    // // console.log( '[sync] ', key , ' : ', value );
-
-    // this.send( 'resync', { resync: true, key: key, value: CACHE[key].value });
-
-
-    // set value in local cache ! || who ever got faster with setting the value | define throuhg random
-    // id - as iterating first ... same
-    // wait one tick
-    // setImmediate(function(){ console.log(CACHE[key]); });
+    sync( data.key, data.value, true ); // confirmed
   },
 
 

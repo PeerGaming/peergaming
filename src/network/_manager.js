@@ -8,7 +8,9 @@
  */
 
 // used for structure
-var LATENCY = {};
+var DELAY    = 100; // TODO: 0.5.0 -> Math.max() of all latency values
+
+var READY    = {};  // current ready users ! (! pg.data.length)
 
 
 var Manager = (function(){
@@ -44,9 +46,9 @@ var Manager = (function(){
 
     // console.log( '[connect] to - "' + remoteID + '"' );
 
-    CONNECTIONS[ remoteID ] = new Connection( INSTANCE.id, remoteID, initiator, transport );
+    pg.peers[ remoteID ]    = new Peer({ id: remoteID });
 
-    pg.peers[ remoteID ] = new Peer({ id: remoteID });
+    CONNECTIONS[ remoteID ] = new Connection( INSTANCE.id, remoteID, initiator, transport );
   }
 
 
@@ -55,8 +57,12 @@ var Manager = (function(){
 
     var peer = pg.peers[ remoteID ];
 
+
+    delete READY[ remoteID ]; // just contains true
+
     INSTANCE.emit( 'disconnect', peer );
     ROOM    .emit( 'leave'     , peer );
+
 
     CONNECTIONS[ remoteID ].close();
 
@@ -91,7 +97,7 @@ var Manager = (function(){
 
 
   // benchmark - sends a ping & receives a ping
-  var timer = {};
+  var timer   = {};
 
   function setup ( remoteID, index, pong ) {
 
@@ -103,15 +109,11 @@ var Manager = (function(){
 
     if ( --col[0] > 0 ) return;
 
-    LATENCY[ remoteID ] = col.reduce( sum ) / ( col.length - 1 );
+    pg.peers[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
 
     order();
 
-    // -- initialize --//
-    var peer = pg.peers[ remoteID ];
-
-    INSTANCE.emit( 'connection', peer );
-    ROOM    .emit( 'enter'     , peer );
+    ready();
 
     function sum ( prev, curr ) { return prev + curr; }
   }
@@ -148,6 +150,11 @@ var Manager = (function(){
 
         user;
 
+    if ( list.length !== keys.length + 1 ) {
+
+      return console.log('[ERROR] Precision time conflict.', list, keys );
+    }
+
     pg.data.length = 0;
 
     for ( i = 0, l = list.length; i < l; i++ ) {
@@ -158,6 +165,44 @@ var Manager = (function(){
     }
 
     function rank ( curr, next ) { return curr - next; }
+  }
+
+
+
+  // determines if no additional peer got addded - full connected !
+  function ready(){
+
+    var keys  = Object.keys( pg.peers ),
+
+        list  = [],
+
+        peer;
+
+    list[ INSTANCE.pos ] = INSTANCE;
+
+    for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+      peer = pg.peers[ keys[i] ];
+
+      if ( !peer.time ) return;  // not ready yet
+
+      list[ peer.pos ] = peer;
+    }
+
+
+    for ( i = 0, l = list.length; i < l; i++ ) setTimeout( invoke, DELAY, list[i] );
+
+    // emit users in order & prevent multiple trigger of ready users
+    function invoke( peer ) {
+
+
+      if ( READY[ peer.id ] ) return;
+
+      READY[ peer.id ] = true;
+
+      INSTANCE.emit( 'connection', peer );
+      ROOM    .emit( 'enter'     , peer );
+    }
   }
 
 
