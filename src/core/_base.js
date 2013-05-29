@@ -2,36 +2,35 @@
  *  Base
  *  ====
  *
- *  Basic wrapper definition.
+ *  Framework foundations.
  */
+
 
 var reservedReference = context.pg,
 
     pg = Object.create( null );
 
+
 /**
- *  [VERSION description]
+ *  Information about the current version
  *
- *  Information about the framework version.
  *  @type {Object}
  */
 
 pg.VERSION = {
 
-  codeName    : 'salty-goblin',
-  full        : '0.3.7',
+  codeName    : 'spicy-phoenix',
+  full        : '0.4.0',
   major       : 0,
-  minor       : 3,
-  dot         : 7
+  minor       : 4,
+  dot         : 0
 };
 
 
-
 /**
- *  [noConflict description]
+ *  Restore and provide the last reference for the namespace "pg"
  *
- *  Restore and provide the last reference of the namespace 'pg'.
- *  @return {[type]} [description]
+ *  @return {Object}
  */
 
 pg.noConflict = function(){

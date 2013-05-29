@@ -2,84 +2,74 @@
  *  Debug
  *  =====
  *
- *  Debugging calls for development.
+ *  Debugging calls to help on local development.
  */
 
 
 /**
- *  log
+ *  Show a counted debug message
  *
- *  Log information - display the text in a structured manner !
- *  @return {[type]} [description]
+ *  @param {String} text   -
  */
 
 function debug ( text ) {
 
-	if ( !INSTANCE || !localStorage.log ) {
+  if ( !INSTANCE || !LOCAL.log ) LOCAL.log = 0;
 
-		localStorage.log = 0;
-	}
+  if ( text[text.length - 1] === '\n' ) {
 
-	if ( text[text.length - 1] === '\n' ) {
+    text = text.substring( 0, text.length - 1 );
+  }
 
-		text = text.substring( 0, text.length - 1 );
-	}
+  var num = ++localStorage.log,
+      msg = '(' + num + ') - ' + ( (performance.now()) / 1000 ).toFixed(3) + ': ' + text;
 
-	var num = ++localStorage.log,
-		msg = '(' + num + ') - ' + ( (performance.now()) / 1000 ).toFixed(3) + ': ' + text;
-
-	console.log( msg );
+  console.log( msg );
 }
+
+
+/**
+ *  Resets "debug"-counter
+ */
 
 win.clearDebug = function() {
 
-	delete localStorage.log;
+  delete LOCAL.log;
 };
 
 
 /**
- *  logger
+ *  General logger to show error messages
  *
- *  Logging errors
- *  @param  {[type]} err [description]
- *  @return {[type]}     [description]
+ *  @param {Object} err   -
  */
+
 function loggerr ( err )  {
 
-	console.log('[error] ', err );
-  console.log( err.name + ': ' + err.message );
+  console.warn('[ERROR] ', err );
+  console.warn( err.name + ': ' + err.message );
 }
 
 
 /**
- *  Check debugging state
+ *  Informs if the developer tools are enabled for debugging
+ *  (see: https://github.com/adamschwartz/chrome-inspector-detector )
  *
- *	See https://github.com/adamschwartz/chrome-inspector-detector and
- *  http://stackoverflow.com/questions/7527442/how-to-detect-chrome-inspect-element-is-running-or-not/15567735#15567735
+ *  @return {Boolean}
  */
 
 function isDebugging(){
 
-	// firebug
-	if ( moz ) return !!console.log;
+  // firebug
+  if ( moz ) return !!console.log;
 
-	// chrome
-	var existingProfiles = console.profiles.length;
+  // chrome
+  var existingProfiles = console.profiles.length;
 
-	console.profile();
-	console.profileEnd();
+  console.profile();
+  console.profileEnd();
 
-	if ( console.clear ) console.clear();
+  if ( console.clear ) console.clear();
 
-	return console.profiles.length > existingProfiles;
+  return console.profiles.length > existingProfiles;
 }
-
-
-// extend profiler - http://smnh.me/javascript-profiler/
-
-
-// stopbefore
-
-// https://gist.github.com/NV/5376464
-
-// copy(JSON.stringify(data, null, 2))

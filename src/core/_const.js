@@ -2,11 +2,11 @@
  *  Constants
  *  =========
  *
- *
+ *  Internal references for faster access.
  */
 
 
-// global shortcuts
+/** global **/
 
 var win     = window,
 
@@ -18,19 +18,21 @@ var win     = window,
 
     SESSION = win.sessionStorage,
 
+    LOCAL   = win.localStorage,
+
     rand    = Math.random;
 
 
-// internal variables - references
+/** internal  **/
 
 var INSTANCE    = null,   // pg.player
 
-    PEERS       = null,   // pg.peers // // pg.peers - should be internaly just PEERS !
+    PEERS       = null,   // pg.peers
 
     INFO        = null,   // pg.info
 
     ROOM        = null,   // current room
 
-    CONNECTIONS =   {},   // datachannel to peers
+    CONNECTIONS =   {},   // datachannel for each peer
 
-    MEDIAS      =   {};   // mediastream to peers
+    MEDIAS      =   {};   // mediastreams for each peer

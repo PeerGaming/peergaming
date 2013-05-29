@@ -2,13 +2,11 @@
  *  Adapter
  *  =======
  *
- *  Normalize different browser behavior.
+ *  Normalize different browser behavior - using prefixes and workarounds.
  */
 
 
-/**
- *  Performance
- */
+/** Performance **/
 
 if ( !win.performance ) {
 
@@ -20,9 +18,7 @@ if ( !win.performance ) {
 }
 
 
-/**
- *  requestAnimationFrame
- */
+/** requestAnimationFrame **/
 
 if ( !win.requestAnimationFrame ) {
 
@@ -37,9 +33,7 @@ if ( !win.requestAnimationFrame ) {
 }
 
 
-/**
- *  visibility
- */
+/** visibility **/
 
 var visibilityChange;
 
@@ -65,9 +59,7 @@ if ( !( 'hidden' in doc ) ) {
 }
 
 
-/**
- *  Blob & ObjectURL
- */
+/** Blob & ObjectURL **/
 
 if ( !win.URL ) {
 
@@ -84,9 +76,7 @@ if ( !win.Blob && !win.BlobBuilder ) {
 }
 
 
-/**
- *  setImmediate
- */
+/** setImmediate **/
 
 if ( !win.setImmediate ) {
 
@@ -111,9 +101,7 @@ if ( !win.setImmediate ) {
 }
 
 
-/**
- *  User Media Stream
- */
+/** user MediaStream **/
 
 if ( !navigator.getUserMedia ) {
 
@@ -123,18 +111,17 @@ if ( !navigator.getUserMedia ) {
 }
 
 
-/**
- *  PeerConnection
- */
+/** PeerConnection **/
 
-if ( typeof win.RTCPeerConnection !== 'function' ) {    // FF has already some stubs...
+if ( typeof win.RTCPeerConnection !== 'function' ) {
 
   win.RTCPeerConnection = win.mozRTCPeerConnection    ||
                           win.webkitRTCPeerConnection;
 }
 
 
-// Firefox handling
+/** Firefox **/
+
 if ( typeof win.RTCSessionDescription !== 'function' ) {
 
   win.RTCSessionDescription = win.mozRTCSessionDescription;
@@ -147,7 +134,8 @@ if ( typeof win.RTCIceCandidate !== 'function' ) {
 }
 
 
-// Chrome handling
+/** Chrome **/
+
 if ( win.webkitRTCPeerConnection && !win.webkitRTCPeerConnection.prototype.getLocalStreams ) {
 
   // New Syntax of getXXStreams in M26

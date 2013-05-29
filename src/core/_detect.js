@@ -3,25 +3,24 @@
  *  ======
  *
  *  Checks if the required features or status is supported by the browser.
- *
- *  ToDo:
- *
- *  - DataChannel
- *  - ServerSent Events/WebSocket
  */
 
 
-var reliable  = false,
-
-    features  = [ 'URL', 'Blob', 'crypto', 'indexedDB', 'RTCPeerConnection' ];
+var features  = [ 'URL', 'Blob', 'crypto', 'RTCPeerConnection' ];
 
 for ( var i = 0, l = features.length; i < l; i++ ) {
 
   if ( !(features[i] in win ) ) console.log( 'Missing: ', features[i] );
 }
 
-if ( !win.RTCPeerConnection ) alert('Your browser doesn\'t support PeerConnections yet.'); //throw new Error
+if ( !win.RTCPeerConnection ) return alert('Your browser doesn\'t support PeerConnections yet.');
 
+
+/**
+ *  Returns the endianess of the system
+ *
+ *  @return {Boolean}
+ */
 
 var littleEndian = (function(){
 
@@ -30,5 +29,5 @@ var littleEndian = (function(){
 
     arr32[0] = 255;
 
-    return !!arr8[0];   // 255 0 0 - litte  ||  0 0 255 - big
+    return !!arr8[0]; // 255 0 0 - litte  ||  0 0 255 - big
 })();
