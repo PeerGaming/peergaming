@@ -2,21 +2,32 @@
  *  Sync
  *  ====
  *
- *  A synchronized shared object - which is accessible by all peers.
+ *  A synchronized shared object - which accessible by all users.
+ */
+
+
+/**
+ *  Public interface for the synchronize object
+ *
+ *  @type {[type]}
  */
 
 pg.sync = getReactor( batch(sync) );
 
 
+var CACHE  = {},  // record of still pending properties
+
+    SOLVED = {};  // temporary list for confirmed values
 
 
+/**
+ *  Combine multiplee changes to one batch,
+ *  to process them as one and avoid unrequired network transfer
+ *
+ *  @param  {Function} fn    -
+ *  @return {Function}
+ */
 
-// local store
-var CACHE  = {},
-    SOLVED = {};
-
-
-// batches - process them in one flush ! (avoid not necessary network transfer !)
 function batch ( fn ) {
 
   var list      = {},
@@ -41,6 +52,7 @@ function batch ( fn ) {
       delete list[ prop ];
     }
 
+    /** defined in game -> forward **/
     if ( STARTER ) STARTER();
   }
 
@@ -56,7 +68,14 @@ function batch ( fn ) {
 }
 
 
-// informing other peers about your value set
+/**
+ *  Share the property (key/value) with other peers
+ *
+ *  @param  {String}               key         -
+ *  @param  {String|Number|Object} value       -
+ *  @param  {Boolean}              confirmed   -
+ */
+
 function sync ( key, value, confirmed ) {
 
   if ( confirmed ) {
@@ -82,7 +101,8 @@ function sync ( key, value, confirmed ) {
 
   var ids = Object.keys( CONNECTIONS );
 
-  CACHE[key] = { list: ids, results: [] };        // TODO: 0.6.0 -> conflict with multiple ?
+  // TODO: 0.6.0 -> conflict with multiple ?
+  CACHE[key] = { list: ids, results: [] };
 
   CACHE[key].results[ INSTANCE.pos ] = value;
 
@@ -90,17 +110,23 @@ function sync ( key, value, confirmed ) {
 
     CONNECTIONS[ ids[i] ].send( 'sync', { key: key, value: value });
   }
-
 }
 
 
+/**
+ *  Exchange value with remote data & merge on conflict
+ *
+ *  @param  {String} remoteID   -
+ *  @param  {String} key        -
+ *  @param  {String} value      -
+ */
+
 function resync ( remoteID, key, value ) {
 
-  if ( !CACHE[key] ) { // noConflict -
+  if ( !CACHE[key] ) { // noConflict
 
     sync( key, value, true );
 
-    // send confirmation - 1:1
     return CONNECTIONS[ remoteID ].send( 'sync', { resync: true, key: key, value: value });
   }
 

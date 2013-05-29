@@ -2,24 +2,13 @@
  *  Player
  *  ======
  *
- *  Interface for the player - will extend the peer wrapper.
- *
- *   this: account, data, id
- *  - .join( room, params );
- *  - .message( idList, message ); // or message -> to all connected !
- *  - .media( constraints, callback ) || or just callback
- *
- *
- *  ## Events
- *
- *  - connection
- *  - disconnection
- *
- *  - media ?
- *  - message
+ *  Model for your player - an extension based on a "peer".
  */
 
-// allow declaring callbacks before creation
+
+/**
+ *  Allow the declaration of callbacks before the player gets created
+ */
 
 var callbackRefs = {};
 
@@ -32,10 +21,14 @@ pg.player = { on: function ( channel, callback, context ) {
 }};
 
 
+/**
+ *  Constructor to define the basic setup
+ *
+ *  @param  {Object} account   -
+ *  @param  {String} origin    - current path (URL fragment)
+ */
 
 var Player = function ( account, origin ) {
-
-  'use strict';
 
   var id    = utils.createUID(),
 
@@ -53,6 +46,9 @@ var Player = function ( account, origin ) {
 
   if ( SERVERLESS ) return setImmediate(function(){ Manager.check([ 'SERVERLESS' ]); });
 
+
+  /** Executes after logout & socket creation **/
+
   var register = function(){ socket.init( id, origin, Manager.check ); };
 
   if ( socketQueue.ready ) return register();
@@ -61,11 +57,20 @@ var Player = function ( account, origin ) {
 };
 
 
+/**
+ *  Player <-- Peer
+ */
+
 utils.inherits( Player, Peer );
 
 
-// check if last entry has the same channel - reload page/anchor,
-// change URL for router communication
+/**
+ *  Change URL to trigger routes for channel or games
+ *
+ *  @param  {String|Number} channel [description]
+ *  @param  {Object}        params  [description]
+ */
+
 Player.prototype.join = function ( channel, params ) {
 
   if ( typeof channel !== 'string' ) channel = channel.toString();
@@ -82,7 +87,13 @@ Player.prototype.join = function ( channel, params ) {
 };
 
 
-// idlist -! todo change from channel to IDlist !
+/**
+ *  Sends a message to a specific peer, a list of peers or even all
+ *
+ *  @param  {Array}  list   -
+ *  @param  {String} msg    -
+ */
+
 Player.prototype.send = function ( list, msg ) {
 
   if ( !msg ) { msg = list; list = null; }
@@ -100,5 +111,15 @@ Player.prototype.send = function ( list, msg ) {
 };
 
 
-// offer and creates a media stream
-Player.prototype.media = function ( id, config, callback ) {}; // || TODO: 0.5.0 -> mediaStream()
+/**
+ *  Creates and offers a MediaStream
+ *
+ *  @param  {String}   id         -
+ *  @param  {Object}   config     -
+ *  @param  {Function} callback   -
+ */
+
+Player.prototype.media = function ( id, config, callback ) {
+
+  // || TODO: 0.5.0 -> mediaStream()
+};

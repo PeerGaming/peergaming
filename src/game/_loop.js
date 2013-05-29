@@ -2,41 +2,44 @@
  *  Loop
  *  ====
  *
- *  Wrapping game loop - sync processing of messages.
- *
- *  Examples:
- *
- *    pg.loop(function ( delta ) { *
- *
- *    });
- *
- *  ## API
- *
- *  .stop
- *  .resume
+ *  Game loop wrapper for continuous processing.
  */
 
-var RUNNING = false,
-    REF     = null;
+
+/**
+ *  Public interface to start the rendering
+ *
+ *  @type {Function}
+ */
+
+pg.loop = loop;
 
 
-var loop = function ( render ) {
+var RUNNING = false,  // current state of loop
+
+    REF     = null;   // refenrece for the callback
+
+/**
+ *  Setup the rendering loop and provide inject the time difference
+ *
+ *  @param  {Function} render   -
+ */
+
+function loop ( render ) {
 
   if ( RUNNING ) return;
 
   RUNNING = true;
 
-  REF = render;
+  REF     = render;
 
-  var time  = 0,
-      delta = 0,
-      last  = 0;
+  var time = 0, delta = 0, last = 0;
 
   requestAnimationFrame( function () { last = win.performance.now(); run(); });
 
   function run() {
 
-    // workaround: firefox doesn't use performance.now() but date.now() :(
+    // workaround: firefox doesn't use performance.now() but Date.now()
     time  = win.performance.now();
     delta = time - last;
     last  = time;
@@ -45,12 +48,19 @@ var loop = function ( render ) {
 
     if ( RUNNING ) requestAnimationFrame( run );
   }
+}
 
-};
 
-// synchronizing delay - using for sync with others | adust the used rate
-var LOOP_TIME = DELAY,//16.7,
-    DIFF      = 0;
+var LOOP_TIME = DELAY,   // treshhold for fix framerate
+
+    DIFF      = 0;       // tracking the latest time differences
+
+/**
+ *  Keep a constant framerate for the rendering
+ *
+ *  @param  {Function} render   -
+ *  @param  {Number}   delta    -
+ */
 
 function throttle ( render, delta ) {
 
@@ -65,27 +75,44 @@ function throttle ( render, delta ) {
 }
 
 
-// stop & resumes the loop || ToDo: trigger: pause & unpause
-loop.stop    = function(){ RUNNING = false;  };
-loop.resume  = function(){ loop(REF);        };
+/**
+ *  Stop the loop
+ */
+
+loop.stop = function(){
+
+  RUNNING = false;
+};
 
 
-pg.loop = loop;
+/**
+ *  Restart the loop
+ */
+
+loop.resume = function(){
+
+  loop(REF);
+};
 
 
-function checkPause(){
+/**
+ *  Pauses the game and adjust the title
+ *
+ *  @param  {Object} e   -
+ */
+
+function checkPause ( e ) {
 
   var title = doc.title.split('[PAUSE]').pop();
 
-  if ( !doc.hidden ) {
+  if ( !doc.hidden ) loop.stop();
 
-    // doc.title = '[PAUSE] - ' + title; //( doc.hidden ? '[PAUSE] ' : '' ) + title;
+  doc.title = ( doc.hidden ? '[PAUSE] - ' : '' ) + title;
 
-    loop.stop();
-
-  // ROOM.emit( 'pause', INSTANCE ); // also - sends to all - pause...
-  }
-
+  // ROOM.emit( 'pause', INSTANCE ); // TODO: send 'pause' to others as well
 }
+
+
+/** Handler for visibility change **/
 
 doc.addEventListener( visibilityChange, checkPause );

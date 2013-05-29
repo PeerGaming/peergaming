@@ -2,24 +2,41 @@
  *  Peer
  *  ====
  *
- *  A wrapper for a Peer/Node. Using singleton pattern.
+ *  Model for a "peer" - a representation of an other player.
  */
 
 
-pg.peers      = {}; // Collection of all connected peers
+pg.peers = {}; // collection of all connected peers
 
-pg.data       = []; // shortcut to access the stored data
+pg.data  = []; // shortcut to access the stored data
 
 
-var Peer = function ( data ) {
+/**
+ *  Constructor to diverge the intial parameters
+ *
+ *  @param  {Object} data   -
+ */
 
-  this.init( data.id, data.account || {}, data.data || {} );
+var Peer = function ( params ) {
+
+  this.init( params.id, params.account || {}, params.data || {} );
 };
 
 
-// used for: player.on .....
+/**
+ *  Peer <- Emitter
+ */
+
 utils.inherits( Peer, Emitter );
 
+
+/**
+ *  Assign properties for basic the structure
+ *
+ *  @param  {String} id        -
+ *  @param  {Object} account   -
+ *  @param  {Object} data      -
+ */
 
 Peer.prototype.init = function ( id, account, data ) {
 
