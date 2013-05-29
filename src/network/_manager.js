@@ -2,21 +2,28 @@
  *  Manager
  *  =======
  *
- *  A helper for handling connections and delegate communication.
- *
- *  manager - internaly handling communication + tasks || refactor for player
+ *  Helper for handling connections and delegate communication.
  */
 
-// used for structure
-var DELAY    = 100; // TODO: 0.5.0 -> Math.max() of all latency values
 
-var READY    = {};  // current ready users ! (! pg.data.length)
+var DELAY = 100,  // TODO: 0.5.0 -> Math.max() of latency evaluation
 
+    READY =  {};  // record of current ready users
+
+
+
+/** Module Pattern **/
 
 var Manager = (function(){
 
 
-  // checkConnections,
+  /**
+   *  Check list for new connections
+   *
+   *  @param  {Array}  remoteList   -
+   *  @param  {Object} transport    -
+   */
+
   function check ( remoteList, transport ) {
 
     if ( !remoteList ) return;
@@ -39,7 +46,14 @@ var Manager = (function(){
   }
 
 
-  // find partners + connect || can be used by the dev via noServer as well
+  /**
+   *  Connect with the new peer
+   *
+   *  @param {String}  remoteID    -
+   *  @param {Boolean} initiator   -
+   *  @param {Object}  transport   -
+   */
+
   function connect ( remoteID, initiator, transport ) {
 
     if ( CONNECTIONS[ remoteID ] ) return;
@@ -52,13 +66,18 @@ var Manager = (function(){
   }
 
 
-  // clears references + triggers callbacks on disconnect
+  /**
+   *  Clear references, triggers callbacks and re-orders on disconnection of a peer
+   *
+   *  @param {String} remoteID   -
+   */
+
   function disconnect ( remoteID ) {
 
     var peer = pg.peers[ remoteID ];
 
 
-    delete READY[ remoteID ]; // just contains true
+    delete READY[ remoteID ];
 
     INSTANCE.emit( 'disconnect', peer );
     ROOM    .emit( 'leave'     , peer );
@@ -75,7 +94,13 @@ var Manager = (function(){
   }
 
 
-  // setCredentials: create new reference + SDP & Candidates
+  /**
+   *  Set credentials and create entries as SDP & candidates arrives
+   *
+   *  @param {Object} msg         -
+   *  @param {Object} transport   -
+   */
+
   function set ( msg, transport ) {
 
     if ( !CONNECTIONS[ msg.local] ) connect( msg.local, false, transport );
@@ -84,7 +109,13 @@ var Manager = (function(){
   }
 
 
-  // change values through a *multicast*
+  /**
+   *  Inform peers about key/value change by multicast
+   *
+   *  @param  {String}               key     -
+   *  @param  {String|Number|Object} value   -
+   */
+
   function update ( key, value ) {
 
     var ids = Object.keys( CONNECTIONS );
@@ -96,8 +127,15 @@ var Manager = (function(){
   }
 
 
-  // benchmark - sends a ping & receives a ping
   var timer   = {};
+
+  /**
+   *  Setup and tests the connection - benchmark the latency via ping/pong
+   *
+   *  @param {String}  remoteID   -
+   *  @param {Number}  index      -
+   *  @param {Boolean} pong       -
+   */
 
   function setup ( remoteID, index, pong ) {
 
@@ -119,6 +157,12 @@ var Manager = (function(){
   }
 
 
+  /**
+   *  Sends pings to other peers
+   *
+   *  @param {String} remoteID   -
+   */
+
   function ping ( remoteID ) {
 
     var conn = CONNECTIONS[ remoteID ],
@@ -135,6 +179,10 @@ var Manager = (function(){
     }
   }
 
+
+  /**
+   *  Defines the peer order - ranked by the appearance / inital load
+   */
 
   function order(){
 
@@ -168,8 +216,10 @@ var Manager = (function(){
   }
 
 
+  /**
+   *  Determines if all peers are connected and then emits the connections
+   */
 
-  // determines if no additional peer got addded - full connected !
   function ready(){
 
     var keys  = Object.keys( pg.peers ),
@@ -184,17 +234,16 @@ var Manager = (function(){
 
       peer = pg.peers[ keys[i] ];
 
-      if ( !peer.time ) return;  // not ready yet
+      if ( !peer.time ) return;
 
       list[ peer.pos ] = peer;
     }
 
 
+    /** emit users in order & prevent multiple trigger **/
     for ( i = 0, l = list.length; i < l; i++ ) setTimeout( invoke, DELAY, list[i] );
 
-    // emit users in order & prevent multiple trigger of ready users
     function invoke( peer ) {
-
 
       if ( READY[ peer.id ] ) return;
 

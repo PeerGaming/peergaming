@@ -3,16 +3,12 @@
  *  ======
  *
  *  Transport layer used to communicate with the server.
- *
- *  First using WebSocket or XHR - later replaced through the specific DataChannel reference.
  */
 
 
 var socketQueue = new Queue();
 
 var socket = (function(){
-
-  'use strict';
 
   // initial
   logout();
@@ -23,17 +19,15 @@ var socket = (function(){
 
 
   /**
-   *  [req description]
+   *  Request for EventSource / XHR-Polling
    *
-   *  Request for EventSource / Polling
-   *  @param  {[type]}   msg  [description]
-   *  @param  {Function} next [description]
-   *  @return {[type]}        [description]
+   *  @param  {Object}   msg    -
+   *  @param  {Function} next   -
    */
 
   function req ( msg, next ) {
 
-    // ToDo: pooling the request objects
+    // TODO: pooling the request objects
     var xhr = new XMLHttpRequest();
 
     xhr.open( 'POST', config.socketConfig.server, true );
@@ -54,16 +48,11 @@ var socket = (function(){
 
 
   /**
-   *  [logout description]
-   *
-   *  Remove ID from the server.
-   *  @param  {[type]} e [description]
-   *  @return {[type]}   [description]
+   *  Removes ID/token from the server
    */
 
   function logout() {
 
-    // WS
     if ( checkProtocol('ws') || SERVERLESS ) {
 
       socketQueue.ready = true;
@@ -95,12 +84,11 @@ var socket = (function(){
 
 
   /**
-   *  [init description]
+   *  Set the session based ID and defines callbacks for server connection
    *
-   *  Register on the server.
-   *  @param  {[type]}   id   [description]
-   *  @param  {Function} next [description]
-   *  @return {[type]}        [description]
+   *  @param {String}   id       -
+   *  @param {String}   origin   -
+   *  @param {Function} next     -
    */
 
   function init ( id, origin, next ) {
@@ -114,16 +102,15 @@ var socket = (function(){
   }
 
 
-  /**
-   *  [listenToServer description]
-   *
-   *  Attach Server
-   *  @param  {[type]}   id   [description]
-   *  @param  {Function} next [description]
-   *  @return {[type]}        [description]
-   */
+  var socket = null;
 
-  var socket;
+  /**
+   *  Establish a WebSocket or EventSource connection
+   *
+   *  @param {String}   id       -
+   *  @param {String}   origin   -
+   *  @param {Function} next     -
+   */
 
   function connectToServer ( id, origin, next ) {
 
@@ -145,19 +132,16 @@ var socket = (function(){
 
 
   /**
-   *  [handleMessage description]
+   *  Delegate messages from the server
    *
-   *  Interface for parsing messages.
-   *  @param  {[type]} e [description]
-   *  @return {[type]}   [description]
+   *  @param {Object} e   -
    */
 
   function handleMessage ( e ) {
 
     var msg = JSON.parse( e.data );
 
-    // receive partnerIDs via socket & call register || or late joins - refere to manager
-    if ( !msg || !msg.local ) {
+    if ( !msg || !msg.local ) { // partnerIDs
 
       return ( socketQueue.list.length ) ? socketQueue.exec( msg ) : Manager.check( msg );
     }
@@ -165,13 +149,10 @@ var socket = (function(){
     Manager.set( msg );
   }
 
-
   /**
-   *  [handleError description]
+   *  Handle error messages/states
    *
-   *  Handling errors.
-   *  @param  {[type]} e [description]
-   *  @return {[type]}   [description]
+   *  @param {Object} e   -
    */
 
   function handleError ( e ) {
@@ -192,8 +173,7 @@ var socket = (function(){
 
 
   /**
-   *  [handleClose description]
-   *  @return {[type]} [description]
+   *  Show message on closing
    */
   function handleClose(){
 
@@ -202,22 +182,19 @@ var socket = (function(){
 
 
   /**
-   *  [send description]
+   *  Sending messages and using callback depending on the transport
    *
-   *  Sending messages throug the appropriate transport socket.
-   *
-   *  @param  {[type]} msg [description]
-   *  @return {[type]}     [description]
+   *  @param {Object}   msg    -
+   *  @param {Function} next   -
    */
 
   function send ( msg, next )  {
 
-    // just for server
     utils.extend( msg, { local: INSTANCE.id, origin: INFO.route });
 
     msg = JSON.stringify( msg );
 
-    if ( checkProtocol('http') ) { // XHR
+    if ( checkProtocol('http') ) {
 
       req( msg, next );
 
@@ -232,7 +209,12 @@ var socket = (function(){
   }
 
 
-  // required to check everytime/not just on inital start - as the configurations can be customized
+  /**
+   *  Verify the used protocol by the server side component
+   *
+   *  @param {String} protocol   -
+   */
+
   function checkProtocol ( protocol ) {
 
     return config.socketConfig.server.split(':')[0] === protocol;
@@ -247,4 +229,3 @@ var socket = (function(){
   };
 
 })();
-

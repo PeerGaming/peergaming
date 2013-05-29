@@ -2,127 +2,133 @@
  *  Handler
  *  =======
  *
- *  Delegating through error - close, messaging events. // // handler for a new channel
+ *  A wrapper to enhance DataChannels and eases the work.
  */
 
 
-var Handler = (function(){
+/**
+ *  Constructor to define the basic information
+ *
+ *  @param {String} channel   -
+ *  @param {String} remote    -
+ */
 
-// if ( options ) customHandlers[ label ] = options;
+var Handler = function ( channel, remote ) {
 
-  var Handler = function ( channel, remote ) {  // remote not required, as already assigned
+  var label    = channel.label;
 
-    var label   = channel.label;
+  this.info    = { label: label, remote: remote };
 
-    this.info   = {
+  this.channel = channel;
 
-      label : label,
-      remote  : remote
-    };
+  this.stream  = new Stream({ readable: true, writeable: true });
 
+  this.actions = defaultHandlers[ label ] || defaultHandlers.custom;
 
-    this.channel  = channel;
+  if ( typeof this.actions === 'function' ) this.actions = { end: this.actions };
 
-    this.stream   = new Stream({ readable: true, writeable: true });
-
-
-    this.actions  = defaultHandlers[ label ] || defaultHandlers.custom;
-
-    if ( typeof this.actions === 'function' ) this.actions = { end: this.actions };
-
-    channel.addEventListener( 'open', this.init.bind(this) );
-  };
+  channel.addEventListener( 'open', this.init.bind(this) );
+};
 
 
-  Handler.prototype.init = function ( e ) {
+/**
+ *  Wrap the custom events around the native listener
+ *
+ *  @param {Object} e   -
+ */
 
-    // console.log('[open] - '  + this.label );
+Handler.prototype.init = function ( e ) {
 
-    var channel     = this.channel,
+  var channel     = this.channel,
 
-        actions     = this.actions,
+      actions     = this.actions,
 
-        stream      = this.stream,
+      stream      = this.stream,
 
-        connection  = CONNECTIONS[ this.info.remote ],
+      connection  = CONNECTIONS[ this.info.remote ],
 
-        events = [ 'open', 'data', 'end', 'close', 'error' ];
-
-
-    for ( var i = 0, l = events.length; i < l; i++ ) {
-
-      stream.on( events[i], actions[ events[i] ], connection );
-    }
-
-    stream.on( 'write', function send ( msg ) { channel.send( msg ); });
+      events = [ 'open', 'data', 'end', 'close', 'error' ];
 
 
-    channel.onmessage = stream.handle.bind( stream );
+  for ( var i = 0, l = events.length; i < l; i++ ) {
 
-    channel.onclose   = function() { stream.emit( 'close' );  };
-
-    channel.onerror   = function ( err ) { stream.emit( 'error', err ); };
-
-    stream.emit( 'open', e );
-  };
-
-
-  // currently still required to encode arraybuffer to to strings...
-  // // Using Strings instead an arraybuffer....
-  Handler.prototype.send = function ( msg ) {
-
-    var data    = JSON.stringify( msg ),
-
-        buffer  = data; //utils.StringToBuffer( data );
-
-
-    if ( buffer.length > config.channelConfig.MAX_BYTES ) {
-    // if ( buffer.byteLength > config.channelConfig.MAX_BYTES ) {
-
-      buffer = createChunks( buffer );  // msg.remote...
-
-    } else {
-
-      buffer = [ buffer ];
-    }
-
-    for ( var i = 0, l = buffer.length; i < l; i++ ) {
-
-      this.stream.write( buffer[i] );
-    }
-  };
-
-
-  function createChunks ( buffer ) {
-
-    var maxBytes  = config.channelConfig.MAX_BYTES,
-        chunkSize = config.channelConfig.CHUNK_SIZE,
-        size      = buffer.length, //byteLength,
-        chunks    = [],
-
-        start     = 0,
-        end       = chunkSize;
-
-    while ( start < size ) {
-
-      chunks.push( buffer.slice( start, end ) );
-
-      start = end;
-      end   = start + chunkSize;
-    }
-
-    var l = chunks.length,
-        i = 0;        // increment
-
-    while ( l-- ) {
-
-      chunks[l] = JSON.stringify({ part: i++, data: chunks[l] });
-    }
-
-    return chunks;
+    stream.on( events[i], actions[ events[i] ], connection );
   }
 
+  stream.on( 'write', function send ( msg ) { channel.send( msg ); });
 
-  return Handler;
 
-})();
+  channel.onmessage = stream.handle.bind( stream );
+
+  channel.onclose   = function() { stream.emit( 'close' );  };
+
+  channel.onerror   = function ( err ) { stream.emit( 'error', err ); };
+
+  stream.emit( 'open', e );
+};
+
+
+/**
+ *  Sends string based messages
+ *
+ *  @param {Object} msg   -
+ */
+
+Handler.prototype.send = function ( msg ) {
+
+  var data    = JSON.stringify( msg ),
+
+      buffer  = data; //utils.StringToBuffer( data );
+
+
+  if ( buffer.length > config.channelConfig.MAX_BYTES ) {
+  // if ( buffer.byteLength > config.channelConfig.MAX_BYTES ) {
+
+    buffer = createChunks( buffer );
+
+  } else {
+
+    buffer = [ buffer ];
+  }
+
+  for ( var i = 0, l = buffer.length; i < l; i++ ) {
+
+    this.stream.write( buffer[i] );
+  }
+};
+
+
+/**
+ *  Splits a buffer into smaller chunks
+ *
+ *  @param {String} buffer   -
+ */
+
+function createChunks ( buffer ) {
+
+  var maxBytes  = config.channelConfig.MAX_BYTES,
+      chunkSize = config.channelConfig.CHUNK_SIZE,
+      size      = buffer.length, //byteLength,
+      chunks    = [],
+
+      start     = 0,
+      end       = chunkSize;
+
+  while ( start < size ) {
+
+    chunks.push( buffer.slice( start, end ) );
+
+    start = end;
+    end   = start + chunkSize;
+  }
+
+  var l = chunks.length,
+      i = 0;
+
+  while ( l-- ) {
+
+    chunks[l] = JSON.stringify({ part: i++, data: chunks[l] });
+  }
+
+  return chunks;
+}

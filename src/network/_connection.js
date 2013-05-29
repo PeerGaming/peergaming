@@ -2,9 +2,18 @@
  *  Connection
  *  ==========
  *
- *  A wrapper for PeerConnection.
+ *  A wrapper for PeerConnection - including DataChannel setup.
  */
 
+
+/**
+ *  Constructor to setup up the basic information
+ *
+ *  @param {String}  local       -
+ *  @param {String}  remote      -
+ *  @param {Boolean} initiator   -
+ *  @param {Object}  transport   -
+ */
 
 var Connection = function ( local, remote, initiator, transport ) {
 
@@ -18,6 +27,10 @@ var Connection = function ( local, remote, initiator, transport ) {
   this.init();
 };
 
+
+/**
+ *  Create connection and setup receiver
+ */
 
 Connection.prototype.init = function(){
 
@@ -36,6 +49,10 @@ Connection.prototype.init = function(){
 };
 
 
+/**
+ *  Setup for re-negotiation and statechange
+ */
+
 Connection.prototype.checkStateChanges = function(){
 
   var conn    = this.conn,
@@ -45,7 +62,6 @@ Connection.prototype.checkStateChanges = function(){
 
   conn.onnegotiationneeded = function ( e ) {
 
-    // console.log('[negotiation needed]');
     if ( !--length ) this.createOffer();
 
   }.bind(this);
@@ -73,7 +89,6 @@ Connection.prototype.checkStateChanges = function(){
 
   conn.onsignalingstatechange = function ( e ) {
 
-    // console.log('[state changed]');
     var signalingState = e.currentTarget.signalingState;
 
     this.ready = ( signalingState === 'stable' );
@@ -82,7 +97,10 @@ Connection.prototype.checkStateChanges = function(){
 };
 
 
-// receive remote created channel
+/**
+ *  Receive remotely create channel and sets up local handler
+ */
+
 Connection.prototype.receiveDataChannels = function(){
 
   this.conn.ondatachannel = function ( e ) {
@@ -97,13 +115,15 @@ Connection.prototype.receiveDataChannels = function(){
 };
 
 
-// find ICE candidates
+/**
+ *  Find and exchanges ICE candidates
+ */
+
 Connection.prototype.findICECandidates = function(){
 
   this.conn.onicecandidate = function ( e ) {
 
     // var iceGatheringState = e.currentTarget.iceConnectionState;
-    // console.log(iceGatheringState);
 
     if ( e.candidate ) this.send( 'setIceCandidates', e.candidate );
 
@@ -111,7 +131,12 @@ Connection.prototype.findICECandidates = function(){
 };
 
 
-// needs a description first !
+/**
+ *  Sets ICE candidates - using an additional container to keep the order
+ *
+ *  @param {Object} data [description]
+ */
+
 Connection.prototype.setIceCandidates = function ( data ) {
 
   var conn = this.conn;
@@ -124,7 +149,8 @@ Connection.prototype.setIceCandidates = function ( data ) {
 
     for ( var i = 0, l = data.length; i < l; i++ ) {
 
-      // DOM 12 exception error -> out of order....
+      // TODO: 0.5.0 -> Bug fixes
+      // (DOM 12 exception error -> out of order)
 
       conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
     }
@@ -137,6 +163,10 @@ Connection.prototype.setIceCandidates = function ( data ) {
   }
 };
 
+
+/**
+ *  Create an offer
+ */
 
 Connection.prototype.createOffer = function() {
 
@@ -159,7 +189,12 @@ Connection.prototype.createOffer = function() {
 };
 
 
-// exchange settings
+/**
+ *  Exchange settings and set the descriptions
+ *
+ *  @param {Object} msg   -
+ */
+
 Connection.prototype.setConfigurations = function ( msg ) {
 
   // console.log('[SDP] - ' +  msg.type );  // description
@@ -169,10 +204,8 @@ Connection.prototype.setConfigurations = function ( msg ) {
       desc = new RTCSessionDescription( msg );
 
 
-
-  // unstabled connection got closed before || although still connected with some ?
-  // || happens on 4++ connections, seems like not delegated right, half way stuck...
-  if ( this.closed ) return alert('[ERROR] - Connection got interuppted');
+  // TODO: 0.5.0 -> Bug fixes
+  if ( this.closed ) return alert('[ERROR] - Connection got interuppted. Please reload !');
 
 
   conn.setRemoteDescription( desc, function(){
@@ -202,37 +235,47 @@ Connection.prototype.setConfigurations = function ( msg ) {
 };
 
 
+/**
+ *  Creates a handler for the DataChannel
+ *
+ *  @param {String} label     -
+ *  @param {Object} options   -
+ */
+
 Connection.prototype.createDataChannel = function ( label, options ) {
 
   try {
 
-    // var channel = this.conn.createDataChannel( label, moz ? {} : { reliable: false });
     var channel = this.conn.createDataChannel( label, { reliable: false });
 
     this.channels[ label ] = new Handler( channel, this.info.remote );
 
-  } catch ( e ) { // getting: a "NotSupportedError" - but is working !
+  } catch ( e ) { // getting a "NotSupportedError" - but is working !
 
     console.log('[Error] - Creating DataChannel (*)');
   }
 };
 
 
-// internal reference
+/**
+ *  Select the messeneger for communication & transfer
+ *
+ *  @param {String} action   -
+ *  @param {Object} data     -
+ */
+
 Connection.prototype.send = function ( action, data ) {
 
-  // established set through defaultHandler
   if ( !this.info.pending ) {
 
     this.send = useChannels.bind(this);
 
     this.send( action, data );
 
-  } else { // initializing handshake
+  } else {
 
     var remote = this.info.remote;
 
-    // mesh work
     if ( this.info.transport ) {
 
       var proxy = { action: action, local: INSTANCE.id, remote: remote };
@@ -240,15 +283,19 @@ Connection.prototype.send = function ( action, data ) {
       return this.info.transport.send( 'register', data, proxy );
     }
 
-    if ( action === 'update' ) return console.log('[....update]' , data );
+    if ( action === 'update' ) return console.log('[ERROR] - Update', data );
 
-    // send via server
     socket.send({ action: action, data: data, remote: remote });
   }
 };
 
 
-// closing channels  + peerConnection
+/**
+ *  Closing DataChannels and PeerConnection
+ *
+ *  @param {String} channel   -
+ */
+
 Connection.prototype.close = function( channel ) {
 
   var handler  = this.channels,
@@ -268,9 +315,13 @@ Connection.prototype.close = function( channel ) {
 };
 
 
-// @Sharefest
-// modifying the SDP parameters for interoperability and bandwidth
-// + // See RFC for more info: http://www.ietf.org/rfc/rfc2327.txt
+/**
+ *  Modifying the SDP parameter for interoperability and bandwidth
+ *  (see: RFC - http://www.ietf.org/rfc/rfc2327.txt )
+ *
+ *  @param {Object} sdp   -
+ */
+
 function adjustSDP ( sdp ) {
 
   // crypto
@@ -296,10 +347,14 @@ function adjustSDP ( sdp ) {
 }
 
 
-// create basic channels
+/**
+ *  Create basic DataChannel setup
+ *
+ *  @param {Object} connection   - reference to this connection
+ */
+
 function createDefaultChannels ( connection )  {
 
-  // just once
   if ( Object.keys(connection.channels).length ) return;
 
   var defaultChannels = Object.keys( defaultHandlers );
@@ -311,7 +366,14 @@ function createDefaultChannels ( connection )  {
 }
 
 
-// replace socket usage
+/**
+ *  Replace previous socket usage with direct DataChannel connections
+ *
+ *  @param {String} channel   -
+ *  @param {Object} data      -
+ *  @param {Object} proxy     -
+ */
+
 function useChannels ( channel, data, proxy ) {
 
   var msg = { action: channel, local: INSTANCE.id, data: data, remote: this.info.remote };
@@ -325,7 +387,8 @@ function useChannels ( channel, data, proxy ) {
 
   if ( !Array.isArray( channel ) ) channel = [ channel ];
 
-  if ( channel === 'register' || channel === 'start' ) console.log( channel, msg, proxy );
+  // TODO: 0.5.0 -> Bug fixes
+  // if ( channel === 'register' || channel === 'start' ) console.log( channel, msg, proxy );
 
   for ( var i = 0, l = channel.length; i < l; i++ ) {
 

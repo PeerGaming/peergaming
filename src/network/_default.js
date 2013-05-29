@@ -2,17 +2,19 @@
  *  Default
  *  =======
  *
- *  Default Handler for common task (e.g. estbalish mesh network).
- *  Context will be the on of the connection ? or like before from the handler ?
+ *  Default Handler for common tasks - e.g. establish a mesh network.
  */
 
-// custom handler collection
 
-// var customHandlers = {};
-// customHandlers[ label ] ||
+var customHandlers = {};  // collection of custom handler
+
 
 var defaultHandlers = {
 
+
+  /**
+   *  Basic information exchange on creation
+   */
 
   init: {
 
@@ -26,14 +28,9 @@ var defaultHandlers = {
 
         account : INSTANCE.account,
         time    : INSTANCE.time,
-        data    : INSTANCE.data,
+        data    : INSTANCE.data,                // TODO: 0.6.0 -> define values for secure access
         list    : Object.keys( CONNECTIONS )
       });
-
-      // TODO: 0.6.0 -> define values via secure access
-
-      // send performance request here - set latency and share with other ?
-        // latency : INSTANCE.latency,
     },
 
     end: function ( msg ) {
@@ -56,7 +53,12 @@ var defaultHandlers = {
   },
 
 
-  // just handler between - setting up for remote delegation
+  /**
+   *  Remote delegation for register another peer
+   *
+   *  @param {Object} msg   -
+   */
+
   register: function ( msg ) {
 
     msg = JSON.parse( msg );
@@ -67,23 +69,24 @@ var defaultHandlers = {
 
       var proxy = { action: msg.action, local: msg.local, remote: msg.remote };
 
-      // register call ? used for 'message' channel || always by 4 connections !
-
-      // not avalaible anymore - left already
-      if ( !CONNECTIONS[ msg.remote ] ) return console.log('[MISSING] ', msg.remote );
+      // TODO: 0.5.0 -> Bug fixes
+      if ( !CONNECTIONS[ msg.remote ] ) return console.log('[ERORR] - Missing', msg.remote );
 
       return CONNECTIONS[ msg.remote ].send( 'register', msg.data, proxy );
     }
 
-    // for register ? before own....
-    if ( msg.action === 'update' ) return console.log('[update].... ', msg );
+    if ( msg.action === 'update' ) return console.log('[ERROR] - Update', msg );
 
     Manager.set( msg, this );
   },
 
 
-  // runs test - measures time for sending packages etc. ||
-  // later + running tests through creating bytearrays !
+  /**
+   *  Run latency check by sending ping/pong signals
+   *
+   *  @param {Object} msg   -
+   */
+
   ping: function ( msg ) {
 
     msg = JSON.parse( msg );
@@ -95,6 +98,12 @@ var defaultHandlers = {
     Manager.setup( msg.local, data.index, data.pong );
   },
 
+
+  /**
+   *  Permit the start of a game via remote request
+   *
+   *  @param  {[type]} msg [description]
+   */
 
   start: function ( msg ) {
 
@@ -117,17 +126,29 @@ var defaultHandlers = {
   },
 
 
+  /**
+   *  Sets the keys and values of a peers remote model
+   *
+   *  @param {Object} msg   -
+   */
+
   update: function ( msg ) {
 
     msg = JSON.parse( msg );
 
     pg.peers[ msg.local ].data[ msg.data.key ] = msg.data.value;
 
-    // TODO: 0.6.0 -> secure property access
+    // TODO: 0.6.0 -> define values for secure access
 
     // console.log('[update] ', msg.data.key + ':' + msg.data.value );
   },
 
+
+  /**
+   *  Delegates synchronize requests of the shared object
+   *
+   *  @param {Object} msg   -
+   */
 
   sync: function ( msg ) {
 
@@ -137,9 +158,15 @@ var defaultHandlers = {
 
     if ( !data.resync ) return resync( msg.local, data.key, data.value );
 
-    sync( data.key, data.value, true ); // confirmed
+    sync( data.key, data.value, true );
   },
 
+
+  /**
+   *  Invokes remote messages by call it them on your player
+   *
+   *  @param {Object} msg   -
+   */
 
   message: function ( msg ) {
 
@@ -147,10 +174,15 @@ var defaultHandlers = {
   },
 
 
-  // here again: action can be called for remote handling...
+  /**
+   *  Using a shared channel to delegate remote calls
+   *
+   *  @param {Object} msg   -
+   */
+
   custom: function ( msg ) {
 
-    console.log('[channel doesn\'t exist yet - local delegation');
+    // console.log('[CUSTOM]');
 
     msg = JSON.parse( msg );
 
