@@ -2,88 +2,105 @@
  *  Stream
  *  ======
  *
- *  Interface for streaming activities.
+ *  Interface for handling streaming behavior.
  */
 
 
-var Stream = (function(){
+/**
+ *  Constructor to define configurations and setup buffer
+ *
+ *  @param  {Object} options   -
+ */
 
-  'use strict';
+var Stream = function ( options ) {
 
-  var Stream = function ( options ) {
+  if ( !options ) options = {};
 
-    Emitter.call( this );
+  this.readable     = options.readable;
+  this.writeable    = options.readable;
 
-    if ( !options ) options = {};
+  this.ready        = true;
 
-    this.readable   = options.readable;
-    this.writeable  = options.readable;
+  this.writeBuffer  = [];
+  this.readBuffer   = [];
 
-    this.ready      = true;
-    // this.offset    = 0;            // current offset - used to merge chunks ?
-
-    this.writeBuffer  = [];
-    this.readBuffer   = [];
-  };
-
-
-  utils.inherits( Stream, Emitter );
+  Emitter.call( this );
+};
 
 
-  Stream.prototype.handle = function ( e ) {
+/**
+ *  Stream <- Emitter
+ */
 
-    var msg     = e.data,
-
-        data    = JSON.parse( msg ),
-
-        buffer  = this.readBuffer;
+utils.inherits( Stream, Emitter );
 
 
-    if ( data.part !== void 0 ) {
+/**
+ *  Delegates the action for the data (chunk or message)
+ *
+ *  @param  {Object} e   -
+ */
 
-      buffer.push( data.data );
+Stream.prototype.handle = function ( e ) {
 
-      this.emit( 'data', data, buffer.length );
+  var msg     = e.data,
 
-      if ( data.part > 0 ) return;
+      data    = JSON.parse( msg ),
 
-      msg = buffer.join('');
-
-      buffer.length = 0;
-    }
-
-    this.emit( 'end', msg );
-  };
+      buffer  = this.readBuffer;
 
 
-  // ToDo:  check if others are empty - open ,
-  //      else push on queue and wait till finish !
-  // stream has to handle readystate etc.
+  if ( data.part !== void 0 ) {
 
-  Stream.prototype.write = function ( msg ) {
+    buffer.push( data.data );
 
-    this.writeBuffer.push( msg );
+    this.emit( 'data', data, buffer.length );
 
-    if ( this.ready ) {
+    if ( data.part > 0 ) return;
 
-      this.emit( 'write', this.writeBuffer.shift() );
+    msg = buffer.join('');
 
-    } else {
+    buffer.length = 0;
+  }
 
-      // handle simoultanous accessing - using queue, messages etc.
-    }
-
-    return this.ready;
-  };
+  this.emit( 'end', msg );
+};
 
 
-  Stream.prototype.pipe = function ( trg ) {
+/**
+ *  Send input through the stream
+ *
+ *  @param  {Object}  msg   -
+ *  @return {Boolean}
+ */
 
-    this.on( 'data', function ( chunk ) { trg.handle( chunk ); });
+Stream.prototype.write = function ( msg ) {
 
-    return trg;
-  };
+  this.writeBuffer.push( msg );
 
-  return Stream;
+  if ( this.ready ) {
 
-})();
+    this.emit( 'write', this.writeBuffer.shift() );
+
+  } else {
+
+    // TODO: handle blocking simultaneous usage
+  }
+
+  return this.ready;
+};
+
+
+/**
+ *  Uses the output of one stream as the input for another
+ *
+ *  @param  {Object} trg   -
+ *  @return {Object}
+ */
+
+Stream.prototype.pipe = function ( trg ) {
+
+  this.on( 'data', function ( chunk ) { trg.handle( chunk ); });
+
+  return trg;
+};

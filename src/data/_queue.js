@@ -2,65 +2,58 @@
  *  Queue
  *  =====
  *
- *  Storing commands on a list - executing them later.
+ *  Storing commands on a list for future execution.
  */
+
 
 /**
- *  queue
- *
- *  Pushing actions on to a list.
- *  @param  {Function} fn [description]
- *  @return {[type]}      [description]
+ *  Constructor to define the container and initial state
  */
 
-var Queue = (function(){
+var Queue = function(){
+
+  this.ready  = false;
+
+  this.list   = [];
+};
 
 
-  var Queue = function(){
+/**
+ *  Add functions to the list
+ *
+ *  @param  {Function} fn   - function to be on the queue
+ */
 
-    this.ready  = false;
+Queue.prototype.add = function ( fn ) {
 
-    this.list   = [];
-  };
+  if ( typeof fn === 'function' ) {
 
-
-  /**
-   *  add a function to the list
-   *  @param {Function} fn [description]
-   */
-
-  Queue.prototype.add = function ( fn ) {
-
-    if ( typeof fn === 'function' ) {
-
-      this.list.push( fn );
-    }
-  };
+    this.list.push( fn );
+  }
+};
 
 
-  /**
-   *  Execute the stored functions
-   *  @return {[type]} [description]
-   */
+/**
+ *  Execute stored functions
+ */
 
-  Queue.prototype.exec = function() {
+Queue.prototype.exec = function() {
 
-    this.ready = true;
+  this.ready = true;
 
-    var args = Array.prototype.slice.call( arguments ),
+  var args = Array.prototype.slice.call( arguments ),
 
-        list = this.list;
+      list = this.list;
 
-    while ( list.length ) list.pop().apply( null, args );
-  };
+  while ( list.length ) list.pop().apply( null, args );
+};
 
 
-  Queue.prototype.clear = function(){
+/**
+ *  Empty the list of the queue
+ */
 
-    this.list.length = 0;
-  };
+Queue.prototype.clear = function(){
 
-  return Queue;
-
-})();
-
+  this.list.length = 0;
+};

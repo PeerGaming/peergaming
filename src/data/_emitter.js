@@ -1,153 +1,151 @@
 /**
- *  Event
- *  =====
+ *  Emitter
+ *  =======
  *
- *  Message handling using a Mediator (publish/subscribe).
+ *  A Mediator for handling messages via events.
  */
 
 // user: player - peers
 var eventMap = {};
 
-var Emitter = (function(){
 
-  'use strict';
+/**
+ *  Constructor to setup the container for the topics
+ *
+ *  @return {Object}
+ */
 
+var Emitter = function() {
 
-  /**
-   *  Constructor
-   */
+  if ( this instanceof Peer ) {
 
-  var EventEmitter = function() {
+    eventMap[ this.id ] = {};
 
-    if ( this instanceof Peer ) {
+  } else {
 
-      eventMap[ this.id ] = {};
+    this._events        = {};
+  }
 
-    } else {
-
-      this._events        = {};
-    }
-
-    return this;
-  };
+  return this;
+};
 
 
-  /**
-   * Register callbacks to topics.
-   *
-   * @param  {string}   topics  - topics to subscribe
-   * @param  {function} callback  - function which should be executed on call
-   * @param  {object}   context - specific context of the execution
-   */
+/**
+ *  Register/Subscribe callbacks to topics
+ *
+ *  @param  {String}   topics     -
+ *  @param  {Function} callback   -
+ *  @param  {Object}   context    -
+ *  @return {Object}
+ */
 
-  EventEmitter.prototype.on = function ( topics, callback, context ) {
+Emitter.prototype.on = function ( topics, callback, context ) {
 
-    if ( typeof callback !== 'function' ) return;
+  if ( typeof callback !== 'function' ) return;
 
-    topics = topics.split(' ');
+  topics = topics.split(' ');
 
-    var events  = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
-        length  = topics.length,
-        topic;
+  var events  = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+      length  = topics.length,
+      topic;
+
+  while ( length-- ) {
+
+    topic = topics[ length ];
+
+    if ( !events[ topic ] ) events[ topic ] = [];
+
+    events[ topic ].push([ callback, context ]);
+  }
+
+  return this;
+};
+
+
+/**
+ *  Register for one time usage
+ *
+ *  @param  {String}   topics     -
+ *  @param  {Function} callback   -
+ *  @param  {Object}   context    -
+ *  @return {Object}
+ */
+
+Emitter.prototype.once = function ( topics, callback, context ) {
+
+  this.on( topics, function once() {
+
+    this.off( topics, once );
+
+    callback.apply( this, arguments );
+
+  }.bind(this));
+
+  return this;
+};
+
+
+
+/**
+ *  Triggers listeners and sends data to subscribes functions
+ *
+ *  @param  {String} topic   -
+ *  @return {Object}
+ */
+
+Emitter.prototype.emit = function ( topic ) {
+
+  var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+
+      listeners = events[ topic ];
+
+  if ( listeners ) {
+
+    var args    = Array.prototype.slice.call( arguments, 1 ),
+
+        length  = listeners.length;
 
     while ( length-- ) {
 
-      topic = topics[ length ];
-
-      if ( !events[ topic ] ) events[ topic ] = [];
-
-      events[ topic ].push([ callback, context ]);
+      listeners[length][0].apply( listeners[length][1], args || [] );
     }
+  }
 
-    return this;
-  };
-
-
-  /**
-   *  [once description]
-   *  @param  {[type]}   topics   [description]
-   *  @param  {Function} callback [description]
-   *  @param  {[type]}   context  [description]
-   *  @return {[type]}            [description]
-   */
-
-  EventEmitter.prototype.once = function ( topics, callback, context ) {
-
-    this.on( topics, function once() {
-
-      this.off( topics, once );
-
-      callback.apply( this, arguments );
-
-    }.bind(this));
-
-    return this;
-  };
+  return this;
+};
 
 
-  /**
-   * Send data to subscribed functions.
-   *
-   * @param  {string}   topic   - topic to send the data
-   * @params  ......    arguments - arbitary data
-   */
+/**
+ *  Unsubscribe callbacks from a topic
+ *
+ *  @param  {String}   topic      - topic of which listeners should be removed
+ *  @param  {Function} callback   - specific callback which should be removed
+ *  @return {Object}
+ */
 
-  EventEmitter.prototype.emit = function ( topic ) {
+Emitter.prototype.off = function ( topic, callback ) {
 
-    var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
-        listeners = events[ topic ];
+  var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+      listeners = events[ topic ];
 
-    if ( listeners ) {
+  if ( !listeners ) return;
 
-      var args    = Array.prototype.slice.call( arguments, 1 ),
+  if ( !callback ) {
 
-          length  = listeners.length;
+    events[ topic ].length = 0;
 
-      while ( length-- ) {
+  } else {
 
-        listeners[length][0].apply( listeners[length][1], args || [] );
+    var length = listeners.length;
+
+    while ( length-- ) {
+
+      if ( listeners[ length ] === callback ) {
+
+        listeners.splice( length, 1 ); break;
       }
     }
+  }
 
-    return this;
-  };
-
-
-  /**
-   * Unsubscribe callbacks from a topic.
-   *
-   * @param  {string}   topic   - topic of which listeners should be removed
-   * @param  {function} callback  - specific callback which should be removed
-   */
-
-  EventEmitter.prototype.off = function ( topic, callback ) {
-
-    var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
-        listeners = events[ topic ];
-
-    if ( !listeners ) return;
-
-    if ( !callback ) {
-
-      events[ topic ].length = 0;
-
-    } else {
-
-      var length = listeners.length;
-
-      while ( length-- ) {
-
-        if ( listeners[ length ] === callback ) {
-
-          listeners.splice( length, 1 ); break;
-        }
-      }
-    }
-
-    return this;
-  };
-
-
-  return EventEmitter;
-
-})();
+  return this;
+};

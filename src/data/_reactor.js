@@ -2,22 +2,19 @@
  *  Reactor
  *  =======
  *
- *  An "reactive" object, which notifies it's subscribers as properties got changed.
- *
- *  ToDo:
- *
- *  - check if multiple reactors receive different IDs and are therefore seperated
+ *  A reactive object which notifies its subscribers as properties get changed.
  */
 
 
-var list = [],    // record of reactors
+var reactList =  [],   // record of reactors
 
-    SYNC = 100;   // delay for exchange - getter/setter
+    SYNC      = 100;   // delay to check the difference of properties
 
 
 /**
- *  [getReactor description] can use multiple callbacks
- *  @return {[type]} [description]
+ *  Creates basic object and setup handler
+ *
+ *  @return {Object}
  */
 
 var getReactor = function() {
@@ -26,25 +23,24 @@ var getReactor = function() {
 
   args.push.apply( args, arguments );
 
-  list.push({ reference: {}, callbacks: args });
+  reactList.push({ reference: {}, callbacks: args });
 
-  checkProperties( list.length - 1, obj );
+  checkProperties( reactList.length - 1, obj );
 
   return obj;
 };
 
 
 /**
- *  [checkProperties description]
+ *  Check properties to attach watcher
  *
- *  @param  {[type]} id      [description]
- *  @param  {[type]} current [description]
- *  @return {[type]}         [description]
+ *  @param  {Number} id        -
+ *  @param  {Object} current   -
  */
 
 function checkProperties ( id, current ) {
 
-  var last    = list[id].reference,
+  var last    = reactList[id].reference,
       diff    = getDifferences( last, current ),
 
       add     = diff.add,
@@ -66,10 +62,11 @@ function checkProperties ( id, current ) {
 
 
 /**
- *  [getDifferences description]
- *  @param  {[type]} last    [description]
- *  @param  {[type]} current [description]
- *  @return {[type]}         [description]
+ *  Determines the differences which properties got removed or added
+ *
+ *  @param  {Object} last      -
+ *  @param  {Object} current   -
+ *  @return {Object}
  */
 
 var getKeys = Object.keys;
@@ -97,47 +94,43 @@ function getDifferences ( last, current ) {
   return { add: add, remove: remove };
 }
 
-// - array & object dont geta new value set, but the lengths of their keys can be changed !
-
-// TODO:
-// - still problem with object 'delete' won't trigger as the setter - no new value send !
-// - array.lenght, -1 || clearing an array wont triggger !
-// - no functions can be shared ! -> for handling logic, better use RPC and the custom channel
-// - deep nesting for complex sync
 
 /**
- *  [defineProperty description]
- *  @param  {[type]} id      [description]
- *  @param  {[type]} current [description]
- *  @param  {[type]} prop    [description]
- *  @return {[type]}         [description]
+ *  Adds getter & setter to a property, which triggers a define callback
+ *
+ *  @param  {Number} id        -
+ *  @param  {Object} current   -
+ *  @param  {String} prop      -
  */
 
 function defineProperty ( id, current, prop ) {
 
-  var getter = function() { return list[id].reference[ prop ]; }, // set array ! change it
+  var getter = function() { return reactList[id].reference[ prop ]; },
 
       setter = function ( value ) {
 
         // prevent redundancy: old = new
-        if ( value === list[id].reference[ prop ] ) return;
+        if ( value === reactList[id].reference[ prop ] ) return;
 
 
         if ( typeof value === 'object' ) {
 
-          // Array
           if ( !Array.isArray(value) ) {
 
-            // method cloaking: @WatchJS |https://github.com/melanke/Watch.JS/blob/master/src/watch.js
+            /**
+             *  Method cloaking inspured by @Watch.JS
+             *  (see: https://github.com/melanke/Watch.JS )
+             */
+
             var methods = [ 'pop', 'push', 'reverse', 'shift', 'sort', 'splice', 'unshift' ];
 
             for ( var i = 0, l = methods.length; i < l; i++ ) setMethod( value, methods[ i ] );
 
-          } else { // Object
+          } else {
 
             value = utils.extend( getReactor( function ( inner, value ) {
 
-              var result = list[id].reference[ prop ];
+              var result = reactList[id].reference[ prop ];
 
               result[inner] = value;
 
@@ -154,9 +147,9 @@ function defineProperty ( id, current, prop ) {
 
         function refer ( value ) {
 
-          list[id].reference[ prop ] = value;
+          reactList[id].reference[ prop ] = value;
 
-          var callbacks = list[id].callbacks,
+          var callbacks = reactList[id].callbacks,
 
               i, l;
 
@@ -169,7 +162,6 @@ function defineProperty ( id, current, prop ) {
         }
 
 
-        // call protype then - and trigger the callback !
         function setMethod( arr, fn ) {
 
           arr[ fn ] = function(){
@@ -186,8 +178,6 @@ function defineProperty ( id, current, prop ) {
   // initial call + set diff
   setter( current[prop] );
 
-
-  // setup watcher
   Object.defineProperty( current, prop, {
 
     enumerable  : true,
@@ -195,5 +185,4 @@ function defineProperty ( id, current, prop ) {
     get         : getter,
     set         : setter
   });
-
 }
