@@ -5,34 +5,86 @@
  *  A synchronized shared object - which is accessible by all peers.
  */
 
-pg.sync = getReactor( sync );
+pg.sync = getReactor( batch(sync) );
 
 
-// local cache
-var CACHE = {};
 
-// delegate handling
-var METHODS = {
 
-  'NUMBER': pick,
-  'STRING': pick,
-  'ARRAY' : merge
-  // object ?
-};
 
-// as the initial value will be used -> remove something etc., should work right away...
+// local store
+var CACHE  = {},
+    SOLVED = {};
+
+
+// batches - process them in one flush ! (avoid not necessary network transfer !)
+function batch ( fn ) {
+
+  var list      = {},
+
+      timeoutID = null;
+
+
+  function share()  {
+
+    timeoutID = null;
+
+    var keys = Object.keys(list),
+
+        prop;
+
+    for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+      prop = keys[ i ];
+
+      sync( prop, list[ prop ] );
+
+      delete list[ prop ];
+    }
+
+    if ( STARTER ) STARTER();
+  }
+
+
+  return function ( key, value ) {
+
+    list[key] = value;
+
+    if ( timeoutID ) clearTimeout( timeoutID );
+
+    timeoutID = setTimeout( share, DELAY );
+  };
+}
 
 
 // informing other peers about your value set
-function sync ( key, value ) {
+function sync ( key, value, confirmed ) {
 
-  if ( CACHE[key] ) return console.log( '[CACHE] ' , CACHE[key] );
+  if ( confirmed ) {
+
+    if ( !CACHE[key] || CACHE[key].results[ INSTANCE.pos ] !== value ) {
+
+      SOLVED[ key ]  = true;
+      pg.sync[ key ] = value;
+    }
+
+    delete CACHE[key];        // console.log( '[CONFIRMED]', value    );
+    return;
+  }
+
+
+  if ( CACHE[ key ] ) return; // console.log( '[CACHED]', CACHE[key]  );
+
+  if ( SOLVED[ key ] ) {      // console.log( '[SOLVED]', SOLVED[key] );
+
+    delete SOLVED[key];
+    return;
+  }
 
   var ids = Object.keys( CONNECTIONS );
 
-  CACHE[key] = { list: ids, results: {} };
+  CACHE[key] = { list: ids, results: [] };        // TODO: 0.6.0 -> conflict with multiple ?
 
-  CACHE[key].results[ INSTANCE.id ] = value;
+  CACHE[key].results[ INSTANCE.pos ] = value;
 
   for ( var i = 0, l = ids.length; i < l; i++ ) {
 
@@ -41,53 +93,25 @@ function sync ( key, value ) {
 
 }
 
+
 function resync ( remoteID, key, value ) {
 
-  verify();
+  if ( !CACHE[key] ) { // noConflict -
 
-  function verify(){
+    sync( key, value, true );
 
-    if ( !CACHE[key] ) return setTimeout( verify, LATENCY[ remoteID ] );
-
-    var entry = CACHE[key];
-
-    entry.list.length -= 1;
-
-    entry.results[ remoteID ] = value;
-
-    if ( entry.list.length ) return;
-
-    // logic for determine the result
-    var result = METHODS[ utils.check(value).toUpperCase() ]( entry.results );
-
-    pg.sync[ key ] = result;
-
-    delete CACHE[key];
+    // send confirmation - 1:1
+    return CONNECTIONS[ remoteID ].send( 'sync', { resync: true, key: key, value: value });
   }
+
+  // TODO: 0.6.0 -> handle conflict (lower pos)
+  console.log('[CONFLICT]');
+
+  // var entry = CACHE[key];
+
+  // entry.list.length -= 1;
+
+  // entry.results[ pg.peers[remoteID].pos ] = value;
+
+  // if ( entry.list.length ) return;
 }
-
-
-// other one was faster ...
-// if ( CACHE[key] ) return console.log( '[CACHE] ', key, CACHE[key].value ); //  }{ pg.sync[key] = CACHE[key].value; return console.log( '[CACHE] ', key, CACHE[key].value ); }
-
-// both ar equal - non got set in the cache... -> send both the requests
-
-
-
-// solves a structure of key-value pairs,
-// key: id - value: result, by return the result with the lowest ID hash
-function pick ( map ) {
-
-  return map[ Object.keys( map ).sort( order )[0] ];
-}
-
-
-function merge ( map ) {
-
-  return Object.keys( map ).sort( order ).map( function ( id ) { return map[id]; }).reduce( combine );
-}
-
-// order entries by lower ID hash
-function order ( curr, next )   { return utils.getHash(next) - utils.getHash(curr); }
-
-function combine ( curr, next ) { return curr.concat(next); }
