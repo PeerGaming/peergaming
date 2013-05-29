@@ -49,7 +49,7 @@ var loop = function ( render ) {
 };
 
 // synchronizing delay - using for sync with others | adust the used rate
-var LOOP_TIME = 16.7,
+var LOOP_TIME = DELAY,//16.7,
     DIFF      = 0;
 
 function throttle ( render, delta ) {
@@ -79,7 +79,7 @@ function checkPause(){
 
   if ( !doc.hidden ) {
 
-    doc.title = '[PAUSE] - ' + title; //( doc.hidden ? '[PAUSE] ' : '' ) + title;
+    // doc.title = '[PAUSE] - ' + title; //( doc.hidden ? '[PAUSE] ' : '' ) + title;
 
     loop.stop();
 

@@ -19,10 +19,10 @@ var reservedReference = context.pg,
 pg.VERSION = {
 
   codeName    : 'salty-goblin',
-  full        : '0.3.1',
+  full        : '0.3.7',
   major       : 0,
   minor       : 3,
-  dot         : 1
+  dot         : 7
 };
 
 

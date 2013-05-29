@@ -25,6 +25,8 @@ var win     = window,
 
 var INSTANCE    = null,   // pg.player
 
+    PEERS       = null,   // pg.peers // // pg.peers - should be internaly just PEERS !
+
     INFO        = null,   // pg.info
 
     ROOM        = null,   // current room
