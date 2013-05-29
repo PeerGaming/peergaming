@@ -105,16 +105,7 @@ Connection.prototype.findICECandidates = function(){
     // var iceGatheringState = e.currentTarget.iceConnectionState;
     // console.log(iceGatheringState);
 
-    // the 'null' candidate just because there isn't a onicegatheringcomplete event handler.
-    if ( e.candidate ) {
-
-      this.send( 'setIceCandidates', e.candidate );
-
-    } else {
-
-      // After ICE completion a callback with a null candidate is supplied.
-      // console.log('iceGatheringState: completed');
-    }
+    if ( e.candidate ) this.send( 'setIceCandidates', e.candidate );
 
   }.bind(this);
 };
@@ -132,6 +123,8 @@ Connection.prototype.setIceCandidates = function ( data ) {
     if ( !Array.isArray(data) ) data = [ data ];
 
     for ( var i = 0, l = data.length; i < l; i++ ) {
+
+      // DOM 12 exception error -> out of order....
 
       conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
     }
@@ -160,9 +153,9 @@ Connection.prototype.createOffer = function() {
 
       this.send( 'setConfigurations', offer );
 
-    }.bind(this) );
+    }.bind(this), loggerr ); // config.SDPConstraints
 
-  }.bind(this), loggerr, config.mediaConstraints ); // 3.param || media contrain
+  }.bind(this), loggerr, config.mediaConstraints );
 };
 
 
@@ -177,10 +170,9 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
 
 
-  // unstabled connection got closed before....
-  if ( this.closed ) return win.location.reload();
-
-  // TODO: connects peers - but now problem with starting the game, initialize etc.
+  // unstabled connection got closed before || although still connected with some ?
+  // || happens on 4++ connections, seems like not delegated right, half way stuck...
+  if ( this.closed ) return alert('[ERROR] - Connection got interuppted');
 
 
   conn.setRemoteDescription( desc, function(){
@@ -197,7 +189,7 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
           this.send( 'setConfigurations', answer );
 
-        }.bind(this), loggerr );//, config.SDPConstraints );
+        }.bind(this), loggerr ); // config.SDPConstraints
 
       }.bind(this), null, config.mediaConstraints );
 
@@ -329,11 +321,11 @@ function useChannels ( channel, data, proxy ) {
   var ready    = this.ready,
       channels = this.channels;
 
-  if ( !channel ) channel = keys = Object.keys( channels );
+  if ( !channel ) channel = Object.keys( channels );
 
   if ( !Array.isArray( channel ) ) channel = [ channel ];
 
-  // ToDo: closing issue - missing message can be send (bew icecandidates will be created etc.)
+  if ( channel === 'register' || channel === 'start' ) console.log( channel, msg, proxy );
 
   for ( var i = 0, l = channel.length; i < l; i++ ) {
 

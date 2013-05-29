@@ -74,7 +74,7 @@ function checkRoute() {
 
   if ( args.length < 1 ) return;
 
-  // if ( Object.keys( CUSTOM_PATTERNS ).length ) extractRoute();
+  // if ( Object.keys( CUSTOM_PATTERNS ).length ) extractRoute(); // TODO: 0.7.0 -> customRoutes
 
   matchRoute( args );
 }
@@ -111,7 +111,8 @@ function matchRoute ( args ) {
     // if ( lastRoom ) lastRoom.emit( 'leave', INSTANCE );
 
     // initial setup - attach handler
-    room.emit( 'enter', INSTANCE, params );
+    // room.emit( 'enter', INSTANCE, params ); // even without other peer ?
+    //  // better setup loading/waiting hook !
 
     if ( LAST_ROUTE  ) {
 
@@ -144,12 +145,11 @@ function leaveSite ( e ) {
   if ( chrome ) { chrome = !chrome; return; }
 
   // if ( !history.state ) {
-  // console.log(LAST_ROUTE);
-
-  // return window.history.back();
+  //  console.log(LAST_ROUTE);
+  //  return window.history.back();
   // }
 }
 
 /** attach listener **/
 win.addEventListener( 'hashchange', checkRoute ); // join
-win.addEventListener( 'popstate', leaveSite );    // history navigation
+win.addEventListener( 'popstate',   leaveSite  ); // history navigation
