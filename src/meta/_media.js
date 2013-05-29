@@ -2,20 +2,18 @@
  *  Media
  *  =====
  *
- *  Handler just for mediastreaming (video & audio). Additional connection - which can be used
- *  besides the current handler/connection.
- *
- *  // include _media in meta !
+ *  Wrapper for handling MediaStreams - creating an additional connection asides the DataChannel.
  */
 
-// handles types of connection: data connection or media connection (the firstis based on datachannel,
-// the other on mediastream - which can be used to broadcast e.g. video streams)
-// this.test = 1;
-// ICE wird vor dem 2.offer gesetzt und ist evlt in kompatible
-// 10 candiadtes - just after received offer - answer...  // second offer !
 
-// this.channels[ label ] = new Handler( channel, this.remote, label );
-// handler = new Handler( channel, this.remote, label );
+/**
+ *  Constructor to setup up the basic information
+ *
+ *  @param  {String}  local       -
+ *  @param  {String}  remote      -
+ *  @param  {Boolean} initiator   -
+ *  @param  {Object}  transport   -
+ */
 
 var Media = function ( local, remote, initiator, transport ) {
 
@@ -29,6 +27,10 @@ var Media = function ( local, remote, initiator, transport ) {
   this.init();
 };
 
+
+/**
+ *  Create connection and setup receiver
+ */
 
 Media.prototype.init = function(){
 
@@ -45,8 +47,16 @@ Media.prototype.init = function(){
 };
 
 
+/**
+ *  Media <- Connection
+ */
+
 utils.inherits( Media, Connection );
 
+
+/**
+ *  Attach handler for incoming streams
+ */
 
 Media.prototype.attachStream = function(){
 
@@ -54,36 +64,41 @@ Media.prototype.attachStream = function(){
 
   conn.onaddstream = function ( e ) {
 
-    console.log('[added stream]');
+    console.log('[MEDIA] - Added Stream');
     console.log(e);
 
-    var video = document.createElement('video');
-    video.src = URL.createObjectURL( e.stream );
-    video.autoplay = true;
+    // var video = document.createElement('video');
+    // video.src = URL.createObjectURL( e.stream );
+    // video.autoplay = true;
 
-    var box = document.createElement('div');
-    box.textContent = this.remoteID;
-    box.className = 'name';
-    box.appendChild(video);
+    // var box = document.createElement('div');
+    // box.textContent = this.remoteID;
+    // box.className = 'name';
+    // box.appendChild(video);
 
-    document.body.appendChild( box );
+    // document.body.appendChild( box );
   };
 
 
   conn.onremovestream = function ( e ) {
 
-    console.log('[removed stream]');
+    console.log('[MEDIA] - Removed Stream');
 
-    document.getElementById('vid2').src = null;
+    // document.getElementById('vid2').src = null;
     URL.revokeObjectURL( e.stream );
   };
 
 };
 
 
+/**
+ *  Request media input via camera/microphone
+ *
+ *  @param {String} el   -
+ */
+
 Media.prototype.requestStream = function ( el ) {
 
-  // device access
   var permissions = { audio: true, video: true };
 
   win.navigator.getUserMedia( permissions, function ( stream ) {
@@ -95,7 +110,6 @@ Media.prototype.requestStream = function ( el ) {
 
     // this.createOffer();
 
-    // local representation
     if ( !el ) return;
 
     var video = document.createElement('video');

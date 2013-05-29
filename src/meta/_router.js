@@ -1,47 +1,31 @@
 /**
- *  Routes
+ *  Router
  *  ======
  *
- *  Matching request/URL routes.
- *
- *  allows to define customRoutes & default (which will be called in initalization !)
- *
- * // setting up routes - optional setting, can provide a dictionary for custom routes + default route
- *  ToDo:
- *
- *  - add History API support (see server side support)
- *
- *  - improve param splitting + channel / game recognition
- *
- *
- *  as of v2 using functions, easier as mostly the application itself will just need on hook,
- *  and not multiple (see demonstration, || there can be different routes, but else simpler !)
- *
- *  Example:
- *
- *    pg.routes(
- *
- *      // channel,
- *
- *      // game
- *    ) // 2 simple - or one objct for cunfiguraiton !
- *
- *		pg.routes({
- *
- *
- *		})
+ *  Matching the browser URL to specific routes for handling rooms (channel or game).
  */
 
 
-var channelRoutes   = {},               // collection of the channel routes
-    gameRoutes      = {},               // collection of the game  routes
-    LAST_ROUTE      = null,
-    DEFAULT_ROUTE   = '/lobby/';
+var channelRoutes =        {},  // collection of the channel routes
 
+    gameRoutes    =        {},  // collection of the game routes
+
+    LAST_ROUTE    =      null,  // reference to the last route
+
+    DEFAULT_ROUTE = '/lobby/';
+
+
+/**
+ *  Defines custom routes or changes the default path
+ *
+ *  @param  {Object} customRoutes   -
+ *  @param  {String} defaultRoute   -
+ *  @return {Array}
+ */
 
 pg.routes = function ( customRoutes, defaultRoute ) {
 
-  if ( !defaultRoute && typeof customRoutes === 'string' ) { // less then 2 arguments
+  if ( !defaultRoute && typeof customRoutes === 'string' ) {
 
     defaultRoute = customRoutes;
     customRoutes = null;
@@ -54,17 +38,26 @@ pg.routes = function ( customRoutes, defaultRoute ) {
 };
 
 
-// var CHANNEL_PATTERN = /\/(.*?)\//g,
-//     ARGS_PATTERN    = /(\?)?:\w+/g;
+var CHANNEL_PATTERN = /\/(.*?)\//g,
+    ARGS_PATTERN    = /(\?)?:\w+/g;
+
+/**
+ *  Parsing and setting up custom routes
+ *
+ *  @param {Object} customRoutes   -
+ */
 
 function defineCustomRoutes ( customRoutes ) {
 
   channelRoutes = {};
-  gameRoutes = {};
+  gameRoutes    = {};
 }
 
 
-// extract params
+/**
+ *  Extract params and set info
+ */
+
 function checkRoute() {
 
   var path    = win.location.hash.substr(3),
@@ -74,45 +67,41 @@ function checkRoute() {
 
   if ( args.length < 1 ) return;
 
-  // if ( Object.keys( CUSTOM_PATTERNS ).length ) extractRoute(); // TODO: 0.7.0 -> customRoutes
+  // TODO: 0.7.0 -> customRoutes
+  // if ( Object.keys( CUSTOM_PATTERNS ).length ) extractRoute();
 
   matchRoute( args );
 }
 
 
-// execute wrapped function, cann be a channel or game
+function extractRoute(){}         // TODO: 0.7.0 -> custom routes
+
+
+/**
+ *  Retrieve the room handler from the channel/game collections
+ *
+ *  @param {String} args   -
+ */
+
 function matchRoute ( args ) {
 
   var room = args.shift();
 
-  if ( !room ) { // re-routing
+  if ( !room ) {
 
     win.location.hash = '!/' + DEFAULT_ROUTE.substr(1);
 
     return;
   }
 
-  // var lastRoom = ROOM; // behavior ?
-
-  // room match -> arguments
   ROOM = room = !args[0].length ? CHANNELS[ room ] || CHANNELS[ '*' ]  :
                                      GAMES[ room ] ||    GAMES[ '*' ]  ;
 
+    var params = args; // TODO: 0.7.0 -> parse for custom routes
 
-  // TODO: parse for custom routes
-  var params = args;
-
-  // prevent re-join the current room...
   if ( LAST_ROUTE === INFO.route ) return;
 
-
   if ( room ) {
-
-    // if ( lastRoom ) lastRoom.emit( 'leave', INSTANCE );
-
-    // initial setup - attach handler
-    // room.emit( 'enter', INSTANCE, params ); // even without other peer ?
-    //  // better setup loading/waiting hook !
 
     if ( LAST_ROUTE  ) {
 
@@ -132,12 +121,11 @@ function matchRoute ( args ) {
 }
 
 
-// customRoute with specifc params
-// function extractRoute() {
-
-//   console.log('[ToDo] Extract Params');
-// }
-
+/**
+ *  Handles history navigation of the browser
+ *
+ *  @param {Object} e   -
+ */
 
 function leaveSite ( e ) {
 
@@ -150,6 +138,8 @@ function leaveSite ( e ) {
   // }
 }
 
+
 /** attach listener **/
+
 win.addEventListener( 'hashchange', checkRoute ); // join
 win.addEventListener( 'popstate',   leaveSite  ); // history navigation

@@ -2,48 +2,53 @@
  *  Game
  *  ====
  *
- *  Game room for handling game specific issues.
- *
- *
- *  Example:
- *
- *    pg.game('cool', function( game ){
- *
- *      console.log( game ); *
- *    });
- *
- *  ## Events
- *
- *  In addition to the channel events, following can occour as well:
- *
- *  - 'start'     : as the game starts
- *  - 'end'       : as the game ends
- *  - 'pause'     : as the game pauses
- *  - 'reconnect' : as a peer reconnect
+ *  A room for handling gaming specific requirements.
  */
 
 
-var GAMES   = {},
+/**
+ *  Public interface for setting up a game
+ */
 
-    STARTER = null;
+pg.game = createRoom( Game );
 
 
-var Game = function ( id ) {
+var GAMES   = {},     // record of games
+
+    STARTER = null;   // bootstrap to forward the game start
+
+
+/**
+ *  Constructor to define the reference and options
+ *
+ *  @param {String} id   -
+ */
+
+function Game ( id ) {
 
   this.init( id );
 
-  // this.info    = {};                          // TODO: 0.6.0 -> data & info
+  this.info    = {};                             // TODO: 0.6.0 -> data & info
 
   this.options = { minPlayer: 2, maxPlayer: 8 }; // TODO: 0.5.0 -> room options
 
   GAMES[ id ] = this;
-};
+}
 
+
+/**
+ *  Game <- Channel <- Emitter
+ */
 
 utils.inherits( Game, Channel );
 
 
-/** start a game as the minimum got reached **/
+/**
+ *  Starts the game as the minimum amount of players joined
+ *
+ *  @param {Function} initialize   - bootstrapping function to start the game
+ */
+
 Game.prototype.start = function ( initialize ) {
 
   this._start = function(){ initialize(); forward.call( this ); };
@@ -53,11 +58,11 @@ Game.prototype.start = function ( initialize ) {
 
   if ( ready  <  this.options.minPlayer ) return;     // less player  - wait
 
-  if ( ready === this.options.minPlayer ) {           // condition
+  if ( ready === this.options.minPlayer ) {
 
     if ( INSTANCE.pos === 0 ) this._start();
 
-    return; // not 0 but same amount
+    return;
   }
 
   if ( ready  >  this.options.minPlayer ) {          // more player   - late join
@@ -71,7 +76,18 @@ Game.prototype.start = function ( initialize ) {
 };
 
 
-// request previous if ready
+Game.prototype.end      = function(){};  // TODO: 0.6.0 -> player handling
+
+Game.prototype.pause    = function(){};  // TODO: 0.6.0 -> player handling
+
+Game.prototype.unpause  = function(){};  // TODO: 0.6.0 -> player handling
+
+
+
+/**
+ *  Ask the previous peer if your allowed/ready to start | late-join
+ */
+
 function request() {
 
   var keys = Object.keys( pg.peers ),
@@ -87,7 +103,12 @@ function request() {
 }
 
 
-// forward to the next peer : remoteID will be provided by late join !
+/**
+ *  Invokes the start of the next peers
+ *
+ *  @param {String} remoteID   - will be provided by late join & request
+ */
+
 function forward ( remoteID ) {
 
   STARTER = function(){
@@ -110,12 +131,15 @@ function forward ( remoteID ) {
 
       if ( this._start ) delete this._start;
 
-    }.bind(this), DELAY * pg.data.length ); // see batching the changes
+    }.bind(this), DELAY * 5 ); // see batching the changes
 
   }.bind(this);
 
 
-  if ( !remoteID ) return; // get sync object
+  if ( !remoteID ) return;
+
+
+  /** get sync object **/
 
   var conn = CONNECTIONS[ remoteID ],
 
@@ -132,10 +156,3 @@ function forward ( remoteID ) {
 
   if ( STARTER ) STARTER();
 }
-
-
-// Game.prototype.end      = function(){};      // TODO: 0.6.0 -> player handling
-// Game.prototype.pause    = function(){};      // TODO: 0.6.0 -> player handling
-// Game.prototype.unpause  = function(){};      // TODO: 0.6.0 -> player handling
-
-pg.game = createRoom( Game );

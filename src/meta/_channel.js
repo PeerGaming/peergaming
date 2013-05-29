@@ -2,41 +2,49 @@
  *  Channel
  *  =======
  *
- *  Channel as a room for conversations etc.
- *
- *
- *  Example:
- *
- *    pg.channel('example', function ( channel ) {
- *
- *      console.log(channel);
- *    });
- *
- *  ## Events
- *
- *  - 'enter' : trigger as a user enter the room
- *  - 'leave' : trigger as a peer leaves the room
- *
- *
- *  - 'media' : trigger as a peer broadcasts a stream || room
- *  - 'message '?
- *
+ *  An intermediate room for conversations.
  */
 
 
-var CHANNELS = {};
+/**
+ *  Public interface for setting up a channel
+ */
+
+pg.channel = createRoom( Channel );
 
 
-var Channel = function ( id ) {
+var CHANNELS = {};  // record of channels
+
+
+/**
+ *  Constructor to call init
+ *
+ *  @param {String} id   -
+ */
+
+function Channel ( id ) {
 
   this.init( id );
 
-  // this.match = function ( type ) {};  // TODO: 0.7.0 -> matchmaking
-};
+  this.match = function ( type ) {
 
+    // TODO: 0.7.0 -> matchmaking
+  };
+}
+
+
+/**
+ *  Channel <- Emitter
+ */
 
 utils.inherits( Channel, Emitter );
 
+
+/**
+ *  Assign id and invokes Emitter
+ *
+ *  @param {String} id   -
+ */
 
 Channel.prototype.init = function ( id ) {
 
@@ -46,15 +54,24 @@ Channel.prototype.init = function ( id ) {
 };
 
 
+/**
+ *  Allows to setup custom options for this channel/game
+ *
+ *  @param {Object} customConfig   -
+ */
+
 Channel.prototype.config = function ( customConfig ) {
 
   utils.extend( this.options, customConfig );
 };
 
 
-pg.channel = createRoom( Channel );
-
-
+/**
+ *  Creates a new room (channel or game) and registers handler
+ *
+ *  @param  {Function} type   -
+ *  @return {Function}
+ */
 
 function createRoom ( type ) {
 
@@ -73,4 +90,3 @@ function createRoom ( type ) {
     return room;
   };
 }
-

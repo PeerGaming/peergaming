@@ -2,8 +2,9 @@
  *  Auth
  *  ====
  *
- *  Module for handling authentication.
+ *  Module for handling authentication for external party services.
  */
+
 
 var AUTH = {
 
@@ -12,17 +13,29 @@ var AUTH = {
   // 'TWITTER',
   // 'GOOGLE'
   // 'FACEBOOK',
-
 };
 
 
+/**
+ *  Login on Github
+ *
+ *  @param  {String}   id         -
+ *  @param  {Function} callback   -
+ */
 
 function requestGithub ( id, callback ) {
 
-
+  // TODO: 0.7.0 -> external login
 }
 
 
+
+/**
+ *  Login via BrowserID
+ *
+ *  @param  {String}   id         -
+ *  @param  {Function} callback   -
+ */
 
 function requestPersona ( id, callback ) {
 
@@ -31,8 +44,9 @@ function requestPersona ( id, callback ) {
       script = document.createElement('script');
 
 
-  script.addEventListener( 'load', function(){
+  // TODO: 0.7.0 -> external login
 
+  script.addEventListener( 'load', function(){
 
     navigator.id.watch({
 
@@ -48,15 +62,14 @@ function requestPersona ( id, callback ) {
 
       onlogout: function(){
 
-
       }
 
     });
 
 
     navigator.id.request();
-  });
 
+  });
 
   script.src = URL;
 

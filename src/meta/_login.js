@@ -2,22 +2,17 @@
  *  Login
  *  =====
  *
- *  can be used after handling authentication - wrapper to preset the Peer !
- *
- *  Can either be a string, which is then just a name, no external service will be used - or an
- *  secondary parameter with further credentials.
- *
- *  e.g.: 'name' or 'name', 'service'
- *
- *  // callback of "next" is also optional, as it wouldn't be required ||
- *   if it exists - will be called before the default join  ||
- *
- *
- *      additional hook can m
- *
- *  optional: hook && service (required just name etc.) ||
+ *  Entry for creating a player or use a service for additional data.
  */
 
+
+/**
+ *  Uses a plain text name or request more information via authentication
+ *
+ *  @param  {String}   name      -
+ *  @param  {String}   service   -
+ *  @param  {Function} hook      -
+ */
 
 pg.login = function ( name, service, hook ) {
 
@@ -31,7 +26,14 @@ pg.login = function ( name, service, hook ) {
 };
 
 
-// allow to login and use 3rd party data
+/**
+ *  Check if the selected service is supported and handles response
+ *
+ *  @param  {String}   name      -
+ *  @param  {String}   service   -
+ *  @param  {Function} hook      -
+ */
+
 function requestOAuth ( name, service, hook ) {
 
   service = service.toUpperCase();
@@ -47,7 +49,13 @@ function requestOAuth ( name, service, hook ) {
 }
 
 
-// assign value
+/**
+ *  Creates the player and extracts the initial route
+ *
+ *  @param {Object}   account   -
+ *  @param {Function} hook      -
+ */
+
 function createPlayer ( account, hook ) {
 
   var origin = win.location.hash.substr(3) || DEFAULT_ROUTE.substr(1);
