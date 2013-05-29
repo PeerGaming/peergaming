@@ -16,7 +16,7 @@ var list = [],    // record of reactors
 
 
 /**
- *  [getReactor description]
+ *  [getReactor description] can use multiple callbacks
  *  @return {[type]} [description]
  */
 
@@ -97,7 +97,13 @@ function getDifferences ( last, current ) {
   return { add: add, remove: remove };
 }
 
+// - array & object dont geta new value set, but the lengths of their keys can be changed !
 
+// TODO:
+// - still problem with object 'delete' won't trigger as the setter - no new value send !
+// - array.lenght, -1 || clearing an array wont triggger !
+// - no functions can be shared ! -> for handling logic, better use RPC and the custom channel
+// - deep nesting for complex sync
 
 /**
  *  [defineProperty description]
@@ -109,25 +115,71 @@ function getDifferences ( last, current ) {
 
 function defineProperty ( id, current, prop ) {
 
-  var getter = function() { return list[id].reference[ prop ]; },
+  var getter = function() { return list[id].reference[ prop ]; }, // set array ! change it
 
       setter = function ( value ) {
 
         // prevent redundancy: old = new
         if ( value === list[id].reference[ prop ] ) return;
 
-        list[id].reference[ prop ] = value;
 
-        var callbacks = list[id].callbacks,
+        if ( typeof value === 'object' ) {
 
-            i, l;
+          // Array
+          if ( !Array.isArray(value) ) {
 
-        for ( i = 0, l = callbacks.length; i < l; i++ ) {
+            // method cloaking: @WatchJS |https://github.com/melanke/Watch.JS/blob/master/src/watch.js
+            var methods = [ 'pop', 'push', 'reverse', 'shift', 'sort', 'splice', 'unshift' ];
 
-          callbacks[i].apply( callbacks[i], [ prop, value ] );
+            for ( var i = 0, l = methods.length; i < l; i++ ) setMethod( value, methods[ i ] );
+
+          } else { // Object
+
+            value = utils.extend( getReactor( function ( inner, value ) {
+
+              var result = list[id].reference[ prop ];
+
+              result[inner] = value;
+
+              return refer( result );
+
+            }), value );
+          }
+
         }
 
-        return value;
+
+        refer( value );
+
+
+        function refer ( value ) {
+
+          list[id].reference[ prop ] = value;
+
+          var callbacks = list[id].callbacks,
+
+              i, l;
+
+          for ( i = 0, l = callbacks.length; i < l; i++ ) {
+
+            callbacks[i].apply( callbacks[i], [ prop, value ] );
+          }
+
+          return value;
+        }
+
+
+        // call protype then - and trigger the callback !
+        function setMethod( arr, fn ) {
+
+          arr[ fn ] = function(){
+
+            Array.prototype[ fn ].apply( this, arguments );
+
+            return refer( arr );
+          };
+        }
+
       };
 
 
