@@ -3,5 +3,18 @@
   "description" : "A Client-Side Multiplayer Gaming Framework for the Web",
   "version"     : "0.4.0",
   "main"        : "dist/peergaming.js",
-  "ignore"      : [ "bin", "src", "test" ]
+  "ignore"      : [
+    "bin",
+    "src",
+    "test",
+    ".editorconfig",
+    ".gitattributes",
+    ".CONTRIBUTING.md",
+    ".HISTORY.md",
+    "LICENSE",
+    "Makefile",
+    "TODO.md",
+    "component.json",
+    "package.json"
+  ]
 }
