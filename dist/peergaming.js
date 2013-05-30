@@ -1,5 +1,5 @@
 /**
- *	peergaming.js - v0.3.1 | 2013-05-18
+ *	peergaming.js - v0.4.0 | 2013-05-30
  *	http://peergaming.net
  *	Copyright (c) 2013, Stefan Dühring
  *	MIT License
@@ -26,43 +26,50 @@
  *  Constants
  *  =========
  *
- *
+ *  Internal references for faster access.
  */
 
 
-// global shortcuts
+/** global **/
 
-var win = window,
+var win     = window,
 
-    moz     = !!navigator.mozGetUserMedia,
+    doc     = document,
 
-    SESSION = win.sessionStorage;
+    moz     = !!win.navigator.mozGetUserMedia,
 
+    chrome  = !!win.chrome,
 
+    SESSION = win.sessionStorage,
 
-// Protocol
+    LOCAL   = win.localStorage,
 
-
-// internal variables
-
-var instance,          // Singleton reference
-
-    LOOP_TIME  = 100;  // 100ms      // SYNC_DELAY (dynamcly changed by the manager - regarding connections)
+    rand    = Math.random;
 
 
-// Error Messages
+/** internal  **/
+
+var INSTANCE    = null,   // pg.player
+
+    PEERS       = null,   // pg.peers
+
+    INFO        = null,   // pg.info
+
+    ROOM        = null,   // current room
+
+    CONNECTIONS =   {},   // datachannel for each peer
+
+    MEDIAS      =   {};   // mediastreams for each peer
 
 /**
  *  Adapter
  *  =======
  *
- *  Normalize different browser behavior.
+ *  Normalize different browser behavior - using prefixes and workarounds.
  */
 
 
-/**
- *  Performance
- */
+/** Performance **/
 
 if ( !win.performance ) {
 
@@ -74,9 +81,7 @@ if ( !win.performance ) {
 }
 
 
-/**
- *  requestAnimationFrame
- */
+/** requestAnimationFrame **/
 
 if ( !win.requestAnimationFrame ) {
 
@@ -91,9 +96,33 @@ if ( !win.requestAnimationFrame ) {
 }
 
 
-/**
- *  Blob & ObjectURL
- */
+/** visibility **/
+
+var visibilityChange;
+
+if ( !( 'hidden' in doc ) ) {
+
+  var vendors = [ 'webkit', 'moz', 'ms', 'o' ];
+
+  if ( doc.state ) vendors.length = 0;
+
+  for ( var i = 0, l = vendors.length; i < l; i++ ) {
+
+    if ( (vendors[i]+'Hidden') in doc ) {
+
+      doc.state         = doc[ vendors[i] + 'VisibilityState' ];
+      doc.hidden        = doc[ vendors[i] + 'Hidden'          ];
+      visibilityChange  =      vendors[i] + 'visibilitychange' ;
+    }
+  }
+
+  if ( !visibilityChange ) visibilityChange = 'visibilitychange';
+  // var evtname = visProp.replace(/[H|h]idden/,'') + 'visibilitychange';
+  // document.addEventListener(evtname, visChange);
+}
+
+
+/** Blob & ObjectURL **/
 
 if ( !win.URL ) {
 
@@ -110,9 +139,7 @@ if ( !win.Blob && !win.BlobBuilder ) {
 }
 
 
-/**
- *  setImmediate
- */
+/** setImmediate **/
 
 if ( !win.setImmediate ) {
 
@@ -137,9 +164,7 @@ if ( !win.setImmediate ) {
 }
 
 
-/**
- *  User Media Stream
- */
+/** user MediaStream **/
 
 if ( !navigator.getUserMedia ) {
 
@@ -149,18 +174,17 @@ if ( !navigator.getUserMedia ) {
 }
 
 
-/**
- *  PeerConnection
- */
+/** PeerConnection **/
 
-if ( typeof win.RTCPeerConnection !== 'function' ) {    // FF has already some stubs...
+if ( typeof win.RTCPeerConnection !== 'function' ) {
 
   win.RTCPeerConnection = win.mozRTCPeerConnection    ||
                           win.webkitRTCPeerConnection;
 }
 
 
-// Firefox handling
+/** Firefox **/
+
 if ( typeof win.RTCSessionDescription !== 'function' ) {
 
   win.RTCSessionDescription = win.mozRTCSessionDescription;
@@ -173,7 +197,8 @@ if ( typeof win.RTCIceCandidate !== 'function' ) {
 }
 
 
-// Chrome handling
+/** Chrome **/
+
 if ( win.webkitRTCPeerConnection && !win.webkitRTCPeerConnection.prototype.getLocalStreams ) {
 
   // New Syntax of getXXStreams in M26
@@ -205,25 +230,28 @@ if ( win.webkitRTCPeerConnection && !win.webkitRTCPeerConnection.prototype.getLo
  *  ======
  *
  *  Checks if the required features or status is supported by the browser.
- *
- *  ToDo:
- *
- *  - DataChannel
- *  - ServerSent Events/WebSocket
  */
 
 
-var reliable  = false,
-
-    features  = [ 'URL', 'Blob', 'crypto', 'indexedDB', 'RTCPeerConnection' ];
+var features  = [ 'URL', 'Blob', 'crypto', 'RTCPeerConnection' ];
 
 for ( var i = 0, l = features.length; i < l; i++ ) {
 
   if ( !(features[i] in win ) ) console.log( 'Missing: ', features[i] );
 }
 
-if ( !win.RTCPeerConnection ) throw new Error('Your browser doesn\'t support PeerConnections yet.');
+if ( !win.RTCPeerConnection ) return alert('Your browser doesn\'t support PeerConnections yet.');
 
+/** last browser change broke API **/
+if ( moz ) return alert('Unfortunately the Firefox support got broken with the last update.\n\
+                         Please use Chrome at the moment and look forward for the next version!');
+
+
+/**
+ *  Returns the endianess of the system
+ *
+ *  @return {Boolean}
+ */
 
 var littleEndian = (function(){
 
@@ -232,127 +260,118 @@ var littleEndian = (function(){
 
     arr32[0] = 255;
 
-    return !!arr8[0];   // 255 0 0 - litte  ||  0 0 255 - big
+    return !!arr8[0]; // 255 0 0 - litte  ||  0 0 255 - big
 })();
 
 /**
  *  Debug
  *  =====
  *
- *  Debugging calls for development.
+ *  Debugging calls to help on local development.
  */
 
 
 /**
- *  log
+ *  Show a counted debug message
  *
- *  Log information - display the text in a structured manner !
- *  @return {[type]} [description]
+ *  @param {String} text   -
  */
 
 function debug ( text ) {
 
-	if ( !instance || !localStorage.log ) {
+  if ( !INSTANCE || !LOCAL.log ) LOCAL.log = 0;
 
-		localStorage.log = 0;
-	}
+  if ( text[text.length - 1] === '\n' ) {
 
-	if ( text[text.length - 1] === '\n' ) {
+    text = text.substring( 0, text.length - 1 );
+  }
 
-		text = text.substring( 0, text.length - 1 );
-	}
+  var num = ++localStorage.log,
+      msg = '(' + num + ') - ' + ( (performance.now()) / 1000 ).toFixed(3) + ': ' + text;
 
-	var num = ++localStorage.log,
-		msg = '(' + num + ') - ' + ( (performance.now()) / 1000 ).toFixed(3) + ': ' + text;
-
-	console.log( msg );
+  console.log( msg );
 }
+
+
+/**
+ *  Resets "debug"-counter
+ */
 
 win.clearDebug = function() {
 
-	delete localStorage.log;
+  delete LOCAL.log;
 };
 
 
 /**
- *  logger
+ *  General logger to show error messages
  *
- *  Logging errors
- *  @param  {[type]} err [description]
- *  @return {[type]}     [description]
+ *  @param {Object} err   -
  */
+
 function loggerr ( err )  {
 
-	console.log('[error]');
-	console.log( err , err.name + ': ' + err.message );
+  console.warn('[ERROR] ', err );
+  console.warn( err.name + ': ' + err.message );
 }
 
 
 /**
- *  Check debugging state
+ *  Informs if the developer tools are enabled for debugging
+ *  (see: https://github.com/adamschwartz/chrome-inspector-detector )
  *
- *	See https://github.com/adamschwartz/chrome-inspector-detector and
- *  http://stackoverflow.com/questions/7527442/how-to-detect-chrome-inspect-element-is-running-or-not/15567735#15567735
+ *  @return {Boolean}
  */
 
 function isDebugging(){
 
-	// firebug
-	if ( moz ) return !!console.log;
+  // firebug
+  if ( moz ) return !!console.log;
 
-	// chrome
-	var existingProfiles = console.profiles.length;
+  // chrome
+  var existingProfiles = console.profiles.length;
 
-	console.profile();
-	console.profileEnd();
+  console.profile();
+  console.profileEnd();
 
-	if ( console.clear ) console.clear();
+  if ( console.clear ) console.clear();
 
-	return console.profiles.length > existingProfiles;
+  return console.profiles.length > existingProfiles;
 }
-
-
-// extend profiler - http://smnh.me/javascript-profiler/
-
-
-// stopbefore
-
-// https://gist.github.com/NV/5376464
 
 /**
  *  Base
  *  ====
  *
- *  Basic wrapper definition.
+ *  Framework foundations.
  */
+
 
 var reservedReference = context.pg,
 
     pg = Object.create( null );
 
+
 /**
- *  [VERSION description]
+ *  Information about the current version
  *
- *  Information about the framework version.
  *  @type {Object}
  */
 
 pg.VERSION = {
 
-  codeName    : 'salty-goblin',
-  full        : '0.3.1',
+  codeName    : 'spicy-phoenix',
+  full        : '0.4.0',
   major       : 0,
-  minor       : 3,
-  dot         : 1
+  minor       : 4,
+  dot         : 0
 };
 
 
-
 /**
- *  [noConflict description]
+ *  Restore and provide the last reference for the namespace "pg"
  *
- *  Restore and provide the last reference of the namespace 'pg'.
- *  @return {[type]} [description]
+ *  @return {Object}
  */
 
 pg.noConflict = function(){
@@ -366,49 +385,99 @@ pg.noConflict = function(){
  *  Config
  *  ======
  *
- *  Default configurations for the network.
+ *  Settinings & default configurations for the network.
  */
 
 
+/**
+ *  Public interface to set custom configurations
+ *
+ *  @type {Function} pg.config
+ */
+
+pg.config = setConfig;
+
+
+/**
+ *  Optional callback for handling credential exchange
+ *
+ *  @type {Function} SERVERLESS
+ */
+
+var SERVERLESS = null;
+
+
+/**
+ *  Internal configurations
+ *
+ *  @type {Object} config
+ */
+
 var config = {
+
+  /**
+   *  DataChannel specific settings
+   *
+   *  @type {Object} channelConfig
+   */
 
   channelConfig: {
 
-    BANDWIDTH   : 0x100000,   // 1MB     // prev:  1638400 || 1600 - increase DataChannel width
-
-    MAX_BYTES   :     1024,   // 1kb     // max bytes throughput of a DataChannel
-    CHUNK_SIZE  :      600               // size of the chunks - in which the data will be splitt
+    BANDWIDTH   : 0x100000,   // 1MB  - increase DataChannel capacity
+    MAX_BYTES   :     1024,   // 1kb  - max data size before splitting
+    CHUNK_SIZE  :      600    //      - size of the chunks
   },
 
+
+  /**
+   *  Settings for external transport channel
+   *
+   *  @type {Object} socketConfig
+   */
 
   socketConfig: {
 
-    server: 'ws://peergaming.dev:61125'   // bootstrapping server address || localhost || net
+    server: 'ws://peergaming.net:61125'   // peergaming-server address
   },
 
+
+  /**
+   *  PeerConnection specific settings
+   *
+   *  @type {Object} peerConfig
+   */
 
   peerConfig: {
 
     iceServers: [{
 
-      url: !moz ? 'stun:stun.l.google.com:19302' :  // address for STUN / ICE server
+      url: !moz ? 'stun:stun.l.google.com:19302' :  // STUN server address
                   'stun:23.21.150.121'
     }]
   },
 
 
+  /**
+   *  Constraints for the SDP packages
+   *
+   *  @type {Object} connectionContrains
+   */
+
   connectionConstraints: {
 
-    optional: [{ RtpDataChannels: true }]         // enable DataChannel
+    optional: [{ RtpDataChannels: true }]  // enable DataChannel
   },
 
-// Requested access to local media with mediaConstraints:
-//   "{"optional":[],"mandatory":{}}"
 
+  /**
+   *  Constrains for MediaStreams
+   *
+   *  @type {Object} mediaConstraints
+   */
 
   mediaConstraints: {
 
-    mandatory: {                    // required permissions
+    mandatory: {
 
       OfferToReceiveAudio   : true,
       OfferToReceiveVideo   : true
@@ -417,12 +486,19 @@ var config = {
     optional: []
   },
 
-  videoConstraints: {              // e.g. android
+
+  /**
+   *  Contstraints specific for video handling
+   *
+   *  @type {Object} videoConstrains
+   */
+
+  videoConstraints: {
 
     mandatory: {
 
-      maxHeight : 320,
-      maxWidth  : 240
+      maxHeight : 320,  // default dimension for android
+      maxWidth  : 240   //
     },
 
     optional: []
@@ -430,47 +506,62 @@ var config = {
 
 };
 
+
+/** Previous settings for Firefox **/
+
 // if ( moz ) {
 
-  // config.connectionConstraints = { optional: [{ DtlsSrtpKeyAgreement: 'true' }] };
-  // config.SDPConstraints    = { mandatory: { MozDontOfferDataChannel: true } };
+//   config.connectionConstraints = { optional: [{ DtlsSrtpKeyAgreement   : 'true' }] };
+//   config.SDPConstraints        = { mandatory: { MozDontOfferDataChannel:  true  }  };
 // }
 
 
 /**
- *  [config description]
- *  @param  {[type]} customConfig [description]
- *  @return {[type]}              [description]
+ *  Reference to extend the internal configurations
+ *
+ *  @param  {Object} customConfig   -
+ *  @return {Object}
  */
 
-pg.config = function ( customConfig ) {
+function setConfig ( customConfig ) {
 
   utils.extend( config, customConfig );
 
   return config;
+}
+
+
+/**
+ *  Providing a callback to handle credentials manually
+ *
+ *  @param {Function} hook   -
+ */
+
+setConfig.noServer = function ( hook ) {
+
+  if ( typeof hook === 'boolean' && hook ) return; // TODO: 0.6.0 -> useLocalDev();
+
+  SERVERLESS = hook;
 };
-
-
-// servers = {"iceServers":[
-//                 {"url":"stun:<stun_server>:<port>},
-//                 { url: "turn:<user>@<turn_server>:<port>",credential:"<password>"}
-//             ]};
-
-// but when I check
 
 
 /**
  *  Misc
  *  ====
  *
- *  Collection of simple helpers.
+ *  Collection of utilities / helpers.
  */
 
 
-var utils = {};
+var utils = {};   // Module
 
 
-// improved typeof
+/**
+ *  Improved typeof version
+ *
+ *  @param {String|Number|Object} obj   -
+ */
+
 utils.check = function ( obj ) {
 
   return Object.prototype.toString.call( obj ).slice( 8, -1 );
@@ -478,10 +569,9 @@ utils.check = function ( obj ) {
 
 
 /**
- *  Extends properties of an Object.
+ *  Extends the properties of an object
  *
- *  @param  {[type]} target [description]
- *  @return {[type]}        [description]
+ *  @param {Object} target   -
  */
 
 utils.extend = function extend ( target ) {
@@ -499,8 +589,13 @@ utils.extend = function extend ( target ) {
 };
 
 
-// form original nodejs
-// https://github.com/joyent/node/blob/master/lib/util.js
+/**
+ *  Setting reference for the prototype chain
+ *  (see: NodeJS - https://github.com/joyent/node/blob/master/lib/util.js )
+ *
+ *  @param {Object} child    -
+ *  @param {Object} parent   -
+ */
 
 utils.inherits = function inherits ( child, parent ) {
 
@@ -517,14 +612,20 @@ utils.inherits = function inherits ( child, parent ) {
 };
 
 
+/**
+ *  Creates a simple token
+ */
+
 utils.getToken = function getToken() {
 
-  return Math.random().toString(36).substr( 2, 10 );
+  return rand().toString(36).substr( 2, 10 );
 };
 
 
-// Based on @broofa:
-// http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#2117523
+/**
+ *  Creates a secure random user ID
+ *  (see: @broofa - http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#2117523 )
+ */
 
 utils.createUID = function createUID() {
 
@@ -545,33 +646,63 @@ utils.createUID = function createUID() {
 };
 
 
+/**
+ *  Gets an identifiying hash code from a string
+ *  (see: http://jsperf.com/hashing-a-string/3 || http://jsperf.com/hashing-strings/14 )
+ *
+ *  @param {String} str   -
+ */
 
-// String/Buffer Conversion
-// http://updates.html5rocks.com/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
+// utils.getHash = function getHash ( str ) {
 
-utils.StringToBuffer = function StringToBuffer ( str ) {
+//   var hash = 0,
 
-  var buffer  = new ArrayBuffer( str.length * 2 ), // 2 bytes per char
-      view    = new Uint16Array( buffer );
+//       i    = ( str && str.length ) ? str.length : 0;
 
-  for ( var i = 0, l = str.length; i < l; i++ ) {
+//   while ( i-- ) hash = hash * 31 + str.charCodeAt(i);
 
-    view[i] = str.charCodeAt(i);
-  }
-
-  return buffer;
-};
-
-
-utils.BufferToString = function BufferToString ( buffer ) {
-
-  return String.fromCharCode.apply( null, new Uint16Array( buffer ) ) ;
-};
+//   return hash;
+// };
 
 
-// ToDo:
-//
-// - check & decide of proper query stringfication
+/**
+ *  Converts a string into an arraybuffer
+ *  (see: http://updates.html5rocks.com/2012/06/How-to-convert-ArrayBuffer-to-and-from-String )
+ *
+ *  @param {String} str   -
+ */
+
+// utils.StringToBuffer = function StringToBuffer ( str ) {
+
+//   var buffer  = new ArrayBuffer( str.length * 2 ),
+//       view    = new Uint16Array( buffer );
+
+//   for ( var i = 0, l = str.length; i < l; i++ ) {
+
+//     view[i] = str.charCodeAt(i);
+//   }
+
+//   return buffer;
+// };
+
+
+/**
+ *  Converts a buffer into a string
+ *
+ *  @param {Array} buffer   -
+ */
+
+// utils.BufferToString = function BufferToString ( buffer ) {
+
+//   return String.fromCharCode.apply( null, new Uint16Array( buffer ) ) ;
+// };
+
+
+/**
+ *  Converts parameter into a querystring
+ *
+ *  @param {Object} params   -
+ */
 
 utils.createQuery = function ( params ) {
 
@@ -593,21 +724,19 @@ utils.createQuery = function ( params ) {
  *  Reactor
  *  =======
  *
- *  An "reactive" object, which notifies it's subscribers as properties got changed.
- *
- *  ToDo:
- *
- *  - check if multiple reactors receive different IDs and are therefore seperated
+ *  A reactive object which notifies its subscribers as properties get changed.
  */
 
 
-// record of reactors
-var list = [];
+var reactList =  [],   // record of reactors
+
+    SYNC      = 100;   // delay to check the difference of properties
 
 
 /**
- *  [getReactor description]
- *  @return {[type]} [description]
+ *  Creates basic object and setup handler
+ *
+ *  @return {Object}
  */
 
 var getReactor = function() {
@@ -616,26 +745,24 @@ var getReactor = function() {
 
   args.push.apply( args, arguments );
 
-  list.push({ reference: {}, callbacks: args });
+  reactList.push({ reference: {}, callbacks: args });
 
-  checkProperties( list.length - 1, obj );
+  checkProperties( reactList.length - 1, obj );
 
   return obj;
 };
 
 
-
 /**
- *  [checkProperties description]
+ *  Check properties to attach watcher
  *
- *  @param  {[type]} id      [description]
- *  @param  {[type]} current [description]
- *  @return {[type]}         [description]
+ *  @param  {Number} id        -
+ *  @param  {Object} current   -
  */
 
 function checkProperties ( id, current ) {
 
-  var last    = list[id].reference,
+  var last    = reactList[id].reference,
       diff    = getDifferences( last, current ),
 
       add     = diff.add,
@@ -652,15 +779,16 @@ function checkProperties ( id, current ) {
     for ( i = 0, l = remove.length; i < l; i++ ) delete last[ remove[i] ];
   }
 
-  setTimeout( checkProperties, LOOP_TIME, id, current );
+  setTimeout( checkProperties, SYNC, id, current );
 }
 
 
 /**
- *  [getDifferences description]
- *  @param  {[type]} last    [description]
- *  @param  {[type]} current [description]
- *  @return {[type]}         [description]
+ *  Determines the differences which properties got removed or added
+ *
+ *  @param  {Object} last      -
+ *  @param  {Object} current   -
+ *  @return {Object}
  */
 
 var getKeys = Object.keys;
@@ -677,54 +805,101 @@ function getDifferences ( last, current ) {
 
   for ( i = 0, l = lastKeys.length; i < l; i++ ) {
 
-    if ( !current[ lastKeys[i] ] ) remove.push( lastKeys[i] );
+    if ( current[ lastKeys[i] ] == void 0 ) remove.push( lastKeys[i] );
   }
 
   for ( i = 0, l = currentKeys.length; i < l; i++ ) {
 
-    if ( !last[ currentKeys[i] ] ) add.push( currentKeys[i] );
+    if ( last[ currentKeys[i] ] == void 0 ) add.push( currentKeys[i] );
   }
 
   return { add: add, remove: remove };
 }
 
 
-
 /**
- *  [defineProperty description]
- *  @param  {[type]} id      [description]
- *  @param  {[type]} current [description]
- *  @param  {[type]} prop    [description]
- *  @return {[type]}         [description]
+ *  Adds getter & setter to a property, which triggers a define callback
+ *
+ *  @param  {Number} id        -
+ *  @param  {Object} current   -
+ *  @param  {String} prop      -
  */
 
 function defineProperty ( id, current, prop ) {
 
-  var getter = function() { return list[id].reference[ prop ]; },
+  var getter = function() { return reactList[id].reference[ prop ]; },
 
       setter = function ( value ) {
 
-        // change in the reference model as well
-        list[id].reference[ prop ] = value;
+        // prevent redundancy: old = new
+        if ( value === reactList[id].reference[ prop ] ) return;
 
-        var callbacks = list[id].callbacks,
 
-            i, l;
+        if ( typeof value === 'object' ) {
 
-        for ( i = 0, l = callbacks.length; i < l; i++ ) {
+          if ( !Array.isArray(value) ) {
 
-          callbacks[i].apply( callbacks[i], [ prop, value ] );
+            /**
+             *  Method cloaking inspured by @Watch.JS
+             *  (see: https://github.com/melanke/Watch.JS )
+             */
+
+            var methods = [ 'pop', 'push', 'reverse', 'shift', 'sort', 'splice', 'unshift' ];
+
+            for ( var i = 0, l = methods.length; i < l; i++ ) setMethod( value, methods[ i ] );
+
+          } else {
+
+            value = utils.extend( getReactor( function ( inner, value ) {
+
+              var result = reactList[id].reference[ prop ];
+
+              result[inner] = value;
+
+              return refer( result );
+
+            }), value );
+          }
+
         }
 
-        return value;
+
+        refer( value );
+
+
+        function refer ( value ) {
+
+          reactList[id].reference[ prop ] = value;
+
+          var callbacks = reactList[id].callbacks,
+
+              i, l;
+
+          for ( i = 0, l = callbacks.length; i < l; i++ ) {
+
+            callbacks[i].apply( callbacks[i], [ prop, value ] );
+          }
+
+          return value;
+        }
+
+
+        function setMethod( arr, fn ) {
+
+          arr[ fn ] = function(){
+
+            Array.prototype[ fn ].apply( this, arguments );
+
+            return refer( arr );
+          };
+        }
+
       };
 
 
   // initial call + set diff
   setter( current[prop] );
 
-
-  // setup watcher
   Object.defineProperty( current, prop, {
 
     enumerable  : true,
@@ -732,467 +907,496 @@ function defineProperty ( id, current, prop ) {
     get         : getter,
     set         : setter
   });
-
 }
 
 /**
  *  Queue
  *  =====
  *
- *  Storing commands on a list - executing them later.
+ *  Storing commands on a list for future execution.
  */
-
-/**
- *  queue
- *
- *  Pushing actions on to a list.
- *  @param  {Function} fn [description]
- *  @return {[type]}      [description]
- */
-
-var Queue = (function(){
-
-
-  var Queue = function(){
-
-    this.ready  = false;
-
-    this.list   = [];
-  };
-
-
-  /**
-   *  add a function to the list
-   *  @param {Function} fn [description]
-   */
-
-  Queue.prototype.add = function ( fn ) {
-
-    if ( typeof fn === 'function' ) {
-
-      this.list.push( fn );
-    }
-  };
-
-
-  /**
-   *  Execute the stored functions
-   *  @return {[type]} [description]
-   */
-
-  Queue.prototype.exec = function() {
-
-    this.ready = true;
-
-    var args = Array.prototype.slice.call( arguments ),
-
-        list = this.list;
-
-    while ( list.length ) list.pop().apply( null, args );
-  };
-
-
-  Queue.prototype.clear = function(){
-
-    this.list.length = 0;
-  };
-
-  return Queue;
-
-})();
 
 
 /**
- *  Event
- *  =====
- *
- *  Message handling using a Mediator (publish/subscribe).
+ *  Constructor to define the container and initial state
  */
 
-var Emitter = (function(){
+var Queue = function(){
 
-  'use strict';
+  this.ready  = false;
 
-
-  /**
-   *  Constructor
-   */
-
-  var EventEmitter = function(){
-
-    this._events = {};
-
-    return this;
-  };
+  this.list   = [];
+};
 
 
-  /**
-   * Register callbacks to topics.
-   *
-   * @param  {string}   topics  - topics to subscribe
-   * @param  {function} callback  - function which should be executed on call
-   * @param  {object}   context - specific context of the execution
-   */
+/**
+ *  Add functions to the list
+ *
+ *  @param  {Function} fn   - function to be on the queue
+ */
 
-  EventEmitter.prototype.on = function ( topics, callback, context ) {
+Queue.prototype.add = function ( fn ) {
 
-    if ( typeof callback !== 'function' ) return;
+  if ( typeof fn === 'function' ) {
 
-    topics = topics.split(' ');
+    this.list.push( fn );
+  }
+};
 
-    var events  = this._events,
-        length  = topics.length,
-        topic;
+
+/**
+ *  Execute stored functions
+ */
+
+Queue.prototype.exec = function() {
+
+  this.ready = true;
+
+  var args = Array.prototype.slice.call( arguments ),
+
+      list = this.list;
+
+  while ( list.length ) list.pop().apply( null, args );
+};
+
+
+/**
+ *  Empty the list of the queue
+ */
+
+Queue.prototype.clear = function(){
+
+  this.list.length = 0;
+};
+
+/**
+ *  Emitter
+ *  =======
+ *
+ *  A Mediator for handling messages via events.
+ */
+
+// user: player - peers
+var eventMap = {};
+
+
+/**
+ *  Constructor to setup the container for the topics
+ *
+ *  @return {Object}
+ */
+
+var Emitter = function() {
+
+  if ( this instanceof Peer ) {
+
+    eventMap[ this.id ] = {};
+
+  } else {
+
+    this._events        = {};
+  }
+
+  return this;
+};
+
+
+/**
+ *  Register/Subscribe callbacks to topics
+ *
+ *  @param  {String}   topics     -
+ *  @param  {Function} callback   -
+ *  @param  {Object}   context    -
+ *  @return {Object}
+ */
+
+Emitter.prototype.on = function ( topics, callback, context ) {
+
+  if ( typeof callback !== 'function' ) return;
+
+  topics = topics.split(' ');
+
+  var events  = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+      length  = topics.length,
+      topic;
+
+  while ( length-- ) {
+
+    topic = topics[ length ];
+
+    if ( !events[ topic ] ) events[ topic ] = [];
+
+    events[ topic ].push([ callback, context ]);
+  }
+
+  return this;
+};
+
+
+/**
+ *  Register for one time usage
+ *
+ *  @param  {String}   topics     -
+ *  @param  {Function} callback   -
+ *  @param  {Object}   context    -
+ *  @return {Object}
+ */
+
+Emitter.prototype.once = function ( topics, callback, context ) {
+
+  this.on( topics, function once() {
+
+    this.off( topics, once );
+
+    callback.apply( this, arguments );
+
+  }.bind(this));
+
+  return this;
+};
+
+
+
+/**
+ *  Triggers listeners and sends data to subscribes functions
+ *
+ *  @param  {String} topic   -
+ *  @return {Object}
+ */
+
+Emitter.prototype.emit = function ( topic ) {
+
+  var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+
+      listeners = events[ topic ];
+
+  if ( listeners ) {
+
+    var args    = Array.prototype.slice.call( arguments, 1 ),
+
+        length  = listeners.length;
 
     while ( length-- ) {
 
-      topic = topics[ length ];
-
-      if ( !events[ topic ] ) events[ topic ] = [];
-
-      events[ topic ].push([ callback, context ]);
+      listeners[length][0].apply( listeners[length][1], args || [] );
     }
+  }
 
-    return this;
-  };
-
-
-  /**
-   *  [once description]
-   *  @param  {[type]}   topics   [description]
-   *  @param  {Function} callback [description]
-   *  @param  {[type]}   context  [description]
-   *  @return {[type]}            [description]
-   */
-
-  EventEmitter.prototype.once = function ( topics, callback, context ) {
-
-    this.on( topics, function once() {
-
-      this.off( topics, once );
-      // this.off( type, once );
-
-      callback.apply( this, arguments );
-
-    }.bind(this));
-
-    return this;
-  };
+  return this;
+};
 
 
-  /**
-   * Send data to subscribed functions.
-   *
-   * @param  {string}   topic   - topic to send the data
-   * @params  ......    arguments - arbitary data
-   */
+/**
+ *  Unsubscribe callbacks from a topic
+ *
+ *  @param  {String}   topic      - topic of which listeners should be removed
+ *  @param  {Function} callback   - specific callback which should be removed
+ *  @return {Object}
+ */
 
-  EventEmitter.prototype.emit = function ( topic ) {
+Emitter.prototype.off = function ( topic, callback ) {
 
-    var events    = this._events,
-        listeners = events[ topic ];
+  var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+      listeners = events[ topic ];
 
-    if ( listeners ) {
+  if ( !listeners ) return;
 
-      var args    = Array.prototype.slice.call( arguments, 1 ),
+  if ( !callback ) {
 
-          length  = listeners.length;
+    events[ topic ].length = 0;
 
-      while ( length-- ) {
+  } else {
 
-        listeners[length][0].apply( listeners[length][1], args || [] );
+    var length = listeners.length;
+
+    while ( length-- ) {
+
+      if ( listeners[ length ] === callback ) {
+
+        listeners.splice( length, 1 ); break;
       }
     }
+  }
 
-    return this;
-  };
-
-
-  /**
-   * Unsubscribe callbacks from a topic.
-   *
-   * @param  {string}   topic   - topic of which listeners should be removed
-   * @param  {function} callback  - specific callback which should be removed
-   */
-
-  EventEmitter.prototype.off = function ( topic, callback ) {
-
-    var events    = this._events,
-        listeners = events[ topic ];
-
-    if ( !listeners ) return;
-
-    if ( !callback ) {
-
-      events[ topic ].length = 0;
-
-    } else {
-
-      var length = listeners.length;
-
-      while ( length-- ) {
-
-        if ( listeners[ length ] === callback ) {
-
-          listeners.splice( length, 1 ); break;
-        }
-      }
-    }
-
-    return this;
-  };
-
-
-  return EventEmitter;
-
-})();
+  return this;
+};
 
 /**
  *  Stream
  *  ======
  *
- *  Interface for streaming activities.
+ *  Interface for handling streaming behavior.
  */
 
 
-var Stream = (function(){
+/**
+ *  Constructor to define configurations and setup buffer
+ *
+ *  @param  {Object} options   -
+ */
 
-  'use strict';
+var Stream = function ( options ) {
 
-  var Stream = function ( options ) {
+  if ( !options ) options = {};
 
-    Emitter.call(this);
+  this.readable     = options.readable;
+  this.writeable    = options.readable;
 
-    if ( !options ) options = {};
+  this.ready        = true;
 
-    this.readable   = options.readable;
-    this.writeable  = options.readable;
+  this.writeBuffer  = [];
+  this.readBuffer   = [];
 
-    this.ready      = true;
-    // this.offset    = 0;            // current offset - used to merge chunks ?
-
-    this.writeBuffer  = [];
-    this.readBuffer   = [];
-  };
-
-
-  utils.inherits( Stream, Emitter );
+  Emitter.call( this );
+};
 
 
-  Stream.prototype.handle = function ( e ) {
+/**
+ *  Stream <- Emitter
+ */
 
-    var msg     = e.data,
-
-        data    = JSON.parse( msg ),
-
-        buffer  = this.readBuffer;
+utils.inherits( Stream, Emitter );
 
 
-    if ( data.part !== void 0 ) {
+/**
+ *  Delegates the action for the data (chunk or message)
+ *
+ *  @param  {Object} e   -
+ */
 
-      buffer.push( data.data );
+Stream.prototype.handle = function ( e ) {
 
-      this.emit( 'data', data, buffer.length );
+  var msg     = e.data,
 
-      if ( data.part > 0 ) return;
+      data    = JSON.parse( msg ),
 
-      msg = buffer.join('');
-
-      buffer.length = 0;
-    }
-
-    this.emit( 'end', msg );
-  };
+      buffer  = this.readBuffer;
 
 
-  // ToDo:  check if others are empty - open ,
-  //      else push on queue and wait till finish !
-  // stream has to handle readystate etc.
+  if ( data.part !== void 0 ) {
 
-  Stream.prototype.write = function ( msg ) {
+    buffer.push( data.data );
 
-    this.writeBuffer.push( msg );
+    this.emit( 'data', data, buffer.length );
 
-    if ( this.ready ) {
+    if ( data.part > 0 ) return;
 
-      this.emit( 'write', this.writeBuffer.shift() );
+    msg = buffer.join('');
 
-    } else {
+    buffer.length = 0;
+  }
 
-      // handle simoultanous accessing - using queue, messages etc.
-    }
-
-    return this.ready;
-  };
+  this.emit( 'end', msg );
+};
 
 
-  Stream.prototype.pipe = function ( trg ) {
+/**
+ *  Send input through the stream
+ *
+ *  @param  {Object}  msg   -
+ *  @return {Boolean}
+ */
 
-    this.on('data', function ( chunk ) {
+Stream.prototype.write = function ( msg ) {
 
-      trg.handle( chunk );
-    });
+  this.writeBuffer.push( msg );
 
-    return trg;
-  };
+  if ( this.ready ) {
 
-  return Stream;
+    this.emit( 'write', this.writeBuffer.shift() );
 
-})();
+  } else {
+
+    // TODO: handle blocking simultaneous usage
+  }
+
+  return this.ready;
+};
+
+
+/**
+ *  Uses the output of one stream as the input for another
+ *
+ *  @param  {Object} trg   -
+ *  @return {Object}
+ */
+
+Stream.prototype.pipe = function ( trg ) {
+
+  this.on( 'data', function ( chunk ) { trg.handle( chunk ); });
+
+  return trg;
+};
 
 
 /**
  *  Handler
  *  =======
  *
- *  Delegating through error - close, messaging events. // // handler for a new channel
+ *  A wrapper to enhance DataChannels and eases the work.
  */
 
 
-var Handler = (function(){
+/**
+ *  Constructor to define the basic information
+ *
+ *  @param {String} channel   -
+ *  @param {String} remote    -
+ */
 
-// if ( options ) customHandlers[ label ] = options;
+var Handler = function ( channel, remote ) {
 
-  var Handler = function ( channel, remote ) {  // remote not required, as already assigned
+  var label    = channel.label;
 
-    var label   = channel.label;
+  this.info    = { label: label, remote: remote };
 
-    this.info   = {
+  this.channel = channel;
 
-      label : label,
-      remote  : remote
-    };
+  this.stream  = new Stream({ readable: true, writeable: true });
 
+  this.actions = defaultHandlers[ label ] || defaultHandlers.custom;
 
-    this.channel  = channel;
+  if ( typeof this.actions === 'function' ) this.actions = { end: this.actions };
 
-    this.stream   = new Stream({ readable: true, writeable: true });
-
-
-    this.actions  = defaultHandlers[ label ] || defaultHandlers.custom;
-
-    if ( typeof this.actions === 'function' ) this.actions = { end: this.actions };
-
-    channel.addEventListener( 'open', this.init.bind(this) );
-  };
+  channel.addEventListener( 'open', this.init.bind(this) );
+};
 
 
-  Handler.prototype.init = function ( e ) {
+/**
+ *  Wrap the custom events around the native listener
+ *
+ *  @param {Object} e   -
+ */
 
-    // console.log('[open] - '  + this.label );
+Handler.prototype.init = function ( e ) {
 
-    var channel     = this.channel,
+  var channel     = this.channel,
 
-        actions     = this.actions,
+      actions     = this.actions,
 
-        stream      = this.stream,
+      stream      = this.stream,
 
-        connection  = instance.connections[ this.info.remote ],
+      connection  = CONNECTIONS[ this.info.remote ],
 
-        events = [ 'open', 'data', 'end', 'close', 'error' ];
-
-
-    for ( var i = 0, l = events.length; i < l; i++ ) {
-
-      stream.on( events[i], actions[ events[i] ], connection );
-    }
-
-    stream.on( 'write', function send ( msg ) { channel.send( msg ); });
+      events = [ 'open', 'data', 'end', 'close', 'error' ];
 
 
-    channel.onmessage = stream.handle.bind( stream );
+  for ( var i = 0, l = events.length; i < l; i++ ) {
 
-    channel.onclose   = function() { stream.emit( 'close' );  };
-
-    channel.onerror   = function ( err ) { stream.emit( 'error', err ); };
-
-    stream.emit( 'open', e );
-  };
-
-
-  // currently still required to encode arraybuffer to to strings...
-  // // Using Strings instead an arraybuffer....
-  Handler.prototype.send = function ( msg ) {
-
-    var data    = JSON.stringify( msg ),
-
-        buffer  = data; //utils.StringToBuffer( data );
-
-
-    if ( buffer.length > config.channelConfig.MAX_BYTES ) {
-    // if ( buffer.byteLength > config.channelConfig.MAX_BYTES ) {
-
-      buffer = createChunks( buffer );  // msg.remote...
-
-    } else {
-
-      buffer = [ buffer ];
-    }
-
-    for ( var i = 0, l = buffer.length; i < l; i++ ) {
-
-      this.stream.write( buffer[i] );
-    }
-  };
-
-
-  function createChunks ( buffer ) {
-
-    var maxBytes  = config.channelConfig.MAX_BYTES,
-        chunkSize = config.channelConfig.CHUNK_SIZE,
-        size      = buffer.length, //byteLength,
-        chunks    = [],
-
-        start     = 0,
-        end       = chunkSize;
-
-    while ( start < size ) {
-
-      chunks.push( buffer.slice( start, end ) );
-
-      start = end;
-      end   = start + chunkSize;
-    }
-
-    var l = chunks.length,
-        i = 0;        // increment
-
-    while ( l-- ) {
-
-      chunks[l] = JSON.stringify({ part: i++, data: chunks[l] });
-    }
-
-    return chunks;
+    stream.on( events[i], actions[ events[i] ], connection );
   }
 
+  stream.on( 'write', function send ( msg ) { channel.send( msg ); });
 
-  return Handler;
 
-})();
+  channel.onmessage = stream.handle.bind( stream );
+
+  channel.onclose   = function() { stream.emit( 'close' );  };
+
+  channel.onerror   = function ( err ) { stream.emit( 'error', err ); };
+
+  stream.emit( 'open', e );
+};
+
+
+/**
+ *  Sends string based messages
+ *
+ *  @param {Object} msg   -
+ */
+
+Handler.prototype.send = function ( msg ) {
+
+  var data    = JSON.stringify( msg ),
+
+      buffer  = data; //utils.StringToBuffer( data );
+
+
+  if ( buffer.length > config.channelConfig.MAX_BYTES ) {
+  // if ( buffer.byteLength > config.channelConfig.MAX_BYTES ) {
+
+    buffer = createChunks( buffer );
+
+  } else {
+
+    buffer = [ buffer ];
+  }
+
+  for ( var i = 0, l = buffer.length; i < l; i++ ) {
+
+    this.stream.write( buffer[i] );
+  }
+};
+
+
+/**
+ *  Splits a buffer into smaller chunks
+ *
+ *  @param {String} buffer   -
+ */
+
+function createChunks ( buffer ) {
+
+  var maxBytes  = config.channelConfig.MAX_BYTES,
+      chunkSize = config.channelConfig.CHUNK_SIZE,
+      size      = buffer.length, //byteLength,
+      chunks    = [],
+
+      start     = 0,
+      end       = chunkSize;
+
+  while ( start < size ) {
+
+    chunks.push( buffer.slice( start, end ) );
+
+    start = end;
+    end   = start + chunkSize;
+  }
+
+  var l = chunks.length,
+      i = 0;
+
+  while ( l-- ) {
+
+    chunks[l] = JSON.stringify({ part: i++, data: chunks[l] });
+  }
+
+  return chunks;
+}
 
 /**
  *  Default
  *  =======
  *
- *  Default Handler for common task (e.g. estbalish mesh network).
- *  Context will be the on of the connection ? or like before from the handler ?
+ *  Default Handler for common tasks - e.g. establish a mesh network.
  */
 
-// custom handler collection
 
-// var customHandlers = {};
-// customHandlers[ label ] ||
+var customHandlers = {};  // collection of custom handler
+
 
 var defaultHandlers = {
+
+
+  /**
+   *  Basic information exchange on creation
+   */
 
   init: {
 
     open: function() {
 
-      // channel established && open
+      // channel established + open
       delete this.info.pending;
 
-      this.send( 'init', { name: instance.account.name, list: Object.keys( instance.connections ) });
+      // share initial state
+      this.send( 'init', {
+
+        account : INSTANCE.account,
+        time    : INSTANCE.time,
+        data    : INSTANCE.data,                // TODO: 0.6.0 -> define values for secure access
+        list    : Object.keys( CONNECTIONS )
+      });
     },
 
     end: function ( msg ) {
@@ -1200,62 +1404,155 @@ var defaultHandlers = {
       msg = JSON.parse( msg );
 
       var peer = pg.peers[ this.info.remote ],
-
           data = msg.data;
 
-      utils.extend( peer, { account: { name: data.name } });
+      utils.extend( peer.data, data.data );
 
-      instance.emit( 'connection', peer );
+      peer.time    = data.time;
+      peer.account = data.account;
 
-      // ToDo: refactor with .connect()
-      // providing transport - register delegation
-      instance.checkNewConnections( data.list, this );
+      Manager.check( data.list, this  );
+      Manager.setup( this.info.remote );
     },
 
-    close: function ( msg ) {
-
-      console.log('[closed]');
-
-      console.log(msg);
-    }
-
+    close: function ( msg ) {  /* console.log('[DatChannel closed]'); */ }
   },
 
+
+  /**
+   *  Remote delegation for register another peer
+   *
+   *  @param {Object} msg   -
+   */
 
   register: function ( msg ) {
 
     msg = JSON.parse( msg );
 
-    if ( msg.remote !== instance.id ) {  // proxy || same as info.transport
+    if ( msg.remote !== INSTANCE.id ) {  // proxy -> info.transport
 
-      // just handler between - setting up for remote delegation
       // console.log( '[proxy] ' + msg.local + ' -> ' + msg.remote );
 
       var proxy = { action: msg.action, local: msg.local, remote: msg.remote };
 
-      return instance.connections[ msg.remote ].send( 'register', msg.data, proxy );
+      // TODO: 0.5.0 -> Bug fixes
+      if ( !CONNECTIONS[ msg.remote ] ) return console.log('[ERORR] - Missing', msg.remote );
+
+      return CONNECTIONS[ msg.remote ].send( 'register', msg.data, proxy );
     }
 
-    if ( !instance.connections[ msg.local ] ) instance.connect( msg.local, false, this );
+    if ( msg.action === 'update' ) return console.log('[ERROR] - Update', msg );
 
-    instance.connections[ msg.local ][ msg.action ]( msg.data );
+    Manager.set( msg, this );
   },
 
 
-  // here again: action can be called for remote handling...
+  /**
+   *  Run latency check by sending ping/pong signals
+   *
+   *  @param {Object} msg   -
+   */
+
+  ping: function ( msg ) {
+
+    msg = JSON.parse( msg );
+
+    var data = msg.data;
+
+    if ( !data.pong ) return this.send( 'ping', { pong: true, index: data.index });
+
+    Manager.setup( msg.local, data.index, data.pong );
+  },
+
+
+  /**
+   *  Permit the start of a game via remote request
+   *
+   *  @param  {[type]} msg [description]
+   */
+
+  start: function ( msg ) {
+
+    msg = JSON.parse( msg );
+
+    var data = msg.data || {};
+
+    // late-join
+    if ( data.request ) return forward( msg.local );
+
+    // next in chain
+    ensure();
+
+    function ensure(){
+
+      if ( !ROOM._start ) return setTimeout( ensure, DELAY );
+
+      ROOM._start();
+    }
+  },
+
+
+  /**
+   *  Sets the keys and values of a peers remote model
+   *
+   *  @param {Object} msg   -
+   */
+
+  update: function ( msg ) {
+
+    msg = JSON.parse( msg );
+
+    pg.peers[ msg.local ].data[ msg.data.key ] = msg.data.value;
+
+    // TODO: 0.6.0 -> define values for secure access
+
+    // console.log('[update] ', msg.data.key + ':' + msg.data.value );
+  },
+
+
+  /**
+   *  Delegates synchronize requests of the shared object
+   *
+   *  @param {Object} msg   -
+   */
+
+  sync: function ( msg ) {
+
+    msg = JSON.parse( msg );
+
+    var data = msg.data;
+
+    if ( !data.resync ) return resync( msg.local, data.key, data.value );
+
+    sync( data.key, data.value, true );
+  },
+
+
+  /**
+   *  Invokes remote messages by call it them on your player
+   *
+   *  @param {Object} msg   -
+   */
+
+  message: function ( msg ) {
+
+    INSTANCE.emit( 'message', msg );
+  },
+
+
+  /**
+   *  Using a shared channel to delegate remote calls
+   *
+   *  @param {Object} msg   -
+   */
+
   custom: function ( msg ) {
 
-    console.log('[channel doesn\'t exist yet - local delegation');
+    // console.log('[CUSTOM]');
 
     msg = JSON.parse( msg );
 
     console.log(msg.action);
-  },
-
-
-  message: function ( msg ) {
-
-    instance.emit( 'message', msg );
   }
 
 };
@@ -1265,16 +1562,12 @@ var defaultHandlers = {
  *  ======
  *
  *  Transport layer used to communicate with the server.
- *
- *  First using WebSocket or XHR - later replaced through the specific DataChannel reference.
  */
 
 
 var socketQueue = new Queue();
 
 var socket = (function(){
-
-  'use strict';
 
   // initial
   logout();
@@ -1285,17 +1578,15 @@ var socket = (function(){
 
 
   /**
-   *  [req description]
+   *  Request for EventSource / XHR-Polling
    *
-   *  Request for EventSource / Polling
-   *  @param  {[type]}   msg  [description]
-   *  @param  {Function} next [description]
-   *  @return {[type]}        [description]
+   *  @param  {Object}   msg    -
+   *  @param  {Function} next   -
    */
 
   function req ( msg, next ) {
 
-    // ToDo: pooling the request objects
+    // TODO: pooling the request objects
     var xhr = new XMLHttpRequest();
 
     xhr.open( 'POST', config.socketConfig.server, true );
@@ -1316,17 +1607,12 @@ var socket = (function(){
 
 
   /**
-   *  [logout description]
-   *
-   *  Remove ID from the server.
-   *  @param  {[type]} e [description]
-   *  @return {[type]}   [description]
+   *  Removes ID/token from the server
    */
 
   function logout() {
 
-    // WS
-    if ( checkProtocol('ws') ) {
+    if ( checkProtocol('ws') || SERVERLESS ) {
 
       socketQueue.ready = true;
       return;
@@ -1357,12 +1643,11 @@ var socket = (function(){
 
 
   /**
-   *  [init description]
+   *  Set the session based ID and defines callbacks for server connection
    *
-   *  Register on the server.
-   *  @param  {[type]}   id   [description]
-   *  @param  {Function} next [description]
-   *  @return {[type]}        [description]
+   *  @param {String}   id       -
+   *  @param {String}   origin   -
+   *  @param {Function} next     -
    */
 
   function init ( id, origin, next ) {
@@ -1376,16 +1661,15 @@ var socket = (function(){
   }
 
 
-  /**
-   *  [listenToServer description]
-   *
-   *  Attach Server
-   *  @param  {[type]}   id   [description]
-   *  @param  {Function} next [description]
-   *  @return {[type]}        [description]
-   */
+  var socket = null;
 
-  var socket;
+  /**
+   *  Establish a WebSocket or EventSource connection
+   *
+   *  @param {String}   id       -
+   *  @param {String}   origin   -
+   *  @param {Function} next     -
+   */
 
   function connectToServer ( id, origin, next ) {
 
@@ -1393,108 +1677,103 @@ var socket = (function(){
 
     socket = new Socket( config.socketConfig.server + '/?local=' + id + '&origin=' + origin );
 
-    socket.addEventListener( 'open', function(){
+    socket.addEventListener( 'error' , handleError );
+
+    socket.addEventListener( 'open'  , function(){
 
       socket.addEventListener( 'message', handleMessage );
-      socket.addEventListener( 'error'  , handleError   );
       socket.addEventListener( 'close'  , handleClose   );
 
       next();
     });
+
   }
 
 
   /**
-   *  [handleMessage description]
+   *  Delegate messages from the server
    *
-   *  Interface for parsing messages.
-   *  @param  {[type]} e [description]
-   *  @return {[type]}   [description]
+   *  @param {Object} e   -
    */
 
   function handleMessage ( e ) {
 
     var msg = JSON.parse( e.data );
 
-    // receive partner via socket & call register
-    if ( !msg || !msg.local ) return socketQueue.exec( msg );
+    if ( !msg || !msg.local ) { // partnerIDs
 
-    // create new reference
-    if ( !instance.connections[ msg.local ] ) instance.connect( msg.local );
+      return ( socketQueue.list.length ) ? socketQueue.exec( msg ) : Manager.check( msg );
+    }
 
-    // SDP & Candidates
-    instance.connections[ msg.local ][ msg.action ]( msg.data );
+    Manager.set( msg );
   }
 
-
   /**
-   *  [handleError description]
+   *  Handle error messages/states
    *
-   *  Handling errors.
-   *  @param  {[type]} e [description]
-   *  @return {[type]}   [description]
+   *  @param {Object} e   -
    */
 
   function handleError ( e ) {
 
     // XHR
-    if ( e.eventPhase === EventSource.CLOSED ) {
+    if ( e.eventPhase === EventSource.CLOSED ) return handleClose();
 
-      console.log('[socket - close]');
+    try {
 
-    } else {
+      e.currentTarget.close();
 
-      throw new Error( e.data );
-    }
+      logout();
 
-    // socket
-    e.currentTarget.close();
+    } catch ( err ) { console.log(err); }
 
-    logout();
+    throw new Error( e.data );
   }
 
 
   /**
-   *
+   *  Show message on closing
    */
-
   function handleClose(){
 
-    console.log('[closed]');
+    console.log('[SOCKET] - CLOSE');
   }
 
 
-
   /**
-   *  [send description]
+   *  Sending messages and using callback depending on the transport
    *
-   *  Sending messages throug the appropriate transport socket.
-   *
-   *  @param  {[type]} msg [description]
-   *  @return {[type]}     [description]
+   *  @param {Object}   msg    -
+   *  @param {Function} next   -
    */
 
   function send ( msg, next )  {
 
-    // just for server
-    utils.extend( msg, { local: instance.id, origin: SESSION.currentRoute });
+    utils.extend( msg, { local: INSTANCE.id, origin: INFO.route });
 
     msg = JSON.stringify( msg );
 
-    if ( checkProtocol('http') ) { // XHR
+    if ( checkProtocol('http') ) {
 
       req( msg, next );
 
     } else {  // WS
 
-      socketQueue.add( next );
+      if ( next ) socketQueue.add( next );
+
+      if ( SERVERLESS ) return SERVERLESS( msg );
 
       socket.send( msg );
     }
   }
 
 
-  // required to check everytime/not just on inital start - as the configurations can be customized
+  /**
+   *  Verify the used protocol by the server side component
+   *
+   *  @param {String} protocol   -
+   */
+
   function checkProtocol ( protocol ) {
 
     return config.socketConfig.server.split(':')[0] === protocol;
@@ -1510,25 +1789,26 @@ var socket = (function(){
 
 })();
 
-
 /**
  *  Connection
  *  ==========
  *
- *  A wrapper for PeerConnections.
+ *  A wrapper for PeerConnection - including DataChannel setup.
  */
 
 
-
+/**
+ *  Constructor to setup up the basic information
+ *
+ *  @param {String}  local       -
+ *  @param {String}  remote      -
+ *  @param {Boolean} initiator   -
+ *  @param {Object}  transport   -
+ */
 
 var Connection = function ( local, remote, initiator, transport ) {
 
-  this.info = {
-
-    local   : local,
-    remote  : remote,
-    pending : true
-  };
+  this.info = { local: local, remote: remote, pending: true };
 
   if ( initiator ) this.info.initiator = true;
   if ( transport ) this.info.transport = transport;
@@ -1538,6 +1818,10 @@ var Connection = function ( local, remote, initiator, transport ) {
   this.init();
 };
 
+
+/**
+ *  Create connection and setup receiver
+ */
 
 Connection.prototype.init = function(){
 
@@ -1556,6 +1840,10 @@ Connection.prototype.init = function(){
 };
 
 
+/**
+ *  Setup for re-negotiation and statechange
+ */
+
 Connection.prototype.checkStateChanges = function(){
 
   var conn    = this.conn,
@@ -1565,7 +1853,6 @@ Connection.prototype.checkStateChanges = function(){
 
   conn.onnegotiationneeded = function ( e ) {
 
-    // console.log('[negotiation needed]');
     if ( !--length ) this.createOffer();
 
   }.bind(this);
@@ -1575,23 +1862,36 @@ Connection.prototype.checkStateChanges = function(){
 
     var iceState = e.currentTarget.iceConnectionState;
 
-    // disconnected
-    if ( iceState === 'disconnected' ) pg.peers[ this.info.remote ].remove();
+    if ( iceState === 'disconnected' ) {
+
+      if ( this.info.pending ) { // interrupt
+
+        this.closed = true;
+
+      } else { // cleanup closed connection
+
+        Manager.disconnect( this.info.remote );
+      }
+
+    }
 
   }.bind(this);
 
 
   conn.onsignalingstatechange = function ( e ) {
 
-    // console.log('[state changed]');
-    // var signalingState = e.currentTarget.signalingState;
-    // console.log(signalingState);
+    var signalingState = e.currentTarget.signalingState;
+
+    this.ready = ( signalingState === 'stable' );
 
   }.bind(this);
 };
 
 
-// receive remote created channel
+/**
+ *  Receive remotely create channel and sets up local handler
+ */
+
 Connection.prototype.receiveDataChannels = function(){
 
   this.conn.ondatachannel = function ( e ) {
@@ -1606,31 +1906,28 @@ Connection.prototype.receiveDataChannels = function(){
 };
 
 
-// find ICE candidates
+/**
+ *  Find and exchanges ICE candidates
+ */
+
 Connection.prototype.findICECandidates = function(){
 
   this.conn.onicecandidate = function ( e ) {
 
     // var iceGatheringState = e.currentTarget.iceConnectionState;
-    // console.log(iceGatheringState);
 
-    // the 'null' candidate just because there isn't a onicegatheringcomplete event handler.
-
-    if ( e.candidate ) {
-
-      this.send( 'setIceCandidates', e.candidate );
-
-    } else {
-
-      // After ICE completion a callback with a null candidate is supplied.
-      // console.log('iceGatheringState: completed');
-    }
+    if ( e.candidate ) this.send( 'setIceCandidates', e.candidate );
 
   }.bind(this);
 };
 
 
-// needs a description first !
+/**
+ *  Sets ICE candidates - using an additional container to keep the order
+ *
+ *  @param {Object} data [description]
+ */
+
 Connection.prototype.setIceCandidates = function ( data ) {
 
   var conn = this.conn;
@@ -1639,9 +1936,12 @@ Connection.prototype.setIceCandidates = function ( data ) {
 
     if ( this._candidates ) delete this._candidates;
 
-    data = Array.isArray(data) ? data : [ data ];
+    if ( !Array.isArray(data) ) data = [ data ];
 
     for ( var i = 0, l = data.length; i < l; i++ ) {
+
+      // TODO: 0.5.0 -> Bug fixes
+      // (DOM 12 exception error -> out of order)
 
       conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
     }
@@ -1654,6 +1954,10 @@ Connection.prototype.setIceCandidates = function ( data ) {
   }
 };
 
+
+/**
+ *  Create an offer
+ */
 
 Connection.prototype.createOffer = function() {
 
@@ -1670,13 +1974,18 @@ Connection.prototype.createOffer = function() {
 
       this.send( 'setConfigurations', offer );
 
-    }.bind(this) );
+    }.bind(this), loggerr ); // config.SDPConstraints
 
-  }.bind(this), loggerr, config.mediaConstraints ); // 3.param || media contrain
+  }.bind(this), loggerr, config.mediaConstraints );
 };
 
 
-// exchange settings
+/**
+ *  Exchange settings and set the descriptions
+ *
+ *  @param {Object} msg   -
+ */
+
 Connection.prototype.setConfigurations = function ( msg ) {
 
   // console.log('[SDP] - ' +  msg.type );  // description
@@ -1684,6 +1993,10 @@ Connection.prototype.setConfigurations = function ( msg ) {
   var conn = this.conn,
 
       desc = new RTCSessionDescription( msg );
+
+
+  // TODO: 0.5.0 -> Bug fixes
+  if ( this.closed ) return alert('[ERROR] - Connection got interuppted. Please reload !');
 
 
   conn.setRemoteDescription( desc, function(){
@@ -1700,7 +2013,7 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
           this.send( 'setConfigurations', answer );
 
-        }.bind(this), loggerr );//, config.SDPConstraints );
+        }.bind(this), loggerr ); // config.SDPConstraints
 
       }.bind(this), null, config.mediaConstraints );
 
@@ -1713,97 +2026,93 @@ Connection.prototype.setConfigurations = function ( msg ) {
 };
 
 
+/**
+ *  Creates a handler for the DataChannel
+ *
+ *  @param {String} label     -
+ *  @param {Object} options   -
+ */
+
 Connection.prototype.createDataChannel = function ( label, options ) {
 
   try {
 
-    // var channel = this.conn.createDataChannel( label, moz ? {} : { reliable: false });
     var channel = this.conn.createDataChannel( label, { reliable: false });
 
     this.channels[ label ] = new Handler( channel, this.info.remote );
 
-  } catch ( e ) { // getting: a "NotSupportedError" - but is working !
+  } catch ( e ) { // getting a "NotSupportedError" - but is working !
 
     console.log('[Error] - Creating DataChannel (*)');
   }
 };
 
 
-Connection.prototype.send = function ( action, data ) {  // msg
+/**
+ *  Select the messeneger for communication & transfer
+ *
+ *  @param {String} action   -
+ *  @param {Object} data     -
+ */
 
-  // direct connection to the peer, established set through defaultHandler
+Connection.prototype.send = function ( action, data ) {
+
   if ( !this.info.pending ) {
 
-
-    this.send = function useChannels ( channel, data, proxy ) {
-
-      var msg = { action: channel, local: instance.id, data: data, remote: this.info.remote };
-
-      utils.extend( msg, proxy );
-
-
-      var channels = this.channels;
-
-      if ( !channel ) channel = keys = Object.keys( channels );
-
-      if ( !Array.isArray( channel ) ) channel = [ channel ];
-
-      // ToDo: closing issue
-      // missing - message will be send - injected as , new icecandidates will be created etc.
-
-      for ( var i = 0, l = channel.length; i < l; i++ ) {
-
-        if ( channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
-      }
-
-    }.bind(this);
-
+    this.send = useChannels.bind(this);
 
     this.send( action, data );
 
-  } else { // initializing handshake
-
+  } else {
 
     var remote = this.info.remote;
 
-    // mesh work  // this.transport -> the connection ||  delegates to the call above !
     if ( this.info.transport ) {
 
-      var proxy = { action: action, local: instance.id, remote: remote };
+      var proxy = { action: action, local: INSTANCE.id, remote: remote };
 
       return this.info.transport.send( 'register', data, proxy );
     }
 
-    // send via server
+    if ( action === 'update' ) return console.log('[ERROR] - Update', data );
+
     socket.send({ action: action, data: data, remote: remote });
   }
 };
 
 
-// closing by dev != disconnect
+/**
+ *  Closing DataChannels and PeerConnection
+ *
+ *  @param {String} channel   -
+ */
+
 Connection.prototype.close = function( channel ) {
 
-  var channels  = this.channels,
-      keys      = Object.keys(channels);
+  var handler  = this.channels,
+      keys     = Object.keys( handler );
 
   if ( !channel ) channel = keys;
 
-  if ( !Array.isArray( channel ) ) {
-
-    channel = [ channel ];
-  }
+  if ( !Array.isArray( channel ) ) channel = [ channel ];
 
   for ( var i = 0, l = channel.length; i < l; i++ ) {
 
-    channels[ channel[i] ].close();
-    delete channels[ channel[i] ];
+    handler[ channel[i] ].channel.close();
+    delete handler[ channel[i] ];
   }
+
+  if ( !Object.keys( handler ).length ) this.conn.close();
 };
 
 
-// @Sharefest
-// modifying the SDP parameters for interoperability and bandwidth
-// + // See RFC for more info: http://www.ietf.org/rfc/rfc2327.txt
+/**
+ *  Modifying the SDP parameter for interoperability and bandwidth
+ *  (see: RFC - http://www.ietf.org/rfc/rfc2327.txt )
+ *
+ *  @param {Object} sdp   -
+ */
+
 function adjustSDP ( sdp ) {
 
   // crypto
@@ -1821,9 +2130,7 @@ function adjustSDP ( sdp ) {
 
     sdp = sdp.replace( /b=AS:([0-9]*)/, function ( match, text ) {
 
-      var size = config.channelConfig.BANDWIDTH;
-
-      return 'b=AS:' + size;
+      return 'b=AS:' + config.channelConfig.BANDWIDTH;
     });
   }
 
@@ -1831,10 +2138,14 @@ function adjustSDP ( sdp ) {
 }
 
 
-// create basic channels
+/**
+ *  Create basic DataChannel setup
+ *
+ *  @param {Object} connection   - reference to this connection
+ */
+
 function createDefaultChannels ( connection )  {
 
-  // just once
   if ( Object.keys(connection.channels).length ) return;
 
   var defaultChannels = Object.keys( defaultHandlers );
@@ -1845,89 +2156,425 @@ function createDefaultChannels ( connection )  {
   }
 }
 
+
+/**
+ *  Replace previous socket usage with direct DataChannel connections
+ *
+ *  @param {String} channel   -
+ *  @param {Object} data      -
+ *  @param {Object} proxy     -
+ */
+
+function useChannels ( channel, data, proxy ) {
+
+  var msg = { action: channel, local: INSTANCE.id, data: data, remote: this.info.remote };
+
+  utils.extend( msg, proxy );
+
+  var ready    = this.ready,
+      channels = this.channels;
+
+  if ( !channel ) channel = Object.keys( channels );
+
+  if ( !Array.isArray( channel ) ) channel = [ channel ];
+
+  // TODO: 0.5.0 -> Bug fixes
+  // if ( channel === 'register' || channel === 'start' ) console.log( channel, msg, proxy );
+
+  for ( var i = 0, l = channel.length; i < l; i++ ) {
+
+    if ( ready && channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
+  }
+}
+
 /**
  *  Manager
  *  =======
  *
- *  Connection Manager, which handles the communication and data connections.
+ *  Helper for handling connections and delegate communication.
  */
 
 
-// var manager
+var DELAY = 100,  // TODO: 0.5.0 -> Math.max() of latency evaluation
+
+    READY =  {};  // record of current ready users
 
 
-var Manager = {
 
-  update: function ( key, value ) {
+/** Module Pattern **/
+
+var Manager = (function(){
 
 
-    console.log('[changed] ' + key + ': ' + value );
+  /**
+   *  Check list for new connections
+   *
+   *  @param  {Array}  remoteList   -
+   *  @param  {Object} transport    -
+   */
+
+  function check ( remoteList, transport ) {
+
+    if ( !remoteList ) return;
+
+    if ( !Array.isArray(remoteList) ) remoteList = [ remoteList ];
+
+    var localID  = INSTANCE.id,
+
+        remoteID;
+
+    for ( var i = 0, l = remoteList.length; i < l; i++ ) {
+
+      remoteID = remoteList[i];
+
+      if ( remoteID !== localID && !CONNECTIONS[ remoteID ] ) {
+
+        connect( remoteID, true, transport );
+      }
+    }
   }
 
 
+  /**
+   *  Connect with the new peer
+   *
+   *  @param {String}  remoteID    -
+   *  @param {Boolean} initiator   -
+   *  @param {Object}  transport   -
+   */
+
+  function connect ( remoteID, initiator, transport ) {
+
+    if ( CONNECTIONS[ remoteID ] ) return;
+
+    // console.log( '[connect] to - "' + remoteID + '"' );
+
+    pg.peers[ remoteID ]    = new Peer({ id: remoteID });
+
+    CONNECTIONS[ remoteID ] = new Connection( INSTANCE.id, remoteID, initiator, transport );
+  }
 
 
-};
+  /**
+   *  Clear references, triggers callbacks and re-orders on disconnection of a peer
+   *
+   *  @param {String} remoteID   -
+   */
+
+  function disconnect ( remoteID ) {
+
+    var peer = pg.peers[ remoteID ];
 
 
-// handles types of connection: data connection or media connection (the firstis based on datachannel,
-//      the other on mediastream - which can be used to broadcast e.g. video streams)
+    delete READY[ remoteID ];
+
+    INSTANCE.emit( 'disconnect', peer );
+    ROOM    .emit( 'leave'     , peer );
 
 
+    CONNECTIONS[ remoteID ].close();
+
+    pg.data.splice( peer.pos, 1 );
+
+    delete pg.peers[ remoteID ];
+    delete CONNECTIONS[ remoteID ];
+
+    order();
+  }
 
 
-  // function sendToServer ( action, data ) {
+  /**
+   *  Set credentials and create entries as SDP & candidates arrives
+   *
+   *  @param {Object} msg         -
+   *  @param {Object} transport   -
+   */
 
-  // }
+  function set ( msg, transport ) {
+
+    if ( !CONNECTIONS[ msg.local] ) connect( msg.local, false, transport );
+
+    CONNECTIONS[ msg.local ][ msg.action ]( msg.data );
+  }
 
 
-  // // every channel defines its own action
-  // function sendToPeer ( channel, data ) {
+  /**
+   *  Inform peers about key/value change by multicast
+   *
+   *  @param  {String}               key     -
+   *  @param  {String|Number|Object} value   -
+   */
 
-  // }
+  function update ( key, value ) {
+
+    var ids = Object.keys( CONNECTIONS );
+
+    for ( var i = 0, l = ids.length; i < l; i++ ) {
+
+      CONNECTIONS[ ids[i] ].send( 'update', { key: key, value: value });
+    }
+  }
+
+
+  var timer   = {};
+
+  /**
+   *  Setup and tests the connection - benchmark the latency via ping/pong
+   *
+   *  @param {String}  remoteID   -
+   *  @param {Number}  index      -
+   *  @param {Boolean} pong       -
+   */
+
+  function setup ( remoteID, index, pong ) {
+
+    if ( !pong ) return ping( remoteID );
+
+    var col = timer[ remoteID ];
+
+    col[index] = win.performance.now() - col[index];
+
+    if ( --col[0] > 0 ) return;
+
+    pg.peers[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
+
+    order();
+
+    ready();
+
+    function sum ( prev, curr ) { return prev + curr; }
+  }
+
+
+  /**
+   *  Sends pings to other peers
+   *
+   *  @param {String} remoteID   -
+   */
+
+  function ping ( remoteID ) {
+
+    var conn = CONNECTIONS[ remoteID ],
+
+        num  = 100,
+
+        col = timer[ remoteID ] = [ num ];
+
+    for ( var i = 1; i <= num; i++ ) { col[i] = win.performance.now(); test( i ); }
+
+    function test( i ) {
+
+      setTimeout( function(){ conn.send( 'ping', { index: i }); }, rand() * num );
+    }
+  }
+
+
+  /**
+   *  Defines the peer order - ranked by the appearance / inital load
+   */
+
+  function order(){
+
+    var keys = Object.keys( pg.peers ),
+
+        times = {};
+
+    times[ INSTANCE.time ] = INSTANCE.id;
+
+    for ( var i = 0, l = keys.length; i < l; i++ ) times[ pg.peers[ keys[i] ].time ] = keys[i];
+
+    var list = Object.keys( times ).sort( rank ).map( function ( key ) { return times[key]; }),
+
+        user;
+
+    if ( list.length !== keys.length + 1 ) {
+
+      return console.log('[ERROR] Precision time conflict.', list, keys );
+    }
+
+    pg.data.length = 0;
+
+    for ( i = 0, l = list.length; i < l; i++ ) {
+
+      user     = pg.peers[ list[i] ] || INSTANCE;
+
+      user.pos = pg.data.push( user.data ) - 1;
+    }
+
+    function rank ( curr, next ) { return curr - next; }
+  }
+
+
+  /**
+   *  Determines if all peers are connected and then emits the connections
+   */
+
+  function ready(){
+
+    var keys  = Object.keys( pg.peers ),
+
+        list  = [],
+
+        peer;
+
+    list[ INSTANCE.pos ] = INSTANCE;
+
+    for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+      peer = pg.peers[ keys[i] ];
+
+      if ( !peer.time ) return;
+
+      list[ peer.pos ] = peer;
+    }
+
+
+    /** emit users in order & prevent multiple trigger **/
+    for ( i = 0, l = list.length; i < l; i++ ) setTimeout( invoke, DELAY, list[i] );
+
+    function invoke( peer ) {
+
+      if ( READY[ peer.id ] ) return;
+
+      READY[ peer.id ] = true;
+
+      INSTANCE.emit( 'connection', peer );
+      ROOM    .emit( 'enter'     , peer );
+    }
+  }
+
+
+  return {
+
+    check      : check,
+    connect    : connect,
+    disconnect : disconnect,
+    set        : set,
+    update     : update,
+    setup      : setup
+  };
+
+})();
 
 
 /**
  *  Info
  *  ====
  *
- *  Simple interface to provide data for external storage.
+ *  A simple interface to provide access for internal data.
  */
 
 
-pg.info = {
+/**
+ *  Public interface to access general information
+ *
+ *  @type {Object}
+ */
 
-  note: 'ToDo'
+pg.info = INFO = {
+
+  route: null
 };
+
+// TODO: 0.6.0 -> data & info
+
+/**
+ *  Auth
+ *  ====
+ *
+ *  Module for handling authentication for external party services.
+ */
+
+
+var AUTH = {
+
+  'GITHUB'    : requestGithub,
+  'PERSONA'   : requestPersona
+  // 'TWITTER',
+  // 'GOOGLE'
+  // 'FACEBOOK',
+};
+
+
+/**
+ *  Login on Github
+ *
+ *  @param  {String}   id         -
+ *  @param  {Function} callback   -
+ */
+
+function requestGithub ( id, callback ) {
+
+  // TODO: 0.7.0 -> external login
+}
+
+
+
+/**
+ *  Login via BrowserID
+ *
+ *  @param  {String}   id         -
+ *  @param  {Function} callback   -
+ */
+
+function requestPersona ( id, callback ) {
+
+  var URL    = 'https://login.persona.org/include.js',
+
+      script = document.createElement('script');
+
+
+  // TODO: 0.7.0 -> external login
+
+  script.addEventListener( 'load', function(){
+
+    navigator.id.watch({
+
+      loggedInUser: localStorage['user'] || (function(){
+
+        return '';
+      })(),
+
+      onlogin: function ( assertion ) {
+
+        console.log(assertion);
+      },
+
+      onlogout: function(){
+
+      }
+
+    });
+
+
+    navigator.id.request();
+
+  });
+
+  script.src = URL;
+
+  document.getElementsByTagName('script')[0].parentNode.insertBefore( script );
+}
 
 /**
  *  Login
  *  =====
  *
- *  can be used after handling authentication - wrapper to preset the Peer !
- *
- *  Can either be a string, which is then just a name, no external service will be used - or an
- *  secondary parameter with further credentials.
- *
- *  e.g.: 'name' or 'name', 'service'
- *
- *  // callback of "next" is also optional, as it wouldn't be required ||
- *   if it exists - will be called before the default join  ||
- *
- *
- *      additional hook can m
- *
- *  optional: hook && service (required just name etc.) ||
+ *  Entry for creating a player or use a service for additional data.
  */
 
 
+/**
+ *  Uses a plain text name or request more information via authentication
+ *
+ *  @param  {String}   name      -
+ *  @param  {String}   service   -
+ *  @param  {Function} hook      -
+ */
+
 pg.login = function ( name, service, hook ) {
 
-  if ( typeof service === 'function' ) {
-
-    hook    = service;
-    service = null;
-  }
+  if ( typeof service === 'function' ) { hook = service; service = null; }
 
   if ( service ) return requestOAuth( name, service, hook );
 
@@ -1937,86 +2584,75 @@ pg.login = function ( name, service, hook ) {
 };
 
 
-// allow to login and use 3rd party data
+/**
+ *  Check if the selected service is supported and handles response
+ *
+ *  @param  {String}   name      -
+ *  @param  {String}   service   -
+ *  @param  {Function} hook      -
+ */
+
 function requestOAuth ( name, service, hook ) {
 
-  // using the socket to request credentials
-  // socket.
+  service = service.toUpperCase();
 
-  var account = { name: name };
+  if ( !AUTH[ service ] ) return console.log('[ERROR] The chosen service is not supported yet.');
+
+  // AUTH[ service ]( name , function ( account ) {
+
+  var  account = { name: name };
 
   createPlayer( account, hook );
-}
-
-
-// assign value
-function createPlayer ( account, hook ) {
-
-  var origin = win.location.hash.substr(3) || DEFAULT_ROUTE.substr(1);
-
-  pg.player = instance = new Player( account, origin );
-
-  if ( hook ) hook( instance );
-
-  instance.join( origin );
+  // });
 }
 
 
 /**
- *  Routes
+ *  Creates the player and extracts the initial route
+ *
+ *  @param {Object}   account   -
+ *  @param {Function} hook      -
+ */
+
+function createPlayer ( account, hook ) {
+
+  var origin = win.location.hash.substr(3) || DEFAULT_ROUTE.substr(1);
+
+  pg.player = INSTANCE = new Player( account, origin );
+
+  if ( hook ) hook( INSTANCE );
+
+  INSTANCE.join( origin );
+}
+
+/**
+ *  Router
  *  ======
  *
- *  Matching request/URL routes.
- *
- *
- *  ToDo:
- *
- *  - add History API support (see server side support)
- *
- *  - improve param splitting + channel / game recognition
- *
- *
- *  as of v2 using functions, easier as mostly the application itself will just need on hook,
- *  and not multiple (see demonstration, || there can be different routes, but else simpler !)
- *
- *  Example:
- *
- *    pg.routes(
- *
- *      // channel,
- *
- *      // game
- *    ) // 2 simple - or one objct for cunfiguraiton !
- *
- *		pg.routes({
- *
- *
- *		})
+ *  Matching the browser URL to specific routes for handling rooms (channel or game).
  */
 
 
-// using the speeration of the channels, games ?s
+var channelRoutes =        {},  // collection of the channel routes
+
+    gameRoutes    =        {},  // collection of the game routes
+
+    LAST_ROUTE    =      null,  // reference to the last route
+
+    DEFAULT_ROUTE = '/lobby/';
 
 
-var channelRoutes   = {},               // collection of the channel routes
-    gameRoutes      = {},               // collection of the game  routes
-
-    // CUSTOM_PATTERNS = null,             // custom Patterns (which are used for the customRoutes)
-
-    // DEFAULT_CHANNEL = '/:channel/',
-    // DEFAULT_GAME    = '/:game/:id/',
-    DEFAULT_ROUTE   = '/lobby/';
-
-
-
-
-// setting up routes
-
-// optional setting, can provide a dictionary for custom routes + default route
+/**
+ *  Defines custom routes or changes the default path
+ *
+ *  @param  {Object} customRoutes   -
+ *  @param  {String} defaultRoute   -
+ *  @return {Array}
+ */
 
 pg.routes = function ( customRoutes, defaultRoute ) {
 
-  if ( !defaultRoute && typeof customRoutes === 'string' ) { // less then 2 arguments
+  if ( !defaultRoute && typeof customRoutes === 'string' ) {
 
     defaultRoute = customRoutes;
     customRoutes = null;
@@ -2029,62 +2665,81 @@ pg.routes = function ( customRoutes, defaultRoute ) {
 };
 
 
-// var CHANNEL_PATTERN = /\/(.*?)\//g,
-//     ARGS_PATTERN    = /(\?)?:\w+/g;
+var CHANNEL_PATTERN = /\/(.*?)\//g,
+    ARGS_PATTERN    = /(\?)?:\w+/g;
 
-// TODO
+/**
+ *  Parsing and setting up custom routes
+ *
+ *  @param {Object} customRoutes   -
+ */
+
 function defineCustomRoutes ( customRoutes ) {
 
   channelRoutes = {};
-  gameRoutes = {};
+  gameRoutes    = {};
 }
 
 
+/**
+ *  Extract params and set info
+ */
 
-
-// parsing routing behavior
-
-
-// extract params
 function checkRoute() {
 
   var path    = win.location.hash.substr(3),
       args    = path.split('/');
 
-  SESSION.currentRoute = path;
+  INFO.route = SESSION.currentRoute = path;
 
   if ( args.length < 1 ) return;
 
+  // TODO: 0.7.0 -> customRoutes
   // if ( Object.keys( CUSTOM_PATTERNS ).length ) extractRoute();
 
   matchRoute( args );
 }
 
 
-// execute wrapped function
-// cann be a channel or game
+function extractRoute(){}         // TODO: 0.7.0 -> custom routes
+
+
+/**
+ *  Retrieve the room handler from the channel/game collections
+ *
+ *  @param {String} args   -
+ */
+
 function matchRoute ( args ) {
 
   var room = args.shift();
 
-  if ( !room ) { // re-routing
+  if ( !room ) {
 
     win.location.hash = '!/' + DEFAULT_ROUTE.substr(1);
 
     return;
   }
 
-  // room match -> arguments, defined as a channel or game
-  var match = !args[0].length ? channels[ room ] || channels[ '*' ]  :
-                                   games[ room ] ||    games[ '*' ]  ;
+  ROOM = room = !args[0].length ? CHANNELS[ room ] || CHANNELS[ '*' ]  :
+                                     GAMES[ room ] ||    GAMES[ '*' ]  ;
 
+    var params = args; // TODO: 0.7.0 -> parse for custom routes
 
-  // TODO: parsed by custom routes
-  var params = args;
+  if ( LAST_ROUTE === INFO.route ) return;
 
-  if ( match ) {
+  if ( room ) {
 
-    match.call( match, params );
+    if ( LAST_ROUTE  ) {
+
+      var keys = Object.keys( CONNECTIONS );
+
+      for ( var i = 0, l = keys.length; i < l; i++ ) Manager.disconnect( keys[i] );
+
+      socket.send({ action: 'change', data: LAST_ROUTE });
+    }
+
+    LAST_ROUTE = INFO.route;
 
   } else {
 
@@ -2093,432 +2748,471 @@ function matchRoute ( args ) {
 }
 
 
-// customRoute with specifc params
-// function extractRoute() {
+/**
+ *  Handles history navigation of the browser
+ *
+ *  @param {Object} e   -
+ */
 
-//   console.log('[ToDo] Extract Params');
-// }
+function leaveSite ( e ) {
+
+  // prevent initial triggering
+  if ( chrome ) { chrome = !chrome; return; }
+
+  // if ( !history.state ) {
+  //  console.log(LAST_ROUTE);
+  //  return window.history.back();
+  // }
+}
 
 
-// attach listener
-win.addEventListener( 'hashchange', checkRoute );
+/** attach listener **/
+
+win.addEventListener( 'hashchange', checkRoute ); // join
+win.addEventListener( 'popstate',   leaveSite  ); // history navigation
 
 /**
  *  Channel
  *  =======
  *
- *  Channel as a room for conversations etc.
- *
- *
- *  Example:
- *
- *    pg.channel('example', function ( channel ) {
- *
- *      console.log(channel);
- *    });
+ *  An intermediate room for conversations.
  */
 
 
-var channels = {};
+/**
+ *  Public interface for setting up a channel
+ */
+
+pg.channel = createRoom( Channel );
 
 
-var Channel = function ( id ) {
-
-  Emitter.call( this );
-
-  this.id = id;
-};
+var CHANNELS = {};  // record of channels
 
 
-utils.inherits( Channel, Emitter );
+/**
+ *  Constructor to call init
+ *
+ *  @param {String} id   -
+ */
 
+function Channel ( id ) {
 
+  this.init( id );
 
-pg.channel = function ( id, handler ) {
+  this.match = function ( type ) {
 
-  if ( typeof id !== 'string' ) {
-
-    handler = id;
-    id      = '*';
-  }
-
-  var channel = new Channel( id );
-
-  // typeof handler => function
-  channels[ id ] = createChannel( handler, channel );
-
-  return channel;
-};
-
-
-
-function createChannel ( handler, channel ) {
-
-  return function ( params ) {
-
-    handler( channel, params );
-
-    // you are entering....
-    channel.emit( 'enter', instance );  // otherwise: peers[id]
+    // TODO: 0.7.0 -> matchmaking
   };
 }
 
 
 /**
- *  Game
- *  ====
- *
- *  Game room for handling game specific issues.
- *
- *
- *  Example:
- *
- *    pg.game('cool', function( game ){
- *
- *      console.log( game ); *
- *    });
+ *  Channel <- Emitter
  */
 
+utils.inherits( Channel, Emitter );
 
-var games  = {};
 
+/**
+ *  Assign id and invokes Emitter
+ *
+ *  @param {String} id   -
+ */
 
-var Game = function ( id ) {
-
-  Emitter.call( this );
+Channel.prototype.init = function ( id ) {
 
   this.id = id;
 
-  this.config = {
-
-    minPlayer: 2,
-    maxPlayer: 8
-
-    // watchable: true
-    // public, privated.., protected...
-  };
-
+  Emitter.call( this );
 };
 
+
+/**
+ *  Allows to setup custom options for this channel/game
+ *
+ *  @param {Object} customConfig   -
+ */
+
+Channel.prototype.config = function ( customConfig ) {
+
+  utils.extend( this.options, customConfig );
+};
+
+
+/**
+ *  Creates a new room (channel or game) and registers handler
+ *
+ *  @param  {Function} type   -
+ *  @return {Function}
+ */
+
+function createRoom ( type ) {
+
+  return function ( id, handler ) {
+
+    if ( typeof id !== 'string' ) { handler = id; id = '*'; }
+
+    var room = new type( id ),
+
+        list = ( room instanceof Game ) ? GAMES : CHANNELS;
+
+    list[ id ] = room;
+
+    handler( room );
+
+    return room;
+  };
+}
+
+/**
+ *  Game
+ *  ====
+ *
+ *  A room for handling gaming specific requirements.
+ */
+
+
+/**
+ *  Public interface for setting up a game
+ */
+
+pg.game = createRoom( Game );
+
+
+var GAMES   = {},     // record of games
+
+    STARTER = null;   // bootstrap to forward the game start
+
+
+/**
+ *  Constructor to define the reference and options
+ *
+ *  @param {String} id   -
+ */
+
+function Game ( id ) {
+
+  this.init( id );
+
+  this.info    = {};                             // TODO: 0.6.0 -> data & info
+
+  this.options = { minPlayer: 2, maxPlayer: 8 }; // TODO: 0.5.0 -> room options
+
+  GAMES[ id ] = this;
+}
+
+
+/**
+ *  Game <- Channel <- Emitter
+ */
 
 utils.inherits( Game, Channel );
 
 
-Game.prototype.info = function(){
+/**
+ *  Starts the game as the minimum amount of players joined
+ *
+ *  @param {Function} initialize   - bootstrapping function to start the game
+ */
 
-  var info = {
+Game.prototype.start = function ( initialize ) {
 
-    currentPlayers: 2,
-    state: 'running'
-  };
-
-  return info;
-};
-
-
-// check for role | voting,as start -end etc. shouldnt be callable by the users afterwards....
-
-Game.prototype.start = function(){
+  this._start = function(){ initialize(); forward.call( this ); };
 
 
-};
+  var ready = Object.keys( READY ).length;
 
-Game.prototype.end = function(){
+  if ( ready  <  this.options.minPlayer ) return;     // less player  - wait
 
+  if ( ready === this.options.minPlayer ) {
 
-};
+    if ( INSTANCE.pos === 0 ) this._start();
 
-Game.prototype.pause = function(){
-
-
-};
-
-Game.prototype.unpause = function(){
-
-
-};
-
-
-
-
-
-
-// 1:1 mapping for channel , on refactoring, just regards the .games[ id], and the ones above !
-
-
-pg.game = function ( id, handler ) {
-
-  if ( typeof id !== 'string' ) {
-
-    handler = id;
-    id      = '*';
+    return;
   }
 
-  var game = new Game( id );
+  if ( ready  >  this.options.minPlayer ) {          // more player   - late join
 
-  // typeof handler => function
-  games[ id ] = createGame( handler, game );
+    if ( INSTANCE.pos >= this.options.minPlayer ) request();
 
-  return game;
+    return;
+  }
+
+  // TODO: 0.5.0 -> maxPlayer will be handled
 };
 
 
-// you are entering....
-function createGame ( handler, game ) {
+Game.prototype.end      = function(){};  // TODO: 0.6.0 -> player handling
 
-  return function ( params ) {
+Game.prototype.pause    = function(){};  // TODO: 0.6.0 -> player handling
 
-    handler( game, params );
+Game.prototype.unpause  = function(){};  // TODO: 0.6.0 -> player handling
 
-    game.emit( 'enter', instance ); // || peers[id]// see params etc.
-  };
+
+
+/**
+ *  Ask the previous peer if your allowed/ready to start | late-join
+ */
+
+function request() {
+
+  var keys = Object.keys( pg.peers ),
+      curr = INSTANCE.pos;
+
+  for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+    if ( curr - 1 === pg.peers[ keys[i] ].pos ) {
+
+      return CONNECTIONS[ keys[i] ].send( 'start', { request: true });
+    }
+  }
+}
+
+
+/**
+ *  Invokes the start of the next peers
+ *
+ *  @param {String} remoteID   - will be provided by late join & request
+ */
+
+function forward ( remoteID ) {
+
+  STARTER = function(){
+
+    STARTER = null;
+
+    setTimeout(function(){
+
+      var keys = Object.keys( pg.peers ),
+          curr = INSTANCE.pos;
+
+      for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+        if ( curr + 1 === pg.peers[ keys[i] ].pos ) {
+
+          CONNECTIONS[ keys[i] ].send( 'start' );
+          break;
+        }
+      }
+
+      if ( this._start ) delete this._start;
+
+    }.bind(this), DELAY * 5 ); // see batching the changes
+
+  }.bind(this);
+
+
+  if ( !remoteID ) return;
+
+
+  /** get sync object **/
+
+  var conn = CONNECTIONS[ remoteID ],
+
+      keys = Object.keys( pg.sync ),
+
+      prop;
+
+  for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+    prop = keys[i];
+
+    conn.send( 'sync', { resync: true, key: prop, value: pg.sync[prop] });
+  }
+
+  if ( STARTER ) STARTER();
 }
 
 /**
  *  Media
  *  =====
  *
- *	Handler just for mediastreaming (video & audio). Additional connection - which can be used
- *	besides the current handler/connection.
+ *  Wrapper for handling MediaStreams - creating an additional connection asides the DataChannel.
  */
 
 
+/**
+ *  Constructor to setup up the basic information
+ *
+ *  @param  {String}  local       -
+ *  @param  {String}  remote      -
+ *  @param  {Boolean} initiator   -
+ *  @param  {Object}  transport   -
+ */
 
-// attachMediaStreams()
+var Media = function ( local, remote, initiator, transport ) {
 
+  this.info = { local: local, remote: remote, pending: true };
 
-	// Connection.prototype.handleIncomingStreams = function(){
+  if ( initiator ) this.info.initiator = true;
+  if ( transport ) this.info.transport = transport;
 
-	// 	var conn = this.conn;
+  this.channels = {};
 
-	// 	conn.onaddstream = function ( e ){
-
-	// 		console.log('[added stream]');
-	// 		console.log(e);
-			// var video = document.createElement('video');
-			// video.src = URL.createObjectURL( e.stream );
-			// video.autoplay = true;
-
-			// var box = document.createElement('div');
-			// box.textContent = this.remoteID;
-			// box.className = 'name';
-			// box.appendChild(video);
-
-			// document.body.appendChild( box );
-			//
+  this.init();
+};
 
 
-		// var remoteMediaStream=evt.stream;
-		            // if(remoteMedia==null){
-		            // remoteMedia=remoteMediaStream;
-		            // }
-		            // else
-		            // {
-		            //     remoteMedia.addTrack(remoteMediaStream.getVideoTracks()[0]); //add the video track to the existing stream
-		            // }
-		            // if(remoteVideo!=null)  {
-		            // //    $(remoteVideo).remove();
-		            //     //remoteVideo=null;
-		            // }
+/**
+ *  Create connection and setup receiver
+ */
 
-		// }.bind(this);
+Media.prototype.init = function(){
 
-		// conn.onremovestream = function ( e ) {
+  this.conn = new RTCPeerConnection( config.peerConfig, config.connectionConstraints );
 
-		// 	console.log('[removed stream]');
+  this.checkStateChanges();
 
-			// document.getElementById('vid2').src = null;
-			// URL.revokeObjectURL( e.stream );
-		// };
+  this.findICECandidates();
+
+  if ( this.info.initiator ) {
+
+    this.requestStream();
+  }
+};
 
 
-		// window.test = function(){
+/**
+ *  Media <- Connection
+ */
 
-			// device access
-			// var permissions = { audio: true, video: true };
-
-			// navigator.getUserMedia( permissions, function ( stream ) {
-
-
-			// 	var videoTracks = stream.getVideoTracks(),
-			// 		audioTracks = stream.getAudioTracks();
-
-			// 	// this.stream = stream;
-			// 	console.log(conn);
-			// 	conn.addStream( stream );
-
-				// var video = document.createElement('video');
-
-				// video.src = URL.createObjectURL(stream);
-				// video.autoplay = true;
-
-				// document.body.appendChild( video );
-
-	// 		}.bind(this));
-
-	// 	}.bind(this);
-	// };
+utils.inherits( Media, Connection );
 
 
+/**
+ *  Attach handler for incoming streams
+ */
+
+Media.prototype.attachStream = function(){
+
+  var conn = this.conn;
+
+  conn.onaddstream = function ( e ) {
+
+    console.log('[MEDIA] - Added Stream');
+    console.log(e);
+
+    // var video = document.createElement('video');
+    // video.src = URL.createObjectURL( e.stream );
+    // video.autoplay = true;
+
+    // var box = document.createElement('div');
+    // box.textContent = this.remoteID;
+    // box.className = 'name';
+    // box.appendChild(video);
+
+    // document.body.appendChild( box );
+  };
 
 
+  conn.onremovestream = function ( e ) {
+
+    console.log('[MEDIA] - Removed Stream');
+
+    // document.getElementById('vid2').src = null;
+    URL.revokeObjectURL( e.stream );
+  };
+
+};
 
 
-	// Connection.prototype.handleIncomingStreams = function(){
+/**
+ *  Request media input via camera/microphone
+ *
+ *  @param {String} el   -
+ */
 
-	// 	var conn = this.conn;
+Media.prototype.requestStream = function ( el ) {
 
-	// 	conn.onaddstream = function ( e ){
+  var permissions = { audio: true, video: true };
 
-	// 		console.log('[added stream]');
-	// 		console.log(e);
-			// var video = document.createElement('video');
-			// video.src = URL.createObjectURL( e.stream );
-			// video.autoplay = true;
+  win.navigator.getUserMedia( permissions, function ( stream ) {
 
-			// var box = document.createElement('div');
-			// box.textContent = this.remoteID;
-			// box.className = 'name';
-			// box.appendChild(video);
+    var videoTracks = stream.getVideoTracks(),
+        audioTracks = stream.getAudioTracks();
 
-			// document.body.appendChild( box );
-			//
+    conn.addStream( stream );
 
+    // this.createOffer();
 
-		// var remoteMediaStream=evt.stream;
-		            // if(remoteMedia==null){
-		            // remoteMedia=remoteMediaStream;
-		            // }
-		            // else
-		            // {
-		            //     remoteMedia.addTrack(remoteMediaStream.getVideoTracks()[0]); //add the video track to the existing stream
-		            // }
-		            // if(remoteVideo!=null)  {
-		            // //    $(remoteVideo).remove();
-		            //     //remoteVideo=null;
-		            // }
+    if ( !el ) return;
 
-		// }.bind(this);
+    var video = document.createElement('video');
 
-		// conn.onremovestream = function ( e ) {
+    video.src      = createObjectURL( stream );
+    video.autoplay = true;
 
-		// 	console.log('[removed stream]');
+    document.getElementById( el ).appendChild( video );
+  });
 
-			// document.getElementById('vid2').src = null;
-			// URL.revokeObjectURL( e.stream );
-		// };
-
-
-		// window.test = function(){
-
-			// device access
-			// var permissions = { audio: true, video: true };
-
-			// navigator.getUserMedia( permissions, function ( stream ) {
-
-				// var videoTracks = stream.getVideoTracks(),
-					// audioTracks = stream.getAudioTracks();
-
-				// conn.addStream( stream );
-
-
-				// this.stream = stream;
-				// var video = document.createElement('video');
-
-				// video.src = URL.createObjectURL(stream);
-				// video.autoplay = true;
-
-				// document.body.appendChild( video );
-
-	// 		}.bind(this));
-
-	// 	}.bind(this);
-	// };
+};
 
 
 /**
  *  Peer
  *  ====
  *
- *  A wrapper for a Peer/Node. Using singleton pattern.
+ *  Model for a "peer" - a representation of an other player.
  */
 
 
-// Collection of all connected peers
-pg.peers = {};
+pg.peers = {}; // collection of all connected peers
 
-// shortcut to access the stored data
-pg.data  = [];
-
-// internal: mapping data-reference to ids
-var dataMap = {};
+pg.data  = []; // shortcut to access the stored data
 
 
-var Peer = function ( data ) {
+/**
+ *  Constructor to diverge the intial parameters
+ *
+ *  @param  {Object} data   -
+ */
 
-  this.init( data.id, data.account );
+var Peer = function ( params ) {
+
+  this.init( params.id, params.account || {}, params.data || {} );
 };
 
 
-// used for: player.on .....
+/**
+ *  Peer <- Emitter
+ */
+
 utils.inherits( Peer, Emitter );
 
 
-Peer.prototype.init = function ( id, account ) {
+/**
+ *  Assign properties for basic the structure
+ *
+ *  @param  {String} id        -
+ *  @param  {Object} account   -
+ *  @param  {Object} data      -
+ */
 
-  Emitter.call( this );
+Peer.prototype.init = function ( id, account, data ) {
 
-  this.id                     = id;
+  this.id      = id;
 
-  this.account                = account;
+  this.account = account;
 
-  if ( !this.data ) this.data = {};
+  this.data    = data;
 
-  dataMap[ this.id ]          = pg.data.push( this.data ) - 1;
+  this.pos     = pg.data.push( this.data ) - 1;
+
+  Emitter.call( this, id );
 };
-
-
-// clears references + triggers callbacks on disconnect
-Peer.prototype.remove = function(){
-
-  var id = this.id;
-
-  pg.data.splice( dataMap[id], 1 );
-
-  instance.emit( 'disconnect', this );
-
-  delete pg.peers[ id ];
-  delete instance.connections[ id ];
-}
 
 //= require "_watch.js"
 /**
  *  Player
  *  ======
  *
- *  Interface for the player - will extend the peer wrapper.
- *  // A wrapper for a Peer/Node. Using singleton pattern.
+ *  Model for your player - an extension based on a "peer".
  */
 
-// join
-// message
-// media
 
-
-// connect will be used internaly ! // hide unrequired task !
-
-
-
-// this: account, data, id
-//
-// != events, connections
-
-// Public:
-// - .join( room, params );
-// - .message()
-
-
-// allow declaring callbacks in advance
+/**
+ *  Allow the declaration of callbacks before the player gets created
+ */
 
 var callbackRefs = {};
 
@@ -2527,375 +3221,377 @@ pg.player = { on: function ( channel, callback, context ) {
   if ( !callbackRefs[ channel ] ) callbackRefs[ channel ] = [];
 
   callbackRefs[ channel ].push([ callback, context ]);
+
 }};
 
 
-
+/**
+ *  Constructor to define the basic setup
+ *
+ *  @param  {Object} account   -
+ *  @param  {String} origin    - current path (URL fragment)
+ */
 
 var Player = function ( account, origin ) {
 
-  'use strict';
+  var id    = utils.createUID(),
 
+      data  = getReactor( Manager.update );
 
-  var id = utils.createUID();
+  this.time = Date.now();
 
-  // ToDo: freeze - not allowing to delete the data property
-  this.data = getReactor( Manager.update );
+  this.init( id, account, data );
 
-  this.connections = {};
-
-  this.init( id, account );
-
-  if ( Object.keys( callbackRefs ).length ) this._events = callbackRefs;
+  if ( Object.keys( callbackRefs ).length ) eventMap[ this.id ] = callbackRefs;
 
 
   console.log('\n\t\t:: ' + this.id + ' ::\n');
 
 
-  var register = function(){
-
-    socket.init( this.id, origin, function ( remoteID ) {
-
-      if ( remoteID ) {
-
-        this.checkNewConnections([ remoteID ]);
-
-      } else {
-
-        // this.stores.global = new DHT( pg.config.dht );
-      }
-
-    }.bind(this));
-
-  }.bind(this);
+  if ( SERVERLESS ) return setImmediate(function(){ Manager.check([ 'SERVERLESS' ]); });
 
 
-  if ( socketQueue.ready ) {
+  /** Executes after logout & socket creation **/
 
-    register();
+  var register = function(){ socket.init( id, origin, Manager.check ); };
 
-  } else {
+  if ( socketQueue.ready ) return register();
 
-    socketQueue.add( register );
-  }
+  socketQueue.add( register );
 };
 
+
+/**
+ *  Player <-- Peer
+ */
 
 utils.inherits( Player, Peer );
 
 
-Player.prototype.checkNewConnections = function ( list, transport ) {
+/**
+ *  Change URL to trigger routes for channel or games
+ *
+ *  @param  {String|Number} channel [description]
+ *  @param  {Object}        params  [description]
+ */
 
-  var connections = this.connections,
-      localID     = this.id,
-      remoteID;
-
-  for ( var i = 0, l = list.length; i < l; i++ ) {
-
-    remoteID = list[i];
-
-    if ( remoteID !== localID && !connections[ remoteID ] ) {
-
-      this.connect( remoteID, true, transport );
-    }
-  }
-};
-
-
-// perhaps hide interfaces, include the check new connections into the 'instance.connect' ?
-Player.prototype.connect = function ( remoteID, initiator, transport ) {
-
-  if ( this.connections[remoteID] ) return; // as connection is force by the user
-
-  // console.log( '[connect] to - "' + remoteID + '"' );
-
-  var connection = new Connection( this.id, remoteID, initiator || false, transport );
-
-  this.connections[ remoteID ] = connection;
-
-  pg.peers[ remoteID ] = new Peer({ id: remoteID, connection: connection });
-};
-
-
-// check if last entry has the same channel - reload page/anchor
-// change URL for router communication
 Player.prototype.join = function ( channel, params ) {
 
-  if ( channel.charAt(0) == '/' ) channel = channel.substr(1);
+  if ( typeof channel !== 'string' ) channel = channel.toString();
+
+  if ( channel.charAt(0) === '/' ) channel = channel.substr(1);
 
   var path = [ '!/', channel, utils.createQuery( params ) ].join('');
 
+  if ( path.charAt( path.length - 1 ) !== '/' ) path += '/';
 
-  if ( path === '!/' + SESSION.currentRoute || win.location.hash ) { // && ?
-
-    return checkRoute();
-  }
+  if ( path === '!/' + SESSION.currentRoute ) return checkRoute();
 
   win.location.hash = path;
 };
 
 
-// offer and creates a media stream
-Player.prototype.media = function ( id, config, callback ) {
+/**
+ *  Sends a message to a specific peer, a list of peers or even all
+ *
+ *  @param  {Array}  list   -
+ *  @param  {String} msg    -
+ */
 
+Player.prototype.send = function ( list, msg ) {
 
-};
+  if ( !msg ) { msg = list; list = null; }
 
+  if ( typeof msg !== 'string' ) msg = msg.toString();
 
-Player.prototype.send = function ( channel, msg ) {
+  if ( !list ) list = Object.keys( CONNECTIONS );
 
-  if ( !msg ) {
+  if ( !Array.isArray( list ) ) list = [ list ];
 
-    msg = channel;
-    channel = null;
-  }
+  for ( var i = 0, l = list.length; i < l; i++ ) {
 
-  if ( !channel ) channel = [ 'message' ];
-
-  if ( !Array.isArray( channel ) ) channel = [ channel ];
-
-  var connections = this.connections,
-    keys = Object.keys( connections ),
-    conn, i, l, n, k;
-
-  for ( i = 0, l = keys.length; i < l; i++ ) {
-
-    conn = connections[ keys[i] ];
-
-    for ( n = 0, k = channel.length; n < k; n++ ) {
-
-      conn.send( channel, { local: this.name, msg: msg });
-    }
+    CONNECTIONS[ list[i] ].send( 'message', { local: this.name, msg: msg });
   }
 };
 
 
 /**
+ *  Creates and offers a MediaStream
+ *
+ *  @param  {String}   id         -
+ *  @param  {Object}   config     -
+ *  @param  {Function} callback   -
+ */
+
+Player.prototype.media = function ( id, config, callback ) {
+
+  // || TODO: 0.5.0 -> mediaStream()
+};
+
+/**
  *  Loop
  *  ====
  *
- *  Wrapping game loop - sync processing of messages.
- *
- *  Examples:
- *
- *    pg.loop(function ( delta ) {
- *
- *
- *    });
+ *  Game loop wrapper for continuous processing.
  */
 
 
-pg.loop = function ( render ) {
+/**
+ *  Public interface to start the rendering
+ *
+ *  @type {Function}
+ */
 
-  // delta = 100;
-
-  // while ( delta >= LOOP_TIME ) {
-
-  //   delta -= LOOP_TIME;
-
-  //   // render()
-  // }
+pg.loop = loop;
 
 
-  // // next( );
-  // requestAnimationFame( loop );
+var RUNNING = false,  // current state of loop
+
+    REF     = null;   // refenrece for the callback
+
+/**
+ *  Setup the rendering loop and provide inject the time difference
+ *
+ *  @param  {Function} render   -
+ */
+
+function loop ( render ) {
+
+  if ( RUNNING ) return;
+
+  RUNNING = true;
+
+  REF     = render;
+
+  var time = 0, delta = 0, last = 0;
+
+  requestAnimationFrame( function () { last = win.performance.now(); run(); });
+
+  function run() {
+
+    // workaround: firefox doesn't use performance.now() but Date.now()
+    time  = win.performance.now();
+    delta = time - last;
+    last  = time;
+
+    render( delta ); // throttle( render, delta );
+
+    if ( RUNNING ) requestAnimationFrame( run );
+  }
+}
+
+
+var LOOP_TIME = DELAY,   // treshhold for fix framerate
+
+    DIFF      = 0;       // tracking the latest time differences
+
+/**
+ *  Keep a constant framerate for the rendering
+ *
+ *  @param  {Function} render   -
+ *  @param  {Number}   delta    -
+ */
+
+function throttle ( render, delta ) {
+
+  DIFF += delta;
+
+  while ( DIFF >= LOOP_TIME ) {
+
+    DIFF -= LOOP_TIME;
+
+    render( delta );
+  }
+}
+
+
+/**
+ *  Stop the loop
+ */
+
+loop.stop = function(){
+
+  RUNNING = false;
 };
 
 
+/**
+ *  Restart the loop
+ */
 
-// requestAniation frame
+loop.resume = function(){
 
+  loop(REF);
+};
 
-// pause:
 
-// on disconnect, offline
-// on visibility hidden (trigger pause)
+/**
+ *  Pauses the game and adjust the title
+ *
+ *  @param  {Object} e   -
+ */
 
+function checkPause ( e ) {
 
+  var title = doc.title.split('[PAUSE]').pop();
 
+  if ( !doc.hidden ) loop.stop();
 
-// sync time -? will be define in the inital connection , just for testing 0 or 1 || can be updated
-// internally.....
+  doc.title = ( doc.hidden ? '[PAUSE] - ' : '' ) + title;
 
-// see property. get passed time since started, request.animatin frame
+  //TODO: 0.6.0 -> pause/resume
 
-// function loop ( render ) {
+  // ROOM.emit( 'pause', INSTANCE ); // send 'pause' to others as well
+}
 
-//      delta time
 
-//      while ( >= SYNC_DELAY ) {
-//
-//          delta -= SYNC_DELAY;
-//
-//          render();
-//      }
+/** Handler for visibility change **/
 
+doc.addEventListener( visibilityChange, checkPause );
 
+/**
+ *  Sync
+ *  ====
+ *
+ *  A synchronized shared object - which accessible by all users.
+ */
 
-//     render();
-//     requestAnimationFame( loop );
-// }
 
+/**
+ *  Public interface for the synchronize object
+ *
+ *  @type {[type]}
+ */
 
-// loop(function(){
+pg.sync = getReactor( batch(sync) );
 
-//     // .update()
-//     // .draw()
-// });
 
+var CACHE  = {},  // record of still pending properties
 
+    SOLVED = {};  // temporary list for confirmed values
 
 
-// as a channel will be called - creating one - coomunicate with others to join ?
-// pg.routes( createChannel, createGame ); //
+/**
+ *  Combine multiplee changes to one batch,
+ *  to process them as one and avoid unrequired network transfer
+ *
+ *  @param  {Function} fn    -
+ *  @return {Function}
+ */
 
+function batch ( fn ) {
 
+  var list      = {},
 
+      timeoutID = null;
 
-// visibility change etc. as well
 
+  function share()  {
 
-// // pause... resume
+    timeoutID = null;
 
-// // We simply subscribe to the offline or online event and pass a function (or function reference)
-// // invoke our handler when the offline event occurs
-// window.addEventListener("offline", whoopsWeAreOffline);
-// // and when the online event occurs....
-// window.addEventListener("online", sweetBackOnLine);
+    var keys = Object.keys(list),
 
+        prop;
 
+    for ( var i = 0, l = keys.length; i < l; i++ ) {
 
-// if (navigator.onLine) {
-//     sweetWeAreKindaMaybeOnline();
-// } else {
-//     uhOhWeAreProbablyButNotDefinitelyOffline();
-// }
+      prop = keys[ i ];
 
+      sync( prop, list[ prop ] );
 
+      delete list[ prop ];
+    }
 
-// http://updates.html5rocks.com/2012/05/requestAnimationFrame-API-now-with-sub-millisecond-precision
-//
+    /** defined in game -> forward **/
+    if ( STARTER ) STARTER();
+  }
 
 
+  return function ( key, value ) {
 
+    list[key] = value;
 
+    if ( timeoutID ) clearTimeout( timeoutID );
 
+    timeoutID = setTimeout( share, DELAY );
+  };
+}
 
 
-// pg.loop(function(){
+/**
+ *  Share the property (key/value) with other peers
+ *
+ *  @param  {String}               key         -
+ *  @param  {String|Number|Object} value       -
+ *  @param  {Boolean}              confirmed   -
+ */
 
-//   will loop how it likes
+function sync ( key, value, confirmed ) {
 
-//   // as to stop-pause ?
+  if ( confirmed ) {
 
-// });
+    if ( !CACHE[key] || CACHE[key].results[ INSTANCE.pos ] !== value ) {
 
+      SOLVED[ key ]  = true;
+      pg.sync[ key ] = value;
+    }
 
-// pg.loop.stop();
+    delete CACHE[key];        // console.log( '[CONFIRMED]', value    );
+    return;
+  }
 
-//
 
+  if ( CACHE[ key ] ) return; // console.log( '[CACHED]', CACHE[key]  );
 
-// http://updates.html5rocks.com/2012/08/When-milliseconds-are-not-enough-performance-now
+  if ( SOLVED[ key ] ) {      // console.log( '[SOLVED]', SOLVED[key] );
 
-// http://stackoverflow.com/questions/12095276/navigationstart-time-set-to-0-when-using-html5-navigation-timing-api
+    delete SOLVED[key];
+    return;
+  }
 
+  var ids = Object.keys( CONNECTIONS );
 
-// http://updates.html5rocks.com/2012/05/requestAnimationFrame-API-now-with-sub-millisecond-precision
+  // TODO: 0.6.0 -> conflict with multiple ?
+  CACHE[key] = { list: ids, results: [] };
 
+  CACHE[key].results[ INSTANCE.pos ] = value;
 
+  for ( var i = 0, l = ids.length; i < l; i++ ) {
 
-// https://developer.mozilla.org/en-US/docs/Navigation_timing
+    CONNECTIONS[ ids[i] ].send( 'sync', { key: key, value: value });
+  }
+}
 
 
+/**
+ *  Exchange value with remote data & merge on conflict
+ *
+ *  @param  {String} remoteID   -
+ *  @param  {String} key        -
+ *  @param  {String} value      -
+ */
 
-// You'll also notice the two above values are many orders of magnitude different. performance.now() is a measurement of floating point milliseconds since that particular page started to load (the performance.navigationStart to be specific).
+function resync ( remoteID, key, value ) {
 
+  if ( !CACHE[key] ) { // noConflict
 
+    sync( key, value, true );
 
+    return CONNECTIONS[ remoteID ].send( 'sync', { resync: true, key: key, value: value });
+  }
 
+  // TODO: 0.6.0 -> handle conflict (lower pos)
+  console.log('[CONFLICT]');
 
-//  this.startTime = window.performance.now ?
-//                     (performance.now() + performance.timing.navigationStart) :
-//                     Date.now();
+  // var entry = CACHE[key];
 
+  // entry.list.length -= 1;
 
+  // entry.results[ pg.peers[remoteID].pos ] = value;
 
-
-
-
-//    var last = 0,
-
-//      delta;
-
-
-//    function loop ( time ) {
-
-//      delta = time - last;
-//      last  = time;
-
-//  if ( this.runningGame ) {
-
-//                 requestAnimationFrame( loop.bind(this) );
-
-//             } else {
-
-//                 this.screen.clear();
-//             }
-// requestAnimationFrame( function(time) {
-
-//      last = time;
-
-//      loop.call(this, time);
-
-//    }.bind(this) );
-
-
-
-
-
-
-
-// var running = true;
-
-// function loop ( time ) {
-
-//   delta = time - last;
-//   last  = time;
-
-//   /* passing the delta */
-//   update(delta);
-
-//   if ( running ) requestAnimationFrame( loop );
-// }
-
-// var FPS = 1000,
-//   diffFPS = 0;
-
-// function update( delta ) {
-
-//   diffFPS += delta;
-
-//   while ( diffFPS > FPS ) {
-
-//       diffFPS -= FPS;
-
-//       doSomething();
-//   }
-// }
-
-// function doSomething(){
-
-
-// }
-
-
-// requestAnimationFrame( function(time) {
-
-//   last = time;
-
-//   loop(time);
-// });
+  // if ( entry.list.length ) return;
+}
 
 
 
