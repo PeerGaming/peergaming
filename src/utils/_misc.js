@@ -2,14 +2,19 @@
  *  Misc
  *  ====
  *
- *  Collection of simple helpers.
+ *  Collection of utilities / helpers.
  */
 
 
-var utils = {};
+var utils = {};   // Module
 
 
-// improved typeof
+/**
+ *  Improved typeof version
+ *
+ *  @param {String|Number|Object} obj   -
+ */
+
 utils.check = function ( obj ) {
 
   return Object.prototype.toString.call( obj ).slice( 8, -1 );
@@ -17,10 +22,9 @@ utils.check = function ( obj ) {
 
 
 /**
- *  Extends properties of an Object.
+ *  Extends the properties of an object
  *
- *  @param  {[type]} target [description]
- *  @return {[type]}        [description]
+ *  @param {Object} target   -
  */
 
 utils.extend = function extend ( target ) {
@@ -38,8 +42,13 @@ utils.extend = function extend ( target ) {
 };
 
 
-// form original nodejs
-// https://github.com/joyent/node/blob/master/lib/util.js
+/**
+ *  Setting reference for the prototype chain
+ *  (see: NodeJS - https://github.com/joyent/node/blob/master/lib/util.js )
+ *
+ *  @param {Object} child    -
+ *  @param {Object} parent   -
+ */
 
 utils.inherits = function inherits ( child, parent ) {
 
@@ -56,16 +65,20 @@ utils.inherits = function inherits ( child, parent ) {
 };
 
 
+/**
+ *  Creates a simple token
+ */
+
 utils.getToken = function getToken() {
 
-  return Math.random().toString(36).substr( 2, 10 );
+  return rand().toString(36).substr( 2, 10 );
 };
 
 
-// Based on @broofa:
-// http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#2117523
-
-// https://github.com/pid/puid
+/**
+ *  Creates a secure random user ID
+ *  (see: @broofa - http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#2117523 )
+ */
 
 utils.createUID = function createUID() {
 
@@ -86,9 +99,12 @@ utils.createUID = function createUID() {
 };
 
 
-
-// Get an identifiying hash coder from a string
-// see: http://jsperf.com/hashing-a-string/3 || http://jsperf.com/hashing-strings/14
+/**
+ *  Gets an identifiying hash code from a string
+ *  (see: http://jsperf.com/hashing-a-string/3 || http://jsperf.com/hashing-strings/14 )
+ *
+ *  @param {String} str   -
+ */
 
 utils.getHash = function getHash ( str ) {
 
@@ -96,19 +112,22 @@ utils.getHash = function getHash ( str ) {
 
       i    = ( str && str.length ) ? str.length : 0;
 
-  while ( i-- ) hash = hash * 31 + str.charCodeAt(i); //result &= result;
+  while ( i-- ) hash = hash * 31 + str.charCodeAt(i);
 
   return hash;
 };
 
 
-
-// String/Buffer Conversion
-// http://updates.html5rocks.com/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
+/**
+ *  Converts a string into an arraybuffer
+ *  (see: http://updates.html5rocks.com/2012/06/How-to-convert-ArrayBuffer-to-and-from-String )
+ *
+ *  @param {String} str   -
+ */
 
 utils.StringToBuffer = function StringToBuffer ( str ) {
 
-  var buffer  = new ArrayBuffer( str.length * 2 ), // 2 bytes per char
+  var buffer  = new ArrayBuffer( str.length * 2 ),
       view    = new Uint16Array( buffer );
 
   for ( var i = 0, l = str.length; i < l; i++ ) {
@@ -120,15 +139,23 @@ utils.StringToBuffer = function StringToBuffer ( str ) {
 };
 
 
+/**
+ *  Converts a buffer into a string
+ *
+ *  @param {Array} buffer   -
+ */
+
 utils.BufferToString = function BufferToString ( buffer ) {
 
   return String.fromCharCode.apply( null, new Uint16Array( buffer ) ) ;
 };
 
 
-// ToDo:
-//
-// - check & decide of proper query stringfication
+/**
+ *  Converts parameter into a querystring
+ *
+ *  @param {Object} params   -
+ */
 
 utils.createQuery = function ( params ) {
 
