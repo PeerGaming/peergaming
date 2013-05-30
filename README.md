@@ -19,8 +19,9 @@ as no additional server component is required.
 
 ## Support
 
-With the latest Firefox update the DataChannel implementations got changed.
-Therefore _PeerGaming_ is only running in Chrome 26++ right now.
+With the latest Firefox update the DataChannel implementations got changed and broke the API.
+Therefore _PeerGaming_ is only running in Chrome 26++ right now. The next version will
+provide a proper handling.
 
 
 ## Features
@@ -38,6 +39,8 @@ The documentation is still work in progress and will be available later at [docs
 
 ## API - Overview
 
+``` js
+
   pg.noConflict   : fn  - reset namespace
   pg.VERSION      : obj - refers to the current version
   pg.info         : obj - information about the state
@@ -52,15 +55,16 @@ The documentation is still work in progress and will be available later at [docs
   pg.game         : fn  - handler for a "Game"
   pg.routes       : fn  - define default and custom routes
 
+```
+
 
 ## Quick Guide
 
-1.) setup room handler
-2.) create a new user by login
-3.) initialize the game
-4.) use pg.player, pg.data and pg.sync
-    for network synchronization
-*.) define a message handler
+- 1.) setup room handler
+- 2.) create a new user by login
+- 3.) initialize the game
+- 4.) use pg.player, pg.data and pg.sync for network synchronization
+- *.) define a message handler
 
 
 ## Example
