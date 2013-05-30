@@ -1,24 +1,23 @@
-## 0.6.0 / 2013-XX-XX
-
-(* write tests)
-(* OAuth login)
-
-
-## 0.5.0 / 2013-06-XX
-
-(* test game )
-(* material / documentation)
-
-
 ## 0.4.0 / 2013-05-30
 
-(* connection handler)
-(* update loop)
-(* simple oauth - "Github")
+__Codename: Spicy Phoenix__
 
-(* fix ".join" + invalid socket connection)
-(* include a hook for missing browser support)
-(* create "pg-catch" for custom testing)
+* structure order by peer position
+* add shared object "pg.sync"
+* simple demo for testing
+
+
+## 0.3.7 / 2013-05-28
+
+* option for serverless hook
+* update channel & game with events
+
+
+## 0.3.4 / 2013-05-24
+
+* include render loop
+* imrpove connection handler
+* fix ".join" + invalid socket connection
 
 
 ## 0.3.1 / 2013-05-18
