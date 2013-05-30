@@ -109,7 +109,9 @@ function checkPause ( e ) {
 
   doc.title = ( doc.hidden ? '[PAUSE] - ' : '' ) + title;
 
-  // ROOM.emit( 'pause', INSTANCE ); // TODO: send 'pause' to others as well
+  //TODO: 0.6.0 -> pause/resume
+
+  // ROOM.emit( 'pause', INSTANCE ); // send 'pause' to others as well
 }
 
 

@@ -15,6 +15,10 @@ for ( var i = 0, l = features.length; i < l; i++ ) {
 
 if ( !win.RTCPeerConnection ) return alert('Your browser doesn\'t support PeerConnections yet.');
 
+/** last browser change broke API **/
+if ( moz ) return alert('Unfortunately the Firefox support got broken with the last update.\n\
+                         Please use Chrome at the moment and look forward for the next version!');
+
 
 /**
  *  Returns the endianess of the system

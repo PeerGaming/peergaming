@@ -106,16 +106,16 @@ utils.createUID = function createUID() {
  *  @param {String} str   -
  */
 
-utils.getHash = function getHash ( str ) {
+// utils.getHash = function getHash ( str ) {
 
-  var hash = 0,
+//   var hash = 0,
 
-      i    = ( str && str.length ) ? str.length : 0;
+//       i    = ( str && str.length ) ? str.length : 0;
 
-  while ( i-- ) hash = hash * 31 + str.charCodeAt(i);
+//   while ( i-- ) hash = hash * 31 + str.charCodeAt(i);
 
-  return hash;
-};
+//   return hash;
+// };
 
 
 /**
@@ -125,18 +125,18 @@ utils.getHash = function getHash ( str ) {
  *  @param {String} str   -
  */
 
-utils.StringToBuffer = function StringToBuffer ( str ) {
+// utils.StringToBuffer = function StringToBuffer ( str ) {
 
-  var buffer  = new ArrayBuffer( str.length * 2 ),
-      view    = new Uint16Array( buffer );
+//   var buffer  = new ArrayBuffer( str.length * 2 ),
+//       view    = new Uint16Array( buffer );
 
-  for ( var i = 0, l = str.length; i < l; i++ ) {
+//   for ( var i = 0, l = str.length; i < l; i++ ) {
 
-    view[i] = str.charCodeAt(i);
-  }
+//     view[i] = str.charCodeAt(i);
+//   }
 
-  return buffer;
-};
+//   return buffer;
+// };
 
 
 /**
@@ -145,10 +145,10 @@ utils.StringToBuffer = function StringToBuffer ( str ) {
  *  @param {Array} buffer   -
  */
 
-utils.BufferToString = function BufferToString ( buffer ) {
+// utils.BufferToString = function BufferToString ( buffer ) {
 
-  return String.fromCharCode.apply( null, new Uint16Array( buffer ) ) ;
-};
+//   return String.fromCharCode.apply( null, new Uint16Array( buffer ) ) ;
+// };
 
 
 /**
