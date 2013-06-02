@@ -109,7 +109,7 @@ Player.prototype.send = function ( list, msg ) {
 
   for ( var i = 0, l = list.length; i < l; i++ ) {
 
-    CONNECTIONS[ list[i] ].send( 'message', { local: this.name, msg: msg });
+    CONNECTIONS[ list[i] ].send( 'message', { local: this.name, msg: msg }, true );
   }
 };
 

@@ -108,7 +108,7 @@ function sync ( key, value, confirmed ) {
 
   for ( var i = 0, l = ids.length; i < l; i++ ) {
 
-    CONNECTIONS[ ids[i] ].send( 'sync', { key: key, value: value });
+    CONNECTIONS[ ids[i] ].send( 'sync', { key: key, value: value }, true );
   }
 }
 
@@ -127,7 +127,7 @@ function resync ( remoteID, key, value ) {
 
     sync( key, value, true );
 
-    return CONNECTIONS[ remoteID ].send( 'sync', { resync: true, key: key, value: value });
+    return CONNECTIONS[ remoteID ].send( 'sync', { resync: true, key: key, value: value }, true );
   }
 
   // TODO: 0.6.0 -> handle conflict (lower pos)

@@ -51,7 +51,7 @@ inherits( Game, Channel );
 
 Game.prototype.start = function ( initialize ) {
 
-  this._start = function(){ initialize(); forward.call( this ); };
+  this._start = function(){ initialize(); INGAME = true; forward.call( this ); };
 
 
   var ready = Object.keys( READY ).length;
@@ -76,11 +76,11 @@ Game.prototype.start = function ( initialize ) {
 };
 
 
-Game.prototype.end      = function(){};  // TODO: 0.6.0 -> player handling
+Game.prototype.end      = function(){ INGAME = false; };  // TODO: 0.6.0 -> player handling
 
-Game.prototype.pause    = function(){};  // TODO: 0.6.0 -> player handling
+Game.prototype.pause    = function(){};                   // TODO: 0.6.0 -> player handling
 
-Game.prototype.unpause  = function(){};  // TODO: 0.6.0 -> player handling
+Game.prototype.unpause  = function(){};                   // TODO: 0.6.0 -> player handling
 
 
 
@@ -97,7 +97,7 @@ function request() {
 
     if ( curr - 1 === PEERS[ keys[i] ].pos ) {
 
-      return CONNECTIONS[ keys[i] ].send( 'start', { request: true });
+      return CONNECTIONS[ keys[i] ].send( 'start', { request: true }, true );
     }
   }
 }
@@ -151,7 +151,7 @@ function forward ( remoteID ) {
 
     prop = keys[i];
 
-    conn.send( 'sync', { resync: true, key: prop, value: pg.sync[prop] });
+    conn.send( 'sync', { resync: true, key: prop, value: pg.sync[prop] }, true );
   }
 
   if ( STARTER ) STARTER();
