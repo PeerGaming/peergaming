@@ -6,13 +6,12 @@
  */
 
 
-var channelRoutes =        {},  // collection of the channel routes
 
-    gameRoutes    =        {},  // collection of the game routes
+var DEFAULT_ROUTE = 'lobby/',
+    LAST_ROUTE    =     null,  // reference to the last route
 
-    LAST_ROUTE    =      null,  // reference to the last route
-
-    DEFAULT_ROUTE =  'lobby/';
+    channelRoutes =       {},  // collection of the channel routes
+    gameRoutes    =       {};  // collection of the game routes
 
 
 /**
@@ -107,21 +106,23 @@ function matchRoute ( args ) {
 
   if ( !room ) {
 
-    win.location.hash = '!/' + DEFAULT_ROUTE.substr(1);
+    win.location.hash = '!/' + DEFAULT_ROUTE;
 
     return;
   }
 
-  ROOM = room = !args[0].length ? CHANNELS[ room ] || CHANNELS[ '*' ]  :
-                                     GAMES[ room ] ||    GAMES[ '*' ]  ;
+  var type = !args[0].length ? 'CHANNEL' : 'GAME';
 
-    var params = args; // TODO: 0.7.0 -> parse for custom routes
+  ROOM = room = ( type === 'CHANNEL' ) ? CHANNELS[ room ] || CHANNELS[ '*' ]  :
+                                         GAMES[ args[0] ] ||    GAMES[ '*' ]  ;
+
+  var params = args; // TODO: 0.7.0 -> parse for custom routes
 
   if ( LAST_ROUTE === INFO.route ) return;
 
   if ( room ) {
 
-    if ( LAST_ROUTE  ) {
+    if ( LAST_ROUTE  ) {  // change room
 
       var keys = Object.keys( CONNECTIONS );
 
@@ -130,12 +131,12 @@ function matchRoute ( args ) {
       SOCKET.send({ action: 'change', data: LAST_ROUTE });
     }
 
-    LAST_ROUTE = INFO.route;
-
   } else {
 
-    throw new Error('Missing channel/game handler !');
+    console.warn('[MISSING] ', type ,' handler doesn\'t exist!');
   }
+
+  LAST_ROUTE = INFO.route;
 }
 
 

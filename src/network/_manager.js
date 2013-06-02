@@ -83,8 +83,8 @@ MANAGER = (function(){
 
     delete READY[ remoteID ];
 
-    PLAYER.emit( 'disconnect', peer );
-    ROOM  .emit( 'leave'     , peer );
+    PLAYER.emit( 'disconnect',      peer );
+    if ( ROOM ) ROOM.emit( 'leave', peer );
 
 
     CONNECTIONS[ remoteID ].close();
@@ -206,7 +206,7 @@ MANAGER = (function(){
 
     if ( part <= perc ) return;
 
-    ROOM.emit( 'progress', perc = part );
+    if ( ROOM ) ROOM.emit( 'progress', perc = part );
 
     // if ( perc === 99 ) perc = 0; // reset ?
   }
@@ -260,8 +260,9 @@ MANAGER = (function(){
 
       READY[ peer.id ] = true;
 
-      PLAYER.emit( 'connection', peer );
-      ROOM  .emit( 'enter'     , peer );
+      PLAYER.emit( 'connection'     , peer );
+
+      if ( ROOM ) ROOM.emit( 'enter', peer );
     }
   }
 
