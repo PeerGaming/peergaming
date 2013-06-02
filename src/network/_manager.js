@@ -6,9 +6,11 @@
  */
 
 
-var DELAY = 100,  // TODO: 0.5.0 -> Math.max() of latency evaluation
+var DELAY    =  0,  // max. latency evaluation
 
-    READY =  {};  // record of current ready users
+    READY    = {},  // record of current ready users
+
+    TODO     = {};  // available peers to connect
 
 
 MANAGER = (function(){
@@ -29,18 +31,21 @@ MANAGER = (function(){
 
     var localID  = PLAYER.id,
 
-        remoteID;
+        remoteID = remoteList.pop();
+
+    this.connect( remoteID, true, transport );
+
+
+    if ( !remoteList.length ) return;
 
     for ( var i = 0, l = remoteList.length; i < l; i++ ) {
 
       remoteID = remoteList[i];
 
-      if ( remoteID !== localID && !CONNECTIONS[ remoteID ] ) {
+      if ( remoteID === localID || CONNECTIONS[ remoteID ] ) continue;
 
-        this.connect( remoteID, true, transport );
-      }
+      TODO[ remoteID ] = transport;
     }
-
   }
 
 
@@ -54,7 +59,7 @@ MANAGER = (function(){
 
   function connect ( remoteID, initiator, transport ) {
 
-    if ( CONNECTIONS[ remoteID ] ) return;
+    if ( CONNECTIONS[ remoteID ] || remoteID === PLAYER.id ) return;
 
     // console.log( '[connect] to - "' + remoteID + '"' );
 
@@ -144,9 +149,13 @@ MANAGER = (function(){
 
     col[index] = win.performance.now() - col[index];
 
+    if ( !INGAME ) progress( col[0] );
+
     if ( --col[0] > 0 ) return;
 
-    PEERS[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
+    var latency = PEERS[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
+
+    DELAY = Math.max( DELAY, latency );
 
     ready();
 
@@ -172,8 +181,34 @@ MANAGER = (function(){
 
     function test ( i ) {
 
-      setTimeout( function(){ conn.send( 'ping', { index: i }); }, Math.random() * num );
+      setTimeout( function(){ conn.send( 'ping', { index: i }, true ); }, Math.random() * num );
     }
+  }
+
+
+  var perc = 0;
+
+  /**
+   *  Provides feedback about the current progress
+   *
+   *  @param {Number} part   -
+   */
+
+  function progress ( part ) {
+
+    part = 100 - part;  // 0 -> 100
+
+    var curr  = Object.keys( PEERS ).length,
+        diff  = Object.keys( TODO  ).length,
+        max   = diff + curr;
+
+    part = ~~( curr * part / max );
+
+    if ( part <= perc ) return;
+
+    ROOM.emit( 'progress', perc = part );
+
+    // if ( perc === 99 ) perc = 0; // reset ?
   }
 
 
@@ -195,16 +230,29 @@ MANAGER = (function(){
 
       peer = PEERS[ keys[i] ];
 
-      if ( !peer.time ) return;
-
       list[ peer.pos ] = peer;
     }
 
-    // just order if received all ! - not disrupting an existing connection ! // sort them
+
+    var entry = Object.keys( TODO ).pop();
+
+    if ( entry ) {
+
+      var transport = TODO[ entry ];
+
+      delete TODO[ entry ];
+
+      return MANAGER.check( entry, transport );
+    }
+
+    /** sort + emit users in order & prevent multiple trigger **/
     order();
 
-    /** emit users in order & prevent multiple trigger **/
-    for ( i = 0, l = list.length; i < l; i++ ) setTimeout( invoke, DELAY, list[i] );
+    for ( i = 0, l = list.length; i < l; i++ ) {
+
+      setTimeout( invoke, DELAY, list[i] );
+    }
+
 
     function invoke( peer ) {
 
@@ -236,10 +284,7 @@ MANAGER = (function(){
 
         user;
 
-    if ( list.length !== keys.length + 1 ) {
-
-      return console.log('[ERROR] Precision time conflict.', times, list, keys );
-    }
+    if ( list.length !== keys.length + 1 ) throw new Error('[ERROR] Precision time conflict.');
 
     DATA.length = 0;
 

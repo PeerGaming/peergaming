@@ -21,9 +21,10 @@ var win     = window,
 var ROOM        = '',        // current room
     QUEUE       = [],        // list to store async function calls
     CONNECTIONS = {},        // datachannel for each peer
-    MEDIAS      = {};        // mediastreams for each peer
-    SOCKET      = null,      // Client-Server Transport
-    MANAGER     = null;      //
+    MEDIAS      = {},        // mediastreams for each peer
+    SOCKET      = null,      // client-server transport
+    MANAGER     = null,      // delegation methods
+    INGAME      = false;     // information about the current state
 
 
 /** references **/
