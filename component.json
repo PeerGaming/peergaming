@@ -1,7 +1,7 @@
 {
   "name"        : "PeerGaming",
   "description" : "A Client-Side Multiplayer Gaming Framework for the Web",
-  "version"     : "0.4.0",
+  "version"     : "0.4.3",
   "main"        : "dist/peergaming.js",
   "ignore"      : [
     "bin",

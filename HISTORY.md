@@ -1,3 +1,17 @@
+## 0.4.3 / 2013-06-02
+
+* Bug Fix: restrict messages to direct connection (see _update_, _sync_)
+* Bug Fix: avoid limitations through chaining the connection creations
+* add "progress" event for rooms
+
+
+## 0.4.1 / 2013-06-01
+
+* refactor code:
+  - internal references
+  - remove queue
+
+
 ## 0.4.0 / 2013-05-30
 
 __Codename: Spicy Phoenix__

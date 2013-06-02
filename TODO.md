@@ -1,17 +1,18 @@
 ## 0.5.0 / 2013-06-XX
 
-__Codename: Sweet Dragon__
+[Bug Fixes and Stability]
 
 * fix cross-browser interoperability (Firefox)
-* create MediaStream with "player.media()"
-* add & handle additional options for the rooms
 * offer a hook for missing browser support
 
 
 ## 0.6.0 / 2013-XX-XX
 
+__Codename: Sweet Dragon__
+
 [Secure and Easy]
 
+* add & handle additional options for the rooms
 * allow synchronized pause & resume (voting system)
 * an interface for accessing data (server + pg.info)
 * define custom handler for datachannel transmissions (RPC)
@@ -23,6 +24,7 @@ __Codename: Sweet Dragon__
 
 [Competition and external Services]
 
+* create MediaStream with "player.media()"
 * match making call for channels (coordinated join with others)
 * allow custom route definition by parsing the URL
 * hook for external services like leaderboards
@@ -40,12 +42,3 @@ __Codename: Sweet Dragon__
 ## 0.9.0 / 2013-XX-XX
 
 * using a DHT option for logging history of channels/chats
-
-
-____
-
-## General
-
-* replace the Queue with a simple list
-* be consistent in the modules - adjust socket and manager
-
