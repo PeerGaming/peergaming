@@ -140,6 +140,8 @@ Connection.prototype.findICECandidates = function(){
 
 Connection.prototype.setIceCandidates = function ( data ) {
 
+  if ( this.closed ) throw new Error('Can\'t set ICE candidates!');
+
   var conn = this.conn;
 
   if ( conn.remoteDescription || conn.localDescription ) {
@@ -149,9 +151,6 @@ Connection.prototype.setIceCandidates = function ( data ) {
     if ( !Array.isArray(data) ) data = [ data ];
 
     for ( var i = 0, l = data.length; i < l; i++ ) {
-
-      // TODO: 0.5.0 -> Bug fixes
-      // (DOM 12 exception error -> out of order)
 
       conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
     }
@@ -205,8 +204,7 @@ Connection.prototype.setConfigurations = function ( msg ) {
       desc = new RTCSessionDescription( msg );
 
 
-  // TODO: 0.5.0 -> Bug fixes
-  if ( this.closed ) return alert('[ERROR] - Connection got interuppted. Please reload !');
+  if ( this.closed ) throw new Error('Underlying PeerConnection got closed too early!');
 
 
   conn.setRemoteDescription( desc, function(){
@@ -388,9 +386,6 @@ function useChannels ( channel, data, proxy ) {
   if ( !channel ) channel = Object.keys( channels );
 
   if ( !Array.isArray( channel ) ) channel = [ channel ];
-
-  // TODO: 0.5.0 -> Bug fixes
-  // if ( channel === 'register' || channel === 'start' ) console.log( channel, msg, proxy );
 
   for ( var i = 0, l = channel.length; i < l; i++ ) {
 

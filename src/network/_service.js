@@ -70,8 +70,8 @@ var defaultHandlers = {
 
       var proxy = { action: msg.action, local: msg.local, remote: msg.remote };
 
-      // TODO: 0.5.0 -> Bug fixes
-      if ( !CONNECTIONS[ msg.remote ] ) return console.log('[ERORR] - Service - Missing', msg.remote );
+      //console.log('[ERORR] - Service: Missing Connection | ', msg.remote );
+      if ( !CONNECTIONS[ msg.remote ] ) return;
 
       return CONNECTIONS[ msg.remote ].send( 'register', msg.data, proxy );
     }
