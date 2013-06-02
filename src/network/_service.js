@@ -1,8 +1,8 @@
 /**
- *  Default
+ *  Service
  *  =======
  *
- *  Default Handler for common tasks - e.g. establish a mesh network.
+ *  Define default Handler for common tasks - e.g. establish a mesh network.
  */
 
 
@@ -26,9 +26,9 @@ var defaultHandlers = {
       // share initial state
       this.send( 'init', {
 
-        account : INSTANCE.account,
-        time    : INSTANCE.time,
-        data    : INSTANCE.data,                // TODO: 0.6.0 -> define values for secure access
+        account : PLAYER.account,
+        time    : PLAYER.time,
+        data    : PLAYER.data,                // TODO: 0.6.0 -> define values for secure access
         list    : Object.keys( CONNECTIONS )
       });
     },
@@ -37,16 +37,16 @@ var defaultHandlers = {
 
       msg = JSON.parse( msg );
 
-      var peer = pg.peers[ this.info.remote ],
+      var peer = PEERS[ this.info.remote ],
           data = msg.data;
 
-      utils.extend( peer.data, data.data );
+      extend( peer.data, data.data );
 
       peer.time    = data.time;
       peer.account = data.account;
 
-      Manager.check( data.list, this  );
-      Manager.setup( this.info.remote );
+      MANAGER.check( data.list, this  );
+      MANAGER.setup( this.info.remote );
     },
 
     close: function ( msg ) {  /* console.log('[DatChannel closed]'); */ }
@@ -63,7 +63,7 @@ var defaultHandlers = {
 
     msg = JSON.parse( msg );
 
-    if ( msg.remote !== INSTANCE.id ) {  // proxy -> info.transport
+    if ( msg.remote !== PLAYER.id ) {  // proxy -> info.transport
 
       // console.log( '[proxy] ' + msg.local + ' -> ' + msg.remote );
 
@@ -77,7 +77,7 @@ var defaultHandlers = {
 
     if ( msg.action === 'update' ) return console.log('[ERROR] - Update', msg );
 
-    Manager.set( msg, this );
+    MANAGER.set( msg, this );
   },
 
 
@@ -95,7 +95,7 @@ var defaultHandlers = {
 
     if ( !data.pong ) return this.send( 'ping', { pong: true, index: data.index });
 
-    Manager.setup( msg.local, data.index, data.pong );
+    MANAGER.setup( msg.local, data.index, data.pong );
   },
 
 
@@ -136,7 +136,7 @@ var defaultHandlers = {
 
     msg = JSON.parse( msg );
 
-    pg.peers[ msg.local ].data[ msg.data.key ] = msg.data.value;
+    PEERS[ msg.local ].data[ msg.data.key ] = msg.data.value;
 
     // TODO: 0.6.0 -> define values for secure access
 
@@ -170,7 +170,7 @@ var defaultHandlers = {
 
   message: function ( msg ) {
 
-    INSTANCE.emit( 'message', msg );
+    PLAYER.emit( 'message', msg );
   },
 
 

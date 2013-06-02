@@ -1,5 +1,5 @@
 /**
- *	peergaming.js - v0.4.0 | 2013-05-30
+ *	peergaming.js - v0.4.1 | 2013-06-02
  *	http://peergaming.net
  *	Copyright (c) 2013, Stefan Dühring
  *	MIT License
@@ -33,33 +33,31 @@
 /** global **/
 
 var win     = window,
-
     doc     = document,
-
     moz     = !!win.navigator.mozGetUserMedia,
-
     chrome  = !!win.chrome,
-
     SESSION = win.sessionStorage,
-
-    LOCAL   = win.localStorage,
-
-    rand    = Math.random;
+    LOCAL   = win.localStorage;
 
 
 /** internal  **/
 
-var INSTANCE    = null,   // pg.player
+var ROOM        = '',        // current room
+    QUEUE       = [],        // list to store async function calls
+    CONNECTIONS = {},        // datachannel for each peer
+    MEDIAS      = {};        // mediastreams for each peer
+    SOCKET      = null,      // Client-Server Transport
+    MANAGER     = null;      //
 
-    PEERS       = null,   // pg.peers
 
-    INFO        = null,   // pg.info
+/** references **/
 
-    ROOM        = null,   // current room
-
-    CONNECTIONS =   {},   // datachannel for each peer
-
-    MEDIAS      =   {};   // mediastreams for each peer
+var VERSION     = null,      // pg.VERSION
+    INFO        =   {},      // pg.info
+    PLAYER      = null,      // pg.player
+    PEERS       =   {},      // pg.peers
+    DATA        =   [],      // pg.data
+    SYNC        = null;      // pg.sync
 
 /**
  *  Adapter
@@ -279,7 +277,7 @@ var littleEndian = (function(){
 
 function debug ( text ) {
 
-  if ( !INSTANCE || !LOCAL.log ) LOCAL.log = 0;
+  if ( !PLAYER || !LOCAL.log ) LOCAL.log = 0;
 
   if ( text[text.length - 1] === '\n' ) {
 
@@ -358,13 +356,13 @@ var reservedReference = context.pg,
  *  @type {Object}
  */
 
-pg.VERSION = {
+VERSION = {
 
   codeName    : 'spicy-phoenix',
-  full        : '0.4.0',
+  full        : '0.4.1',
   major       : 0,
   minor       : 4,
-  dot         : 0
+  dot         : 1
 };
 
 
@@ -374,12 +372,12 @@ pg.VERSION = {
  *  @return {Object}
  */
 
-pg.noConflict = function(){
+function noConflict(){
 
   context.pg = reservedReference;
 
   return this;
-};
+}
 
 /**
  *  Config
@@ -395,7 +393,7 @@ pg.noConflict = function(){
  *  @type {Function} pg.config
  */
 
-pg.config = setConfig;
+
 
 
 /**
@@ -525,7 +523,7 @@ var config = {
 
 function setConfig ( customConfig ) {
 
-  utils.extend( config, customConfig );
+  extend( config, customConfig );
 
   return config;
 }
@@ -549,11 +547,8 @@ setConfig.noServer = function ( hook ) {
  *  Misc
  *  ====
  *
- *  Collection of utilities / helpers.
+ *  A collection of common utilities / misc.
  */
-
-
-var utils = {};   // Module
 
 
 /**
@@ -562,10 +557,10 @@ var utils = {};   // Module
  *  @param {String|Number|Object} obj   -
  */
 
-utils.check = function ( obj ) {
+function type ( obj ) {
 
   return Object.prototype.toString.call( obj ).slice( 8, -1 );
-};
+}
 
 
 /**
@@ -574,7 +569,7 @@ utils.check = function ( obj ) {
  *  @param {Object} target   -
  */
 
-utils.extend = function extend ( target ) {
+function extend ( target ) {
 
   var source, key;
 
@@ -586,7 +581,7 @@ utils.extend = function extend ( target ) {
   }
 
   return target;
-};
+}
 
 
 /**
@@ -597,7 +592,7 @@ utils.extend = function extend ( target ) {
  *  @param {Object} parent   -
  */
 
-utils.inherits = function inherits ( child, parent ) {
+function inherits ( child, parent ) {
 
   child.prototype = Object.create( parent.prototype, {
 
@@ -609,41 +604,70 @@ utils.inherits = function inherits ( child, parent ) {
       configurable  : true
     }
   });
-};
+}
 
 
 /**
- *  Creates a simple token
+ *  Retrieve a simple token
  */
 
-utils.getToken = function getToken() {
+function getToken() {
 
-  return rand().toString(36).substr( 2, 10 );
-};
+  return Math.random().toString(36).substr( 2, 10 );
+}
+
+/**
+ *  Misc
+ *  ====
+ *
+ *  More specific helpers.
+ */
 
 
 /**
- *  Creates a secure random user ID
- *  (see: @broofa - http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#2117523 )
+ *  Converts parameter into a querystring
+ *
+ *  @param {Object} params   -
  */
 
-utils.createUID = function createUID() {
+function createQuery ( params ) {
 
-  var pool = new Uint8Array( 1 ),
+  if ( typeof params != 'object' ) return;
 
-    random, value,
+  var keys = Object.keys( params ),
+      query = [];
 
-    id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function ( c ) {
+  for ( var i = 0, l = keys.length; i < l; i++ ) {
 
-      random = crypto.getRandomValues( pool )[0] % 16;
+    query[i] = params[keys] + '/';
+  }
 
-      value = ( c === 'x' ) ? random : (random&0x3|0x8);
+  return query.join('');
+}
 
-      return value.toString(16);
-    });
 
-  return id;
-};
+/**
+ *  Executes functions on a queue with the provided arguments
+ *
+ *  @param  {Array} queue       -
+ *  @param  {}      arguments
+ */
+
+function executeQueue ( list ) {
+
+  var args = [], fn;
+
+  args.push.apply( args, arguments );
+
+  args.shift(); // queue
+
+  while ( list.length ) {
+
+    fn = list.shift();
+
+    if ( typeof fn === 'function' ) fn.apply( fn, args );
+  }
+}
 
 
 /**
@@ -696,28 +720,6 @@ utils.createUID = function createUID() {
 
 //   return String.fromCharCode.apply( null, new Uint16Array( buffer ) ) ;
 // };
-
-
-/**
- *  Converts parameter into a querystring
- *
- *  @param {Object} params   -
- */
-
-utils.createQuery = function ( params ) {
-
-  if ( typeof params != 'object' ) return;
-
-  var keys = Object.keys( params ),
-      query = [];
-
-  for ( var i = 0, l = keys.length; i < l; i++ ) {
-
-    query[i] = params[keys] + '/';
-  }
-
-  return query.join('');
-};
 
 
 /**
@@ -850,7 +852,7 @@ function defineProperty ( id, current, prop ) {
 
           } else {
 
-            value = utils.extend( getReactor( function ( inner, value ) {
+            value = extend( getReactor( function ( inner, value ) {
 
               var result = reactList[id].reference[ prop ];
 
@@ -908,66 +910,6 @@ function defineProperty ( id, current, prop ) {
     set         : setter
   });
 }
-
-/**
- *  Queue
- *  =====
- *
- *  Storing commands on a list for future execution.
- */
-
-
-/**
- *  Constructor to define the container and initial state
- */
-
-var Queue = function(){
-
-  this.ready  = false;
-
-  this.list   = [];
-};
-
-
-/**
- *  Add functions to the list
- *
- *  @param  {Function} fn   - function to be on the queue
- */
-
-Queue.prototype.add = function ( fn ) {
-
-  if ( typeof fn === 'function' ) {
-
-    this.list.push( fn );
-  }
-};
-
-
-/**
- *  Execute stored functions
- */
-
-Queue.prototype.exec = function() {
-
-  this.ready = true;
-
-  var args = Array.prototype.slice.call( arguments ),
-
-      list = this.list;
-
-  while ( list.length ) list.pop().apply( null, args );
-};
-
-
-/**
- *  Empty the list of the queue
- */
-
-Queue.prototype.clear = function(){
-
-  this.list.length = 0;
-};
 
 /**
  *  Emitter
@@ -1155,7 +1097,7 @@ var Stream = function ( options ) {
  *  Stream <- Emitter
  */
 
-utils.inherits( Stream, Emitter );
+inherits( Stream, Emitter );
 
 
 /**
@@ -1309,7 +1251,7 @@ Handler.prototype.send = function ( msg ) {
 
   var data    = JSON.stringify( msg ),
 
-      buffer  = data; //utils.StringToBuffer( data );
+      buffer  = data; //stringToBuffer( data );
 
 
   if ( buffer.length > config.channelConfig.MAX_BYTES ) {
@@ -1365,10 +1307,10 @@ function createChunks ( buffer ) {
 }
 
 /**
- *  Default
+ *  Service
  *  =======
  *
- *  Default Handler for common tasks - e.g. establish a mesh network.
+ *  Define default Handler for common tasks - e.g. establish a mesh network.
  */
 
 
@@ -1392,9 +1334,9 @@ var defaultHandlers = {
       // share initial state
       this.send( 'init', {
 
-        account : INSTANCE.account,
-        time    : INSTANCE.time,
-        data    : INSTANCE.data,                // TODO: 0.6.0 -> define values for secure access
+        account : PLAYER.account,
+        time    : PLAYER.time,
+        data    : PLAYER.data,                // TODO: 0.6.0 -> define values for secure access
         list    : Object.keys( CONNECTIONS )
       });
     },
@@ -1403,16 +1345,16 @@ var defaultHandlers = {
 
       msg = JSON.parse( msg );
 
-      var peer = pg.peers[ this.info.remote ],
+      var peer = PEERS[ this.info.remote ],
           data = msg.data;
 
-      utils.extend( peer.data, data.data );
+      extend( peer.data, data.data );
 
       peer.time    = data.time;
       peer.account = data.account;
 
-      Manager.check( data.list, this  );
-      Manager.setup( this.info.remote );
+      MANAGER.check( data.list, this  );
+      MANAGER.setup( this.info.remote );
     },
 
     close: function ( msg ) {  /* console.log('[DatChannel closed]'); */ }
@@ -1429,7 +1371,7 @@ var defaultHandlers = {
 
     msg = JSON.parse( msg );
 
-    if ( msg.remote !== INSTANCE.id ) {  // proxy -> info.transport
+    if ( msg.remote !== PLAYER.id ) {  // proxy -> info.transport
 
       // console.log( '[proxy] ' + msg.local + ' -> ' + msg.remote );
 
@@ -1443,7 +1385,7 @@ var defaultHandlers = {
 
     if ( msg.action === 'update' ) return console.log('[ERROR] - Update', msg );
 
-    Manager.set( msg, this );
+    MANAGER.set( msg, this );
   },
 
 
@@ -1461,7 +1403,7 @@ var defaultHandlers = {
 
     if ( !data.pong ) return this.send( 'ping', { pong: true, index: data.index });
 
-    Manager.setup( msg.local, data.index, data.pong );
+    MANAGER.setup( msg.local, data.index, data.pong );
   },
 
 
@@ -1502,7 +1444,7 @@ var defaultHandlers = {
 
     msg = JSON.parse( msg );
 
-    pg.peers[ msg.local ].data[ msg.data.key ] = msg.data.value;
+    PEERS[ msg.local ].data[ msg.data.key ] = msg.data.value;
 
     // TODO: 0.6.0 -> define values for secure access
 
@@ -1536,7 +1478,7 @@ var defaultHandlers = {
 
   message: function ( msg ) {
 
-    INSTANCE.emit( 'message', msg );
+    PLAYER.emit( 'message', msg );
   },
 
 
@@ -1565,14 +1507,11 @@ var defaultHandlers = {
  */
 
 
-var socketQueue = new Queue();
+SOCKET = (function(){
 
-var socket = (function(){
-
-  // initial
+  /** remove for SSE **/
   logout();
 
-  // close for SSE
   win.addEventListener( 'unload'        , logout );
   win.addEventListener( 'beforeunload'  , logout );
 
@@ -1612,66 +1551,42 @@ var socket = (function(){
 
   function logout() {
 
-    if ( checkProtocol('ws') || SERVERLESS ) {
-
-      socketQueue.ready = true;
-      return;
-    }
-
+    if ( checkProtocol('ws') || SERVERLESS ) return;
 
     if ( SESSION.id ) {
 
       // XHR
-      var msg = { action: 'remove', data: SESSION.id };
-
-      send( msg, function(){
+      send({ action: 'remove', data: SESSION.id }, function(){
 
         // beforeunload callback
-        if ( !socketQueue.ready ) {
+        if ( QUEUE.length ) {
 
           delete SESSION.id;
 
-          socketQueue.exec();
+          executeQueue( QUEUE );
         }
       });
 
     } else {
 
-      socketQueue.exec();
+      executeQueue( QUEUE );
     }
-  }
-
-
-  /**
-   *  Set the session based ID and defines callbacks for server connection
-   *
-   *  @param {String}   id       -
-   *  @param {String}   origin   -
-   *  @param {Function} next     -
-   */
-
-  function init ( id, origin, next ) {
-
-    SESSION.id = id;
-
-    connectToServer( id, origin, function(){
-
-      send({ action: 'lookup' }, function ( remoteID ) {  next( remoteID ); });
-    });
   }
 
 
   var socket = null;
 
   /**
-   *  Establish a WebSocket or EventSource connection
+   *  Sets a session based ID and establish a server connection via WebSocket or EventSource
    *
    *  @param {String}   id       -
    *  @param {String}   origin   -
    *  @param {Function} next     -
    */
 
-  function connectToServer ( id, origin, next ) {
+  function connectToServer ( id, origin ) {
+
+    SESSION.id = id;
 
     var Socket = checkProtocol('http') ? EventSource : WebSocket;
 
@@ -1679,12 +1594,12 @@ var socket = (function(){
 
     socket.addEventListener( 'error' , handleError );
 
-    socket.addEventListener( 'open'  , function(){
+    socket.addEventListener( 'open' , function(){
 
       socket.addEventListener( 'message', handleMessage );
       socket.addEventListener( 'close'  , handleClose   );
 
-      next();
+      send({ action: 'lookup' }, function ( remoteID ) { MANAGER.check( remoteID ); });
     });
 
   }
@@ -1702,11 +1617,12 @@ var socket = (function(){
 
     if ( !msg || !msg.local ) { // partnerIDs
 
-      return ( socketQueue.list.length ) ? socketQueue.exec( msg ) : Manager.check( msg );
+      return ( !QUEUE.length ) ? MANAGER.check( msg ) : executeQueue( QUEUE, msg );
     }
 
-    Manager.set( msg );
+    MANAGER.set( msg );
   }
+
 
   /**
    *  Handle error messages/states
@@ -1749,7 +1665,7 @@ var socket = (function(){
 
   function send ( msg, next )  {
 
-    utils.extend( msg, { local: INSTANCE.id, origin: INFO.route });
+    extend( msg, { local: PLAYER.id, origin: INFO.route });
 
     msg = JSON.stringify( msg );
 
@@ -1759,7 +1675,7 @@ var socket = (function(){
 
     } else {  // WS
 
-      if ( next ) socketQueue.add( next );
+      if ( next ) QUEUE.push( next );
 
       if ( SERVERLESS ) return SERVERLESS( msg );
 
@@ -1780,9 +1696,10 @@ var socket = (function(){
   }
 
 
+
   return {
 
-    init    : init,
+    init    : connectToServer,
     send    : send,
     handle  : handleMessage
   };
@@ -1870,7 +1787,7 @@ Connection.prototype.checkStateChanges = function(){
 
       } else { // cleanup closed connection
 
-        Manager.disconnect( this.info.remote );
+        MANAGER.disconnect( this.info.remote );
       }
 
     }
@@ -2069,14 +1986,14 @@ Connection.prototype.send = function ( action, data ) {
 
     if ( this.info.transport ) {
 
-      var proxy = { action: action, local: INSTANCE.id, remote: remote };
+      var proxy = { action: action, local: PLAYER.id, remote: remote };
 
       return this.info.transport.send( 'register', data, proxy );
     }
 
     if ( action === 'update' ) return console.log('[ERROR] - Update', data );
 
-    socket.send({ action: action, data: data, remote: remote });
+    SOCKET.send({ action: action, data: data, remote: remote });
   }
 };
 
@@ -2120,7 +2037,7 @@ function adjustSDP ( sdp ) {
 
     var crypto = [], length = 4;
 
-    while ( length-- ) crypto.push( utils.getToken() );
+    while ( length-- ) crypto.push( getToken() );
 
     sdp += 'a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:' + crypto.join('') + '\r\n';
   }
@@ -2167,9 +2084,9 @@ function createDefaultChannels ( connection )  {
 
 function useChannels ( channel, data, proxy ) {
 
-  var msg = { action: channel, local: INSTANCE.id, data: data, remote: this.info.remote };
+  var msg = { action: channel, local: PLAYER.id, data: data, remote: this.info.remote };
 
-  utils.extend( msg, proxy );
+  extend( msg, proxy );
 
   var ready    = this.ready,
       channels = this.channels;
@@ -2200,10 +2117,7 @@ var DELAY = 100,  // TODO: 0.5.0 -> Math.max() of latency evaluation
     READY =  {};  // record of current ready users
 
 
-
-/** Module Pattern **/
-
-var Manager = (function(){
+MANAGER = (function(){
 
 
   /**
@@ -2219,7 +2133,7 @@ var Manager = (function(){
 
     if ( !Array.isArray(remoteList) ) remoteList = [ remoteList ];
 
-    var localID  = INSTANCE.id,
+    var localID  = PLAYER.id,
 
         remoteID;
 
@@ -2229,9 +2143,10 @@ var Manager = (function(){
 
       if ( remoteID !== localID && !CONNECTIONS[ remoteID ] ) {
 
-        connect( remoteID, true, transport );
+        this.connect( remoteID, true, transport );
       }
     }
+
   }
 
 
@@ -2249,9 +2164,9 @@ var Manager = (function(){
 
     // console.log( '[connect] to - "' + remoteID + '"' );
 
-    pg.peers[ remoteID ]    = new Peer({ id: remoteID });
+    PEERS[ remoteID ]    = new Peer({ id: remoteID });
 
-    CONNECTIONS[ remoteID ] = new Connection( INSTANCE.id, remoteID, initiator, transport );
+    CONNECTIONS[ remoteID ] = new Connection( PLAYER.id, remoteID, initiator, transport );
   }
 
 
@@ -2263,20 +2178,20 @@ var Manager = (function(){
 
   function disconnect ( remoteID ) {
 
-    var peer = pg.peers[ remoteID ];
+    var peer = PEERS[ remoteID ];
 
 
     delete READY[ remoteID ];
 
-    INSTANCE.emit( 'disconnect', peer );
-    ROOM    .emit( 'leave'     , peer );
+    PLAYER.emit( 'disconnect', peer );
+    ROOM  .emit( 'leave'     , peer );
 
 
     CONNECTIONS[ remoteID ].close();
 
-    pg.data.splice( peer.pos, 1 );
+    DATA.splice( peer.pos, 1 );
 
-    delete pg.peers[ remoteID ];
+    delete PEERS[ remoteID ];
     delete CONNECTIONS[ remoteID ];
 
     order();
@@ -2292,7 +2207,7 @@ var Manager = (function(){
 
   function set ( msg, transport ) {
 
-    if ( !CONNECTIONS[ msg.local] ) connect( msg.local, false, transport );
+    if ( !CONNECTIONS[ msg.local] ) this.connect( msg.local, false, transport );
 
     CONNECTIONS[ msg.local ][ msg.action ]( msg.data );
   }
@@ -2316,7 +2231,7 @@ var Manager = (function(){
   }
 
 
-  var timer   = {};
+  var timer = {};
 
   /**
    *  Setup and tests the connection - benchmark the latency via ping/pong
@@ -2336,7 +2251,7 @@ var Manager = (function(){
 
     if ( --col[0] > 0 ) return;
 
-    pg.peers[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
+    PEERS[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
 
     order();
 
@@ -2362,9 +2277,9 @@ var Manager = (function(){
 
     for ( var i = 1; i <= num; i++ ) { col[i] = win.performance.now(); test( i ); }
 
-    function test( i ) {
+    function test ( i ) {
 
-      setTimeout( function(){ conn.send( 'ping', { index: i }); }, rand() * num );
+      setTimeout( function(){ conn.send( 'ping', { index: i }); }, Math.random() * num );
     }
   }
 
@@ -2373,15 +2288,15 @@ var Manager = (function(){
    *  Defines the peer order - ranked by the appearance / inital load
    */
 
-  function order(){
+  function order (){
 
-    var keys = Object.keys( pg.peers ),
+    var keys = Object.keys( PEERS ),
 
         times = {};
 
-    times[ INSTANCE.time ] = INSTANCE.id;
+    times[ PLAYER.time ] = PLAYER.id;
 
-    for ( var i = 0, l = keys.length; i < l; i++ ) times[ pg.peers[ keys[i] ].time ] = keys[i];
+    for ( var i = 0, l = keys.length; i < l; i++ ) times[ PEERS[ keys[i] ].time ] = keys[i];
 
     var list = Object.keys( times ).sort( rank ).map( function ( key ) { return times[key]; }),
 
@@ -2392,13 +2307,13 @@ var Manager = (function(){
       return console.log('[ERROR] Precision time conflict.', list, keys );
     }
 
-    pg.data.length = 0;
+    DATA.length = 0;
 
     for ( i = 0, l = list.length; i < l; i++ ) {
 
-      user     = pg.peers[ list[i] ] || INSTANCE;
+      user     = PEERS[ list[i] ] || PLAYER;
 
-      user.pos = pg.data.push( user.data ) - 1;
+      user.pos = DATA.push( user.data ) - 1;
     }
 
     function rank ( curr, next ) { return curr - next; }
@@ -2409,19 +2324,19 @@ var Manager = (function(){
    *  Determines if all peers are connected and then emits the connections
    */
 
-  function ready(){
+  function ready (){
 
-    var keys  = Object.keys( pg.peers ),
+    var keys  = Object.keys( PEERS ),
 
         list  = [],
 
         peer;
 
-    list[ INSTANCE.pos ] = INSTANCE;
+    list[ PLAYER.pos ] = PLAYER;
 
     for ( var i = 0, l = keys.length; i < l; i++ ) {
 
-      peer = pg.peers[ keys[i] ];
+      peer = PEERS[ keys[i] ];
 
       if ( !peer.time ) return;
 
@@ -2438,10 +2353,11 @@ var Manager = (function(){
 
       READY[ peer.id ] = true;
 
-      INSTANCE.emit( 'connection', peer );
-      ROOM    .emit( 'enter'     , peer );
+      PLAYER.emit( 'connection', peer );
+      ROOM  .emit( 'enter'     , peer );
     }
   }
+
 
 
   return {
@@ -2457,6 +2373,8 @@ var Manager = (function(){
 })();
 
 
+
+
 /**
  *  Info
  *  ====
@@ -2465,16 +2383,11 @@ var Manager = (function(){
  */
 
 
-/**
- *  Public interface to access general information
- *
- *  @type {Object}
- */
-
-pg.info = INFO = {
+extend( INFO, {
 
   route: null
-};
+
+});
 
 // TODO: 0.6.0 -> data & info
 
@@ -2491,7 +2404,7 @@ var AUTH = {
   'GITHUB'    : requestGithub,
   'PERSONA'   : requestPersona
   // 'TWITTER',
-  // 'GOOGLE'
+  // 'GOOGLE'     // https://github.com/googleplus/gplus-quickstart-javascript
   // 'FACEBOOK',
 };
 
@@ -2572,7 +2485,7 @@ function requestPersona ( id, callback ) {
  *  @param  {Function} hook      -
  */
 
-pg.login = function ( name, service, hook ) {
+function login ( name, service, hook ) {
 
   if ( typeof service === 'function' ) { hook = service; service = null; }
 
@@ -2581,7 +2494,7 @@ pg.login = function ( name, service, hook ) {
   var account = { name: name };
 
   createPlayer( account, hook );
-};
+}
 
 
 /**
@@ -2618,11 +2531,11 @@ function createPlayer ( account, hook ) {
 
   var origin = win.location.hash.substr(3) || DEFAULT_ROUTE.substr(1);
 
-  pg.player = INSTANCE = new Player( account, origin );
+  pg.player  = PLAYER = new Player( account, origin );
 
-  if ( hook ) hook( INSTANCE );
+  if ( hook ) hook( PLAYER );
 
-  INSTANCE.join( origin );
+  PLAYER.join( origin );
 }
 
 /**
@@ -2650,7 +2563,7 @@ var channelRoutes =        {},  // collection of the channel routes
  *  @return {Array}
  */
 
-pg.routes = function ( customRoutes, defaultRoute ) {
+function setRoutes ( customRoutes, defaultRoute ) {
 
   if ( !defaultRoute && typeof customRoutes === 'string' ) {
 
@@ -2662,7 +2575,7 @@ pg.routes = function ( customRoutes, defaultRoute ) {
   if ( defaultRoute ) DEFAULT_ROUTE = defaultRoute;
 
   return [ channelRoutes, gameRoutes, DEFAULT_ROUTE ];
-};
+}
 
 
 var CHANNEL_PATTERN = /\/(.*?)\//g,
@@ -2734,9 +2647,9 @@ function matchRoute ( args ) {
 
       var keys = Object.keys( CONNECTIONS );
 
-      for ( var i = 0, l = keys.length; i < l; i++ ) Manager.disconnect( keys[i] );
+      for ( var i = 0, l = keys.length; i < l; i++ ) MANAGER.disconnect( keys[i] );
 
-      socket.send({ action: 'change', data: LAST_ROUTE });
+      SOCKET.send({ action: 'change', data: LAST_ROUTE });
     }
 
     LAST_ROUTE = INFO.route;
@@ -2771,72 +2684,6 @@ function leaveSite ( e ) {
 win.addEventListener( 'hashchange', checkRoute ); // join
 win.addEventListener( 'popstate',   leaveSite  ); // history navigation
 
-/**
- *  Channel
- *  =======
- *
- *  An intermediate room for conversations.
- */
-
-
-/**
- *  Public interface for setting up a channel
- */
-
-pg.channel = createRoom( Channel );
-
-
-var CHANNELS = {};  // record of channels
-
-
-/**
- *  Constructor to call init
- *
- *  @param {String} id   -
- */
-
-function Channel ( id ) {
-
-  this.init( id );
-
-  this.match = function ( type ) {
-
-    // TODO: 0.7.0 -> matchmaking
-  };
-}
-
-
-/**
- *  Channel <- Emitter
- */
-
-utils.inherits( Channel, Emitter );
-
-
-/**
- *  Assign id and invokes Emitter
- *
- *  @param {String} id   -
- */
-
-Channel.prototype.init = function ( id ) {
-
-  this.id = id;
-
-  Emitter.call( this );
-};
-
-
-/**
- *  Allows to setup custom options for this channel/game
- *
- *  @param {Object} customConfig   -
- */
-
-Channel.prototype.config = function ( customConfig ) {
-
-  utils.extend( this.options, customConfig );
-};
 
 
 /**
@@ -2865,6 +2712,76 @@ function createRoom ( type ) {
 }
 
 /**
+ *  Channel
+ *  =======
+ *
+ *  An intermediate room for conversations.
+ */
+
+
+var CHANNELS = {};  // record of channels
+
+
+/**
+ *  Creates a Channel
+ *
+ *  @return {Object}
+ */
+
+var setChannel = createRoom( Channel );
+
+
+/**
+ *  Constructor to call init
+ *
+ *  @param {String} id   -
+ */
+
+function Channel ( id ) {
+
+  this.init( id );
+
+  this.match = function ( type ) {
+
+    // TODO: 0.7.0 -> matchmaking
+  };
+}
+
+
+/**
+ *  Channel <- Emitter
+ */
+
+inherits( Channel, Emitter );
+
+
+/**
+ *  Assign id and invokes Emitter
+ *
+ *  @param {String} id   -
+ */
+
+Channel.prototype.init = function ( id ) {
+
+  this.id = id;
+
+  Emitter.call( this );
+};
+
+
+/**
+ *  Allows to setup custom options for this channel/game
+ *
+ *  @param {Object} customConfig   -
+ */
+
+Channel.prototype.config = function ( customConfig ) {
+
+  extend( this.options, customConfig );
+};
+
+
+/**
  *  Game
  *  ====
  *
@@ -2872,16 +2789,16 @@ function createRoom ( type ) {
  */
 
 
-/**
- *  Public interface for setting up a game
- */
-
-pg.game = createRoom( Game );
-
-
 var GAMES   = {},     // record of games
 
     STARTER = null;   // bootstrap to forward the game start
+
+
+/**
+ *  Shortcut to setup a game handler
+ */
+
+var setGame = createRoom( Game );
 
 
 /**
@@ -2906,7 +2823,7 @@ function Game ( id ) {
  *  Game <- Channel <- Emitter
  */
 
-utils.inherits( Game, Channel );
+inherits( Game, Channel );
 
 
 /**
@@ -2926,14 +2843,14 @@ Game.prototype.start = function ( initialize ) {
 
   if ( ready === this.options.minPlayer ) {
 
-    if ( INSTANCE.pos === 0 ) this._start();
+    if ( PLAYER.pos === 0 ) this._start();
 
     return;
   }
 
   if ( ready  >  this.options.minPlayer ) {          // more player   - late join
 
-    if ( INSTANCE.pos >= this.options.minPlayer ) request();
+    if ( PLAYER.pos >= this.options.minPlayer ) request();
 
     return;
   }
@@ -2956,12 +2873,12 @@ Game.prototype.unpause  = function(){};  // TODO: 0.6.0 -> player handling
 
 function request() {
 
-  var keys = Object.keys( pg.peers ),
-      curr = INSTANCE.pos;
+  var keys = Object.keys( PEERS ),
+      curr = PLAYER.pos;
 
   for ( var i = 0, l = keys.length; i < l; i++ ) {
 
-    if ( curr - 1 === pg.peers[ keys[i] ].pos ) {
+    if ( curr - 1 === PEERS[ keys[i] ].pos ) {
 
       return CONNECTIONS[ keys[i] ].send( 'start', { request: true });
     }
@@ -2983,12 +2900,12 @@ function forward ( remoteID ) {
 
     setTimeout(function(){
 
-      var keys = Object.keys( pg.peers ),
-          curr = INSTANCE.pos;
+      var keys = Object.keys( PEERS ),
+          curr = PLAYER.pos;
 
       for ( var i = 0, l = keys.length; i < l; i++ ) {
 
-        if ( curr + 1 === pg.peers[ keys[i] ].pos ) {
+        if ( curr + 1 === PEERS[ keys[i] ].pos ) {
 
           CONNECTIONS[ keys[i] ].send( 'start' );
           break;
@@ -3076,7 +2993,7 @@ Media.prototype.init = function(){
  *  Media <- Connection
  */
 
-utils.inherits( Media, Connection );
+inherits( Media, Connection );
 
 
 /**
@@ -3156,9 +3073,9 @@ Media.prototype.requestStream = function ( el ) {
  */
 
 
-pg.peers = {}; // collection of all connected peers
+// pg.peers = {}; // collection of all connected peers
 
-pg.data  = []; // shortcut to access the stored data
+// DATA  = []; // shortcut to access the stored data
 
 
 /**
@@ -3177,7 +3094,7 @@ var Peer = function ( params ) {
  *  Peer <- Emitter
  */
 
-utils.inherits( Peer, Emitter );
+inherits( Peer, Emitter );
 
 
 /**
@@ -3196,7 +3113,7 @@ Peer.prototype.init = function ( id, account, data ) {
 
   this.data    = data;
 
-  this.pos     = pg.data.push( this.data ) - 1;
+  this.pos     = DATA.push( this.data ) - 1;
 
   Emitter.call( this, id );
 };
@@ -3216,13 +3133,15 @@ Peer.prototype.init = function ( id, account, data ) {
 
 var callbackRefs = {};
 
-pg.player = { on: function ( channel, callback, context ) {
+PLAYER = {
 
-  if ( !callbackRefs[ channel ] ) callbackRefs[ channel ] = [];
+  on: function ( channel, callback, context ) {
 
-  callbackRefs[ channel ].push([ callback, context ]);
+    if ( !callbackRefs[ channel ] ) callbackRefs[ channel ] = [];
 
-}};
+    callbackRefs[ channel ].push([ callback, context ]);
+  }
+};
 
 
 /**
@@ -3234,9 +3153,9 @@ pg.player = { on: function ( channel, callback, context ) {
 
 var Player = function ( account, origin ) {
 
-  var id    = utils.createUID(),
+  var id    = createUID(),
 
-      data  = getReactor( Manager.update );
+      data  = getReactor( MANAGER.update );
 
   this.time = Date.now();
 
@@ -3248,16 +3167,16 @@ var Player = function ( account, origin ) {
   console.log('\n\t\t:: ' + this.id + ' ::\n');
 
 
-  if ( SERVERLESS ) return setImmediate(function(){ Manager.check([ 'SERVERLESS' ]); });
+  if ( SERVERLESS ) return setImmediate(function(){ MANAGER.check([ 'SERVERLESS' ]); });
 
 
   /** Executes after logout & socket creation **/
 
-  var register = function(){ socket.init( id, origin, Manager.check ); };
+  var register = function(){ SOCKET.init( id, origin ); };
 
-  if ( socketQueue.ready ) return register();
+  if ( !QUEUE.length ) return register();
 
-  socketQueue.add( register );
+  QUEUE.push( register );
 };
 
 
@@ -3265,7 +3184,7 @@ var Player = function ( account, origin ) {
  *  Player <-- Peer
  */
 
-utils.inherits( Player, Peer );
+inherits( Player, Peer );
 
 
 /**
@@ -3281,7 +3200,7 @@ Player.prototype.join = function ( channel, params ) {
 
   if ( channel.charAt(0) === '/' ) channel = channel.substr(1);
 
-  var path = [ '!/', channel, utils.createQuery( params ) ].join('');
+  var path = [ '!/', channel, createQuery( params ) ].join('');
 
   if ( path.charAt( path.length - 1 ) !== '/' ) path += '/';
 
@@ -3328,21 +3247,36 @@ Player.prototype.media = function ( id, config, callback ) {
   // || TODO: 0.5.0 -> mediaStream()
 };
 
+
+/**
+ *  Creates a secure random user ID
+ *  (see: @broofa - http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#2117523 )
+ */
+
+function createUID() {
+
+  var pool = new Uint8Array( 1 ),
+
+    random, value,
+
+    id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function ( c ) {
+
+      random = crypto.getRandomValues( pool )[0] % 16;
+
+      value = ( c === 'x' ) ? random : (random&0x3|0x8);
+
+      return value.toString(16);
+    });
+
+  return id;
+}
+
 /**
  *  Loop
  *  ====
  *
  *  Game loop wrapper for continuous processing.
  */
-
-
-/**
- *  Public interface to start the rendering
- *
- *  @type {Function}
- */
-
-pg.loop = loop;
 
 
 var RUNNING = false,  // current state of loop
@@ -3441,7 +3375,7 @@ function checkPause ( e ) {
 
   //TODO: 0.6.0 -> pause/resume
 
-  // ROOM.emit( 'pause', INSTANCE ); // send 'pause' to others as well
+  // ROOM.emit( 'pause', PLAYER ); // send 'pause' to others as well
 }
 
 
@@ -3463,7 +3397,7 @@ doc.addEventListener( visibilityChange, checkPause );
  *  @type {[type]}
  */
 
-pg.sync = getReactor( batch(sync) );
+SYNC = getReactor( batch(sync) );
 
 
 var CACHE  = {},  // record of still pending properties
@@ -3531,7 +3465,7 @@ function sync ( key, value, confirmed ) {
 
   if ( confirmed ) {
 
-    if ( !CACHE[key] || CACHE[key].results[ INSTANCE.pos ] !== value ) {
+    if ( !CACHE[key] || CACHE[key].results[ PLAYER.pos ] !== value ) {
 
       SOLVED[ key ]  = true;
       pg.sync[ key ] = value;
@@ -3555,7 +3489,7 @@ function sync ( key, value, confirmed ) {
   // TODO: 0.6.0 -> conflict with multiple ?
   CACHE[key] = { list: ids, results: [] };
 
-  CACHE[key].results[ INSTANCE.pos ] = value;
+  CACHE[key].results[ PLAYER.pos ] = value;
 
   for ( var i = 0, l = ids.length; i < l; i++ ) {
 
@@ -3588,12 +3522,35 @@ function resync ( remoteID, key, value ) {
 
   // entry.list.length -= 1;
 
-  // entry.results[ pg.peers[remoteID].pos ] = value;
+  // entry.results[ PEERS[remoteID].pos ] = value;
 
   // if ( entry.list.length ) return;
 }
 
 
+
+  /** API **/
+
+  extend( pg, {
+
+    'noConflict'  : noConflict,       // -> core/_base.js
+    'VERSION'     : VERSION,          // -> core/_base.js
+    'info'        : INFO,             // -> meta/_info.js
+
+    'config'      : setConfig,        // -> core/_config.js
+    'login'       : login,            // -> meta/_login.js
+
+    'player'      : PLAYER,           // -> game/_player.js
+    'peers'       : PEERS,            // -> game/_peers.js
+    'data'        : DATA,             // -> game/_peers.js
+    'sync'        : SYNC,             // -> game/_sync.js
+
+    'loop'        : loop,             // -> game/_loop.js
+
+    'channel'     : setChannel,       // -> meta/_channel.js
+    'game'        : setGame,          // -> meta/_game.js
+    'routes'      : setRoutes         // -> meta/_routes.js
+  });
 
 	return pg;
 });
