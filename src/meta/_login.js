@@ -42,7 +42,7 @@ function requestOAuth ( name, service, hook ) {
 
   // AUTH[ service ]( name , function ( account ) {
 
-  var  account = { name: name };
+  var account = { name: name };
 
   createPlayer( account, hook );
   // });
@@ -58,7 +58,7 @@ function requestOAuth ( name, service, hook ) {
 
 function createPlayer ( account, hook ) {
 
-  var origin = win.location.hash.substr(3) || DEFAULT_ROUTE.substr(1);
+  var origin = getPath();
 
   pg.player  = PLAYER = new Player( account, origin );
 

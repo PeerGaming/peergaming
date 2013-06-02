@@ -12,7 +12,7 @@ var channelRoutes =        {},  // collection of the channel routes
 
     LAST_ROUTE    =      null,  // reference to the last route
 
-    DEFAULT_ROUTE = '/lobby/';
+    DEFAULT_ROUTE =  'lobby/';
 
 
 /**
@@ -38,6 +38,23 @@ function setRoutes ( customRoutes, defaultRoute ) {
 }
 
 
+/**
+ *  Sanitize the hash URL and provides the path
+ *
+ *  @return {String}
+ */
+
+function getPath(){
+
+  var path = win.location.hash;
+
+  path = ( path.length ) ? path.substr(3) : DEFAULT_ROUTE;
+
+  return ( path.charAt(0) === '/' ) ? path.substr(1) : path;
+}
+
+
+
 var CHANNEL_PATTERN = /\/(.*?)\//g,
     ARGS_PATTERN    = /(\?)?:\w+/g;
 
@@ -60,10 +77,11 @@ function defineCustomRoutes ( customRoutes ) {
 
 function checkRoute() {
 
-  var path    = win.location.hash.substr(3),
-      args    = path.split('/');
+  var path = getPath(),
 
-  INFO.route = SESSION.currentRoute = path;
+      args = path.split('/');
+
+  INFO.route = SESSION.route = path;
 
   if ( args.length < 1 ) return;
 

@@ -67,7 +67,7 @@ inherits( Player, Peer );
 
 
 /**
- *  Change URL to trigger routes for channel or games
+ *  Formats the input and change the URL to trigger routes for a channel / game
  *
  *  @param  {String|Number} channel [description]
  *  @param  {Object}        params  [description]
@@ -83,7 +83,8 @@ Player.prototype.join = function ( channel, params ) {
 
   if ( path.charAt( path.length - 1 ) !== '/' ) path += '/';
 
-  if ( path === '!/' + SESSION.currentRoute ) return checkRoute();
+  // consider hash-cache
+  if ( path === '!/' + SESSION.route ) return checkRoute();
 
   win.location.hash = path;
 };
