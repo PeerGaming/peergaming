@@ -79,7 +79,7 @@ Connection.prototype.checkStateChanges = function(){
 
       } else { // cleanup closed connection
 
-        Manager.disconnect( this.info.remote );
+        MANAGER.disconnect( this.info.remote );
       }
 
     }
@@ -278,14 +278,14 @@ Connection.prototype.send = function ( action, data ) {
 
     if ( this.info.transport ) {
 
-      var proxy = { action: action, local: INSTANCE.id, remote: remote };
+      var proxy = { action: action, local: PLAYER.id, remote: remote };
 
       return this.info.transport.send( 'register', data, proxy );
     }
 
     if ( action === 'update' ) return console.log('[ERROR] - Update', data );
 
-    socket.send({ action: action, data: data, remote: remote });
+    SOCKET.send({ action: action, data: data, remote: remote });
   }
 };
 
@@ -329,7 +329,7 @@ function adjustSDP ( sdp ) {
 
     var crypto = [], length = 4;
 
-    while ( length-- ) crypto.push( utils.getToken() );
+    while ( length-- ) crypto.push( getToken() );
 
     sdp += 'a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:' + crypto.join('') + '\r\n';
   }
@@ -376,9 +376,9 @@ function createDefaultChannels ( connection )  {
 
 function useChannels ( channel, data, proxy ) {
 
-  var msg = { action: channel, local: INSTANCE.id, data: data, remote: this.info.remote };
+  var msg = { action: channel, local: PLAYER.id, data: data, remote: this.info.remote };
 
-  utils.extend( msg, proxy );
+  extend( msg, proxy );
 
   var ready    = this.ready,
       channels = this.channels;

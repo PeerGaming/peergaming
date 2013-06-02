@@ -17,13 +17,13 @@ var reservedReference = context.pg,
  *  @type {Object}
  */
 
-pg.VERSION = {
+VERSION = {
 
   codeName    : 'spicy-phoenix',
-  full        : '0.4.0',
+  full        : '0.4.1',
   major       : 0,
   minor       : 4,
-  dot         : 0
+  dot         : 1
 };
 
 
@@ -33,9 +33,9 @@ pg.VERSION = {
  *  @return {Object}
  */
 
-pg.noConflict = function(){
+function noConflict(){
 
   context.pg = reservedReference;
 
   return this;
-};
+}

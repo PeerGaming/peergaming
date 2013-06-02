@@ -6,15 +6,6 @@
  */
 
 
-/**
- *  Public interface to start the rendering
- *
- *  @type {Function}
- */
-
-pg.loop = loop;
-
-
 var RUNNING = false,  // current state of loop
 
     REF     = null;   // refenrece for the callback
@@ -111,7 +102,7 @@ function checkPause ( e ) {
 
   //TODO: 0.6.0 -> pause/resume
 
-  // ROOM.emit( 'pause', INSTANCE ); // send 'pause' to others as well
+  // ROOM.emit( 'pause', PLAYER ); // send 'pause' to others as well
 }
 
 

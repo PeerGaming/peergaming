@@ -6,16 +6,16 @@
  */
 
 
-/**
- *  Public interface for setting up a game
- */
-
-pg.game = createRoom( Game );
-
-
 var GAMES   = {},     // record of games
 
     STARTER = null;   // bootstrap to forward the game start
+
+
+/**
+ *  Shortcut to setup a game handler
+ */
+
+var setGame = createRoom( Game );
 
 
 /**
@@ -40,7 +40,7 @@ function Game ( id ) {
  *  Game <- Channel <- Emitter
  */
 
-utils.inherits( Game, Channel );
+inherits( Game, Channel );
 
 
 /**
@@ -60,14 +60,14 @@ Game.prototype.start = function ( initialize ) {
 
   if ( ready === this.options.minPlayer ) {
 
-    if ( INSTANCE.pos === 0 ) this._start();
+    if ( PLAYER.pos === 0 ) this._start();
 
     return;
   }
 
   if ( ready  >  this.options.minPlayer ) {          // more player   - late join
 
-    if ( INSTANCE.pos >= this.options.minPlayer ) request();
+    if ( PLAYER.pos >= this.options.minPlayer ) request();
 
     return;
   }
@@ -90,12 +90,12 @@ Game.prototype.unpause  = function(){};  // TODO: 0.6.0 -> player handling
 
 function request() {
 
-  var keys = Object.keys( pg.peers ),
-      curr = INSTANCE.pos;
+  var keys = Object.keys( PEERS ),
+      curr = PLAYER.pos;
 
   for ( var i = 0, l = keys.length; i < l; i++ ) {
 
-    if ( curr - 1 === pg.peers[ keys[i] ].pos ) {
+    if ( curr - 1 === PEERS[ keys[i] ].pos ) {
 
       return CONNECTIONS[ keys[i] ].send( 'start', { request: true });
     }
@@ -117,12 +117,12 @@ function forward ( remoteID ) {
 
     setTimeout(function(){
 
-      var keys = Object.keys( pg.peers ),
-          curr = INSTANCE.pos;
+      var keys = Object.keys( PEERS ),
+          curr = PLAYER.pos;
 
       for ( var i = 0, l = keys.length; i < l; i++ ) {
 
-        if ( curr + 1 === pg.peers[ keys[i] ].pos ) {
+        if ( curr + 1 === PEERS[ keys[i] ].pos ) {
 
           CONNECTIONS[ keys[i] ].send( 'start' );
           break;

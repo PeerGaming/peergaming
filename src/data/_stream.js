@@ -32,7 +32,7 @@ var Stream = function ( options ) {
  *  Stream <- Emitter
  */
 
-utils.inherits( Stream, Emitter );
+inherits( Stream, Emitter );
 
 
 /**

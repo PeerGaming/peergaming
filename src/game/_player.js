@@ -12,13 +12,15 @@
 
 var callbackRefs = {};
 
-pg.player = { on: function ( channel, callback, context ) {
+PLAYER = {
 
-  if ( !callbackRefs[ channel ] ) callbackRefs[ channel ] = [];
+  on: function ( channel, callback, context ) {
 
-  callbackRefs[ channel ].push([ callback, context ]);
+    if ( !callbackRefs[ channel ] ) callbackRefs[ channel ] = [];
 
-}};
+    callbackRefs[ channel ].push([ callback, context ]);
+  }
+};
 
 
 /**
@@ -30,9 +32,9 @@ pg.player = { on: function ( channel, callback, context ) {
 
 var Player = function ( account, origin ) {
 
-  var id    = utils.createUID(),
+  var id    = createUID(),
 
-      data  = getReactor( Manager.update );
+      data  = getReactor( MANAGER.update );
 
   this.time = Date.now();
 
@@ -44,16 +46,16 @@ var Player = function ( account, origin ) {
   console.log('\n\t\t:: ' + this.id + ' ::\n');
 
 
-  if ( SERVERLESS ) return setImmediate(function(){ Manager.check([ 'SERVERLESS' ]); });
+  if ( SERVERLESS ) return setImmediate(function(){ MANAGER.check([ 'SERVERLESS' ]); });
 
 
   /** Executes after logout & socket creation **/
 
-  var register = function(){ socket.init( id, origin, Manager.check ); };
+  var register = function(){ SOCKET.init( id, origin ); };
 
-  if ( socketQueue.ready ) return register();
+  if ( !QUEUE.length ) return register();
 
-  socketQueue.add( register );
+  QUEUE.push( register );
 };
 
 
@@ -61,7 +63,7 @@ var Player = function ( account, origin ) {
  *  Player <-- Peer
  */
 
-utils.inherits( Player, Peer );
+inherits( Player, Peer );
 
 
 /**
@@ -77,7 +79,7 @@ Player.prototype.join = function ( channel, params ) {
 
   if ( channel.charAt(0) === '/' ) channel = channel.substr(1);
 
-  var path = [ '!/', channel, utils.createQuery( params ) ].join('');
+  var path = [ '!/', channel, createQuery( params ) ].join('');
 
   if ( path.charAt( path.length - 1 ) !== '/' ) path += '/';
 
@@ -123,3 +125,27 @@ Player.prototype.media = function ( id, config, callback ) {
 
   // || TODO: 0.5.0 -> mediaStream()
 };
+
+
+/**
+ *  Creates a secure random user ID
+ *  (see: @broofa - http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript/2117523#2117523 )
+ */
+
+function createUID() {
+
+  var pool = new Uint8Array( 1 ),
+
+    random, value,
+
+    id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function ( c ) {
+
+      random = crypto.getRandomValues( pool )[0] % 16;
+
+      value = ( c === 'x' ) ? random : (random&0x3|0x8);
+
+      return value.toString(16);
+    });
+
+  return id;
+}

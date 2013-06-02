@@ -6,14 +6,16 @@
  */
 
 
+var CHANNELS = {};  // record of channels
+
+
 /**
- *  Public interface for setting up a channel
+ *  Creates a Channel
+ *
+ *  @return {Object}
  */
 
-pg.channel = createRoom( Channel );
-
-
-var CHANNELS = {};  // record of channels
+var setChannel = createRoom( Channel );
 
 
 /**
@@ -37,7 +39,7 @@ function Channel ( id ) {
  *  Channel <- Emitter
  */
 
-utils.inherits( Channel, Emitter );
+inherits( Channel, Emitter );
 
 
 /**
@@ -62,31 +64,6 @@ Channel.prototype.init = function ( id ) {
 
 Channel.prototype.config = function ( customConfig ) {
 
-  utils.extend( this.options, customConfig );
+  extend( this.options, customConfig );
 };
 
-
-/**
- *  Creates a new room (channel or game) and registers handler
- *
- *  @param  {Function} type   -
- *  @return {Function}
- */
-
-function createRoom ( type ) {
-
-  return function ( id, handler ) {
-
-    if ( typeof id !== 'string' ) { handler = id; id = '*'; }
-
-    var room = new type( id ),
-
-        list = ( room instanceof Game ) ? GAMES : CHANNELS;
-
-    list[ id ] = room;
-
-    handler( room );
-
-    return room;
-  };
-}

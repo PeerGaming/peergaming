@@ -14,7 +14,7 @@
  *  @param  {Function} hook      -
  */
 
-pg.login = function ( name, service, hook ) {
+function login ( name, service, hook ) {
 
   if ( typeof service === 'function' ) { hook = service; service = null; }
 
@@ -23,7 +23,7 @@ pg.login = function ( name, service, hook ) {
   var account = { name: name };
 
   createPlayer( account, hook );
-};
+}
 
 
 /**
@@ -60,9 +60,9 @@ function createPlayer ( account, hook ) {
 
   var origin = win.location.hash.substr(3) || DEFAULT_ROUTE.substr(1);
 
-  pg.player = INSTANCE = new Player( account, origin );
+  pg.player  = PLAYER = new Player( account, origin );
 
-  if ( hook ) hook( INSTANCE );
+  if ( hook ) hook( PLAYER );
 
-  INSTANCE.join( origin );
+  PLAYER.join( origin );
 }

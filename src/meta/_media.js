@@ -51,7 +51,7 @@ Media.prototype.init = function(){
  *  Media <- Connection
  */
 
-utils.inherits( Media, Connection );
+inherits( Media, Connection );
 
 
 /**

@@ -11,10 +11,7 @@ var DELAY = 100,  // TODO: 0.5.0 -> Math.max() of latency evaluation
     READY =  {};  // record of current ready users
 
 
-
-/** Module Pattern **/
-
-var Manager = (function(){
+MANAGER = (function(){
 
 
   /**
@@ -30,7 +27,7 @@ var Manager = (function(){
 
     if ( !Array.isArray(remoteList) ) remoteList = [ remoteList ];
 
-    var localID  = INSTANCE.id,
+    var localID  = PLAYER.id,
 
         remoteID;
 
@@ -40,9 +37,10 @@ var Manager = (function(){
 
       if ( remoteID !== localID && !CONNECTIONS[ remoteID ] ) {
 
-        connect( remoteID, true, transport );
+        this.connect( remoteID, true, transport );
       }
     }
+
   }
 
 
@@ -60,9 +58,9 @@ var Manager = (function(){
 
     // console.log( '[connect] to - "' + remoteID + '"' );
 
-    pg.peers[ remoteID ]    = new Peer({ id: remoteID });
+    PEERS[ remoteID ]    = new Peer({ id: remoteID });
 
-    CONNECTIONS[ remoteID ] = new Connection( INSTANCE.id, remoteID, initiator, transport );
+    CONNECTIONS[ remoteID ] = new Connection( PLAYER.id, remoteID, initiator, transport );
   }
 
 
@@ -74,20 +72,20 @@ var Manager = (function(){
 
   function disconnect ( remoteID ) {
 
-    var peer = pg.peers[ remoteID ];
+    var peer = PEERS[ remoteID ];
 
 
     delete READY[ remoteID ];
 
-    INSTANCE.emit( 'disconnect', peer );
-    ROOM    .emit( 'leave'     , peer );
+    PLAYER.emit( 'disconnect', peer );
+    ROOM  .emit( 'leave'     , peer );
 
 
     CONNECTIONS[ remoteID ].close();
 
-    pg.data.splice( peer.pos, 1 );
+    DATA.splice( peer.pos, 1 );
 
-    delete pg.peers[ remoteID ];
+    delete PEERS[ remoteID ];
     delete CONNECTIONS[ remoteID ];
 
     order();
@@ -103,7 +101,7 @@ var Manager = (function(){
 
   function set ( msg, transport ) {
 
-    if ( !CONNECTIONS[ msg.local] ) connect( msg.local, false, transport );
+    if ( !CONNECTIONS[ msg.local] ) this.connect( msg.local, false, transport );
 
     CONNECTIONS[ msg.local ][ msg.action ]( msg.data );
   }
@@ -127,7 +125,7 @@ var Manager = (function(){
   }
 
 
-  var timer   = {};
+  var timer = {};
 
   /**
    *  Setup and tests the connection - benchmark the latency via ping/pong
@@ -147,7 +145,7 @@ var Manager = (function(){
 
     if ( --col[0] > 0 ) return;
 
-    pg.peers[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
+    PEERS[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
 
     order();
 
@@ -173,9 +171,9 @@ var Manager = (function(){
 
     for ( var i = 1; i <= num; i++ ) { col[i] = win.performance.now(); test( i ); }
 
-    function test( i ) {
+    function test ( i ) {
 
-      setTimeout( function(){ conn.send( 'ping', { index: i }); }, rand() * num );
+      setTimeout( function(){ conn.send( 'ping', { index: i }); }, Math.random() * num );
     }
   }
 
@@ -184,15 +182,15 @@ var Manager = (function(){
    *  Defines the peer order - ranked by the appearance / inital load
    */
 
-  function order(){
+  function order (){
 
-    var keys = Object.keys( pg.peers ),
+    var keys = Object.keys( PEERS ),
 
         times = {};
 
-    times[ INSTANCE.time ] = INSTANCE.id;
+    times[ PLAYER.time ] = PLAYER.id;
 
-    for ( var i = 0, l = keys.length; i < l; i++ ) times[ pg.peers[ keys[i] ].time ] = keys[i];
+    for ( var i = 0, l = keys.length; i < l; i++ ) times[ PEERS[ keys[i] ].time ] = keys[i];
 
     var list = Object.keys( times ).sort( rank ).map( function ( key ) { return times[key]; }),
 
@@ -203,13 +201,13 @@ var Manager = (function(){
       return console.log('[ERROR] Precision time conflict.', list, keys );
     }
 
-    pg.data.length = 0;
+    DATA.length = 0;
 
     for ( i = 0, l = list.length; i < l; i++ ) {
 
-      user     = pg.peers[ list[i] ] || INSTANCE;
+      user     = PEERS[ list[i] ] || PLAYER;
 
-      user.pos = pg.data.push( user.data ) - 1;
+      user.pos = DATA.push( user.data ) - 1;
     }
 
     function rank ( curr, next ) { return curr - next; }
@@ -220,19 +218,19 @@ var Manager = (function(){
    *  Determines if all peers are connected and then emits the connections
    */
 
-  function ready(){
+  function ready (){
 
-    var keys  = Object.keys( pg.peers ),
+    var keys  = Object.keys( PEERS ),
 
         list  = [],
 
         peer;
 
-    list[ INSTANCE.pos ] = INSTANCE;
+    list[ PLAYER.pos ] = PLAYER;
 
     for ( var i = 0, l = keys.length; i < l; i++ ) {
 
-      peer = pg.peers[ keys[i] ];
+      peer = PEERS[ keys[i] ];
 
       if ( !peer.time ) return;
 
@@ -249,10 +247,11 @@ var Manager = (function(){
 
       READY[ peer.id ] = true;
 
-      INSTANCE.emit( 'connection', peer );
-      ROOM    .emit( 'enter'     , peer );
+      PLAYER.emit( 'connection', peer );
+      ROOM  .emit( 'enter'     , peer );
     }
   }
+
 
 
   return {
@@ -266,3 +265,5 @@ var Manager = (function(){
   };
 
 })();
+
+

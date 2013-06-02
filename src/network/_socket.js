@@ -6,14 +6,11 @@
  */
 
 
-var socketQueue = new Queue();
+SOCKET = (function(){
 
-var socket = (function(){
-
-  // initial
+  /** remove for SSE **/
   logout();
 
-  // close for SSE
   win.addEventListener( 'unload'        , logout );
   win.addEventListener( 'beforeunload'  , logout );
 
@@ -53,66 +50,42 @@ var socket = (function(){
 
   function logout() {
 
-    if ( checkProtocol('ws') || SERVERLESS ) {
-
-      socketQueue.ready = true;
-      return;
-    }
-
+    if ( checkProtocol('ws') || SERVERLESS ) return;
 
     if ( SESSION.id ) {
 
       // XHR
-      var msg = { action: 'remove', data: SESSION.id };
-
-      send( msg, function(){
+      send({ action: 'remove', data: SESSION.id }, function(){
 
         // beforeunload callback
-        if ( !socketQueue.ready ) {
+        if ( QUEUE.length ) {
 
           delete SESSION.id;
 
-          socketQueue.exec();
+          executeQueue( QUEUE );
         }
       });
 
     } else {
 
-      socketQueue.exec();
+      executeQueue( QUEUE );
     }
-  }
-
-
-  /**
-   *  Set the session based ID and defines callbacks for server connection
-   *
-   *  @param {String}   id       -
-   *  @param {String}   origin   -
-   *  @param {Function} next     -
-   */
-
-  function init ( id, origin, next ) {
-
-    SESSION.id = id;
-
-    connectToServer( id, origin, function(){
-
-      send({ action: 'lookup' }, function ( remoteID ) {  next( remoteID ); });
-    });
   }
 
 
   var socket = null;
 
   /**
-   *  Establish a WebSocket or EventSource connection
+   *  Sets a session based ID and establish a server connection via WebSocket or EventSource
    *
    *  @param {String}   id       -
    *  @param {String}   origin   -
    *  @param {Function} next     -
    */
 
-  function connectToServer ( id, origin, next ) {
+  function connectToServer ( id, origin ) {
+
+    SESSION.id = id;
 
     var Socket = checkProtocol('http') ? EventSource : WebSocket;
 
@@ -120,12 +93,12 @@ var socket = (function(){
 
     socket.addEventListener( 'error' , handleError );
 
-    socket.addEventListener( 'open'  , function(){
+    socket.addEventListener( 'open' , function(){
 
       socket.addEventListener( 'message', handleMessage );
       socket.addEventListener( 'close'  , handleClose   );
 
-      next();
+      send({ action: 'lookup' }, function ( remoteID ) { MANAGER.check( remoteID ); });
     });
 
   }
@@ -143,11 +116,12 @@ var socket = (function(){
 
     if ( !msg || !msg.local ) { // partnerIDs
 
-      return ( socketQueue.list.length ) ? socketQueue.exec( msg ) : Manager.check( msg );
+      return ( !QUEUE.length ) ? MANAGER.check( msg ) : executeQueue( QUEUE, msg );
     }
 
-    Manager.set( msg );
+    MANAGER.set( msg );
   }
+
 
   /**
    *  Handle error messages/states
@@ -190,7 +164,7 @@ var socket = (function(){
 
   function send ( msg, next )  {
 
-    utils.extend( msg, { local: INSTANCE.id, origin: INFO.route });
+    extend( msg, { local: PLAYER.id, origin: INFO.route });
 
     msg = JSON.stringify( msg );
 
@@ -200,7 +174,7 @@ var socket = (function(){
 
     } else {  // WS
 
-      if ( next ) socketQueue.add( next );
+      if ( next ) QUEUE.push( next );
 
       if ( SERVERLESS ) return SERVERLESS( msg );
 
@@ -221,9 +195,10 @@ var socket = (function(){
   }
 
 
+
   return {
 
-    init    : init,
+    init    : connectToServer,
     send    : send,
     handle  : handleMessage
   };

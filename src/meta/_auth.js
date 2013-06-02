@@ -11,7 +11,7 @@ var AUTH = {
   'GITHUB'    : requestGithub,
   'PERSONA'   : requestPersona
   // 'TWITTER',
-  // 'GOOGLE'
+  // 'GOOGLE'     // https://github.com/googleplus/gplus-quickstart-javascript
   // 'FACEBOOK',
 };
 

@@ -23,7 +23,7 @@ var channelRoutes =        {},  // collection of the channel routes
  *  @return {Array}
  */
 
-pg.routes = function ( customRoutes, defaultRoute ) {
+function setRoutes ( customRoutes, defaultRoute ) {
 
   if ( !defaultRoute && typeof customRoutes === 'string' ) {
 
@@ -35,7 +35,7 @@ pg.routes = function ( customRoutes, defaultRoute ) {
   if ( defaultRoute ) DEFAULT_ROUTE = defaultRoute;
 
   return [ channelRoutes, gameRoutes, DEFAULT_ROUTE ];
-};
+}
 
 
 var CHANNEL_PATTERN = /\/(.*?)\//g,
@@ -107,9 +107,9 @@ function matchRoute ( args ) {
 
       var keys = Object.keys( CONNECTIONS );
 
-      for ( var i = 0, l = keys.length; i < l; i++ ) Manager.disconnect( keys[i] );
+      for ( var i = 0, l = keys.length; i < l; i++ ) MANAGER.disconnect( keys[i] );
 
-      socket.send({ action: 'change', data: LAST_ROUTE });
+      SOCKET.send({ action: 'change', data: LAST_ROUTE });
     }
 
     LAST_ROUTE = INFO.route;
@@ -143,3 +143,30 @@ function leaveSite ( e ) {
 
 win.addEventListener( 'hashchange', checkRoute ); // join
 win.addEventListener( 'popstate',   leaveSite  ); // history navigation
+
+
+
+/**
+ *  Creates a new room (channel or game) and registers handler
+ *
+ *  @param  {Function} type   -
+ *  @return {Function}
+ */
+
+function createRoom ( type ) {
+
+  return function ( id, handler ) {
+
+    if ( typeof id !== 'string' ) { handler = id; id = '*'; }
+
+    var room = new type( id ),
+
+        list = ( room instanceof Game ) ? GAMES : CHANNELS;
+
+    list[ id ] = room;
+
+    handler( room );
+
+    return room;
+  };
+}

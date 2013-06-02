@@ -14,7 +14,7 @@
 
 function debug ( text ) {
 
-  if ( !INSTANCE || !LOCAL.log ) LOCAL.log = 0;
+  if ( !PLAYER || !LOCAL.log ) LOCAL.log = 0;
 
   if ( text[text.length - 1] === '\n' ) {
 

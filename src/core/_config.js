@@ -12,7 +12,7 @@
  *  @type {Function} pg.config
  */
 
-pg.config = setConfig;
+
 
 
 /**
@@ -142,7 +142,7 @@ var config = {
 
 function setConfig ( customConfig ) {
 
-  utils.extend( config, customConfig );
+  extend( config, customConfig );
 
   return config;
 }

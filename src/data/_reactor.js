@@ -128,7 +128,7 @@ function defineProperty ( id, current, prop ) {
 
           } else {
 
-            value = utils.extend( getReactor( function ( inner, value ) {
+            value = extend( getReactor( function ( inner, value ) {
 
               var result = reactList[id].reference[ prop ];
 

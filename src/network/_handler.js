@@ -78,7 +78,7 @@ Handler.prototype.send = function ( msg ) {
 
   var data    = JSON.stringify( msg ),
 
-      buffer  = data; //utils.StringToBuffer( data );
+      buffer  = data; //stringToBuffer( data );
 
 
   if ( buffer.length > config.channelConfig.MAX_BYTES ) {

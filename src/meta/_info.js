@@ -6,15 +6,10 @@
  */
 
 
-/**
- *  Public interface to access general information
- *
- *  @type {Object}
- */
-
-pg.info = INFO = {
+extend( INFO, {
 
   route: null
-};
+
+});
 
 // TODO: 0.6.0 -> data & info

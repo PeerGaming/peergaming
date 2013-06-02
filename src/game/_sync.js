@@ -12,7 +12,7 @@
  *  @type {[type]}
  */
 
-pg.sync = getReactor( batch(sync) );
+SYNC = getReactor( batch(sync) );
 
 
 var CACHE  = {},  // record of still pending properties
@@ -80,7 +80,7 @@ function sync ( key, value, confirmed ) {
 
   if ( confirmed ) {
 
-    if ( !CACHE[key] || CACHE[key].results[ INSTANCE.pos ] !== value ) {
+    if ( !CACHE[key] || CACHE[key].results[ PLAYER.pos ] !== value ) {
 
       SOLVED[ key ]  = true;
       pg.sync[ key ] = value;
@@ -104,7 +104,7 @@ function sync ( key, value, confirmed ) {
   // TODO: 0.6.0 -> conflict with multiple ?
   CACHE[key] = { list: ids, results: [] };
 
-  CACHE[key].results[ INSTANCE.pos ] = value;
+  CACHE[key].results[ PLAYER.pos ] = value;
 
   for ( var i = 0, l = ids.length; i < l; i++ ) {
 
@@ -137,7 +137,7 @@ function resync ( remoteID, key, value ) {
 
   // entry.list.length -= 1;
 
-  // entry.results[ pg.peers[remoteID].pos ] = value;
+  // entry.results[ PEERS[remoteID].pos ] = value;
 
   // if ( entry.list.length ) return;
 }
