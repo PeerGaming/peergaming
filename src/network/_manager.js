@@ -58,7 +58,7 @@ MANAGER = (function(){
 
     // console.log( '[connect] to - "' + remoteID + '"' );
 
-    PEERS[ remoteID ]    = new Peer({ id: remoteID });
+    PEERS[ remoteID ] = new Peer({ id: remoteID });
 
     CONNECTIONS[ remoteID ] = new Connection( PLAYER.id, remoteID, initiator, transport );
   }
@@ -74,6 +74,7 @@ MANAGER = (function(){
 
     var peer = PEERS[ remoteID ];
 
+    if ( !peer ) return;
 
     delete READY[ remoteID ];
 
@@ -120,7 +121,7 @@ MANAGER = (function(){
 
     for ( var i = 0, l = ids.length; i < l; i++ ) {
 
-      CONNECTIONS[ ids[i] ].send( 'update', { key: key, value: value });
+      CONNECTIONS[ ids[i] ].send( 'update', { key: key, value: value }, true );
     }
   }
 
@@ -146,8 +147,6 @@ MANAGER = (function(){
     if ( --col[0] > 0 ) return;
 
     PEERS[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
-
-    order();
 
     ready();
 
@@ -179,42 +178,6 @@ MANAGER = (function(){
 
 
   /**
-   *  Defines the peer order - ranked by the appearance / inital load
-   */
-
-  function order (){
-
-    var keys = Object.keys( PEERS ),
-
-        times = {};
-
-    times[ PLAYER.time ] = PLAYER.id;
-
-    for ( var i = 0, l = keys.length; i < l; i++ ) times[ PEERS[ keys[i] ].time ] = keys[i];
-
-    var list = Object.keys( times ).sort( rank ).map( function ( key ) { return times[key]; }),
-
-        user;
-
-    if ( list.length !== keys.length + 1 ) {
-
-      return console.log('[ERROR] Precision time conflict.', list, keys );
-    }
-
-    DATA.length = 0;
-
-    for ( i = 0, l = list.length; i < l; i++ ) {
-
-      user     = PEERS[ list[i] ] || PLAYER;
-
-      user.pos = DATA.push( user.data ) - 1;
-    }
-
-    function rank ( curr, next ) { return curr - next; }
-  }
-
-
-  /**
    *  Determines if all peers are connected and then emits the connections
    */
 
@@ -237,6 +200,8 @@ MANAGER = (function(){
       list[ peer.pos ] = peer;
     }
 
+    // just order if received all ! - not disrupting an existing connection ! // sort them
+    order();
 
     /** emit users in order & prevent multiple trigger **/
     for ( i = 0, l = list.length; i < l; i++ ) setTimeout( invoke, DELAY, list[i] );
@@ -250,6 +215,42 @@ MANAGER = (function(){
       PLAYER.emit( 'connection', peer );
       ROOM  .emit( 'enter'     , peer );
     }
+  }
+
+
+  /**
+   *  Defines the peer order - ranked by the appearance / inital load
+   */
+
+  function order (){
+
+    var keys  = Object.keys( PEERS ),
+
+        times = {};
+
+    times[ PLAYER.time ] = PLAYER.id;
+
+    for ( var i = 0, l = keys.length; i < l; i++ ) times[ PEERS[ keys[i] ].time ] = keys[i];
+
+    var list = Object.keys( times ).sort( rank ).map( function ( key ) { return times[key]; }),
+
+        user;
+
+    if ( list.length !== keys.length + 1 ) {
+
+      return console.log('[ERROR] Precision time conflict.', times, list, keys );
+    }
+
+    DATA.length = 0;
+
+    for ( i = 0, l = list.length; i < l; i++ ) {
+
+      user     = PEERS[ list[i] ] || PLAYER;
+
+      user.pos = DATA.push( user.data ) - 1;
+    }
+
+    function rank ( curr, next ) { return curr - next; }
   }
 
 

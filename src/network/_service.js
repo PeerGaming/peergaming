@@ -49,7 +49,8 @@ var defaultHandlers = {
       MANAGER.setup( this.info.remote );
     },
 
-    close: function ( msg ) {  /* console.log('[DatChannel closed]'); */ }
+    /* previous unreliable - see gatheringstatechange */
+    close: function ( msg ) { MANAGER.disconnect( this.info.remote ); }
   },
 
 
@@ -70,12 +71,10 @@ var defaultHandlers = {
       var proxy = { action: msg.action, local: msg.local, remote: msg.remote };
 
       // TODO: 0.5.0 -> Bug fixes
-      if ( !CONNECTIONS[ msg.remote ] ) return console.log('[ERORR] - Missing', msg.remote );
+      if ( !CONNECTIONS[ msg.remote ] ) return console.log('[ERORR] - Service - Missing', msg.remote );
 
       return CONNECTIONS[ msg.remote ].send( 'register', msg.data, proxy );
     }
-
-    if ( msg.action === 'update' ) return console.log('[ERROR] - Update', msg );
 
     MANAGER.set( msg, this );
   },

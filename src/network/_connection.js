@@ -92,6 +92,7 @@ Connection.prototype.checkStateChanges = function(){
     var signalingState = e.currentTarget.signalingState;
 
     this.ready = ( signalingState === 'stable' );
+    // if ( signalingState === 'closed' ) MANAGER.disconnect(this.info.remote);
 
   }.bind(this);
 };
@@ -197,7 +198,7 @@ Connection.prototype.createOffer = function() {
 
 Connection.prototype.setConfigurations = function ( msg ) {
 
-  // console.log('[SDP] - ' +  msg.type );  // description
+  // console.log( '[SDP] - ' +  msg.type );  // description
 
   var conn = this.conn,
 
@@ -260,11 +261,12 @@ Connection.prototype.createDataChannel = function ( label, options ) {
 /**
  *  Select the messeneger for communication & transfer
  *
- *  @param {String} action   -
- *  @param {Object} data     -
+ *  @param {String}  action   -
+ *  @param {Object}  data     -
+ *  @param {Boolean} direct   - defines if the action should only be execute via a direct connection
  */
 
-Connection.prototype.send = function ( action, data ) {
+Connection.prototype.send = function ( action, data, direct ) {
 
   if ( !this.info.pending ) {
 
@@ -274,6 +276,8 @@ Connection.prototype.send = function ( action, data ) {
 
   } else {
 
+    if ( direct ) return;
+
     var remote = this.info.remote;
 
     if ( this.info.transport ) {
@@ -282,8 +286,6 @@ Connection.prototype.send = function ( action, data ) {
 
       return this.info.transport.send( 'register', data, proxy );
     }
-
-    if ( action === 'update' ) return console.log('[ERROR] - Update', data );
 
     SOCKET.send({ action: action, data: data, remote: remote });
   }
