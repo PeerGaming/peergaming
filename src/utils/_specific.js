@@ -16,7 +16,7 @@ function createQuery ( params ) {
 
   if ( typeof params != 'object' ) return;
 
-  var keys = Object.keys( params ),
+  var keys = getKeys( params ),
       query = [];
 
   for ( var i = 0, l = keys.length; i < l; i++ ) {

@@ -69,8 +69,6 @@ function checkProperties ( id, current ) {
  *  @return {Object}
  */
 
-var getKeys = Object.keys;
-
 function getDifferences ( last, current ) {
 
   var lastKeys    = getKeys( last ),

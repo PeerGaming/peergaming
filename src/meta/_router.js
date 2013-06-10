@@ -85,7 +85,7 @@ function checkRoute() {
   if ( args.length < 1 ) return;
 
   // TODO: 0.7.0 -> customRoutes
-  // if ( Object.keys( CUSTOM_PATTERNS ).length ) extractRoute();
+  // if ( getKeys( CUSTOM_PATTERNS ).length ) extractRoute();
 
   matchRoute( args );
 }
@@ -124,7 +124,7 @@ function matchRoute ( args ) {
 
     if ( LAST_ROUTE  ) {  // change room
 
-      var keys = Object.keys( CONNECTIONS );
+      var keys = getKeys( CONNECTIONS );
 
       for ( var i = 0, l = keys.length; i < l; i++ ) MANAGER.disconnect( keys[i] );
 

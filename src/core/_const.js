@@ -16,6 +16,11 @@ var win     = window,
     LOCAL   = win.localStorage;
 
 
+/** native **/
+
+var getKeys = Object.keys;
+
+
 /** internal  **/
 
 var ROOM        = '',        // current room

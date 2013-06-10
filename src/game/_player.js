@@ -40,7 +40,7 @@ var Player = function ( account, origin ) {
 
   this.init( id, account, data );
 
-  if ( Object.keys( callbackRefs ).length ) eventMap[ this.id ] = callbackRefs;
+  if ( getKeys( callbackRefs ).length ) eventMap[ this.id ] = callbackRefs;
 
 
   console.log('\n\t\t:: ' + this.id + ' ::\n');
@@ -103,7 +103,7 @@ Player.prototype.send = function ( list, msg ) {
 
   if ( typeof msg !== 'string' ) msg = msg.toString();
 
-  if ( !list ) list = Object.keys( CONNECTIONS );
+  if ( !list ) list = getKeys( CONNECTIONS );
 
   if ( !Array.isArray( list ) ) list = [ list ];
 

@@ -39,7 +39,7 @@ function batch ( fn ) {
 
     timeoutID = null;
 
-    var keys = Object.keys(list),
+    var keys = getKeys(list),
 
         prop;
 
@@ -99,7 +99,7 @@ function sync ( key, value, confirmed ) {
     return;
   }
 
-  var ids = Object.keys( CONNECTIONS );
+  var ids = getKeys( CONNECTIONS );
 
   // TODO: 0.6.0 -> conflict with multiple ?
   CACHE[key] = { list: ids, results: [] };

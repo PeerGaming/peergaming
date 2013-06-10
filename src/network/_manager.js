@@ -122,7 +122,7 @@ MANAGER = (function(){
 
   function update ( key, value ) {
 
-    var ids = Object.keys( CONNECTIONS );
+    var ids = getKeys( CONNECTIONS );
 
     for ( var i = 0, l = ids.length; i < l; i++ ) {
 
@@ -198,8 +198,8 @@ MANAGER = (function(){
 
     part = 100 - part;  // 0 -> 100
 
-    var curr  = Object.keys( PEERS ).length,
-        diff  = Object.keys( TODO  ).length,
+    var curr  = getKeys( PEERS ).length,
+        diff  = getKeys( TODO  ).length,
         max   = diff + curr;
 
     part = ~~( curr * part / max );
@@ -218,7 +218,7 @@ MANAGER = (function(){
 
   function ready (){
 
-    var keys  = Object.keys( PEERS ),
+    var keys  = getKeys( PEERS ),
 
         list  = [],
 
@@ -234,7 +234,7 @@ MANAGER = (function(){
     }
 
 
-    var entry = Object.keys( TODO ).pop();
+    var entry = getKeys( TODO ).pop();
 
     if ( entry ) {
 
@@ -273,7 +273,7 @@ MANAGER = (function(){
 
   function order (){
 
-    var keys  = Object.keys( PEERS ),
+    var keys  = getKeys( PEERS ),
 
         times = {};
 
@@ -281,7 +281,7 @@ MANAGER = (function(){
 
     for ( var i = 0, l = keys.length; i < l; i++ ) times[ PEERS[ keys[i] ].time ] = keys[i];
 
-    var list = Object.keys( times ).sort( rank ).map( function ( key ) { return times[key]; }),
+    var list = getKeys( times ).sort( rank ).map( function ( key ) { return times[key]; }),
 
         user;
 

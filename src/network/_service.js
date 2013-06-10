@@ -29,7 +29,7 @@ var defaultHandlers = {
         account : PLAYER.account,
         time    : PLAYER.time,
         data    : PLAYER.data,                // TODO: 0.6.0 -> define values for secure access
-        list    : Object.keys( CONNECTIONS )
+        list    : getKeys( CONNECTIONS )
       });
     },
 
