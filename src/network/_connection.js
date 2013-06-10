@@ -22,7 +22,11 @@ var Connection = function ( local, remote, initiator, transport ) {
   if ( initiator ) this.info.initiator = true;
   if ( transport ) this.info.transport = transport;
 
-  this.channels = {};
+  this.channels    = {};
+
+  // internals for handling ICE candidates
+  this._candidates = [];
+  this._counter    =  0;
 
   this.init();
 };
@@ -57,7 +61,7 @@ Connection.prototype.checkStateChanges = function(){
 
   var conn    = this.conn,
 
-      length  = Object.keys( defaultHandlers ).length;
+      length  = getKeys( defaultHandlers ).length;
 
 
   conn.onnegotiationneeded = function ( e ) {
@@ -126,41 +130,31 @@ Connection.prototype.findICECandidates = function(){
 
     // var iceGatheringState = e.currentTarget.iceConnectionState;
 
-    if ( e.candidate ) this.send( 'setIceCandidates', e.candidate );
+    if ( e.candidate ) { this._counter++; this.send( 'setIceCandidates', e.candidate ); }
 
   }.bind(this);
 };
 
 
 /**
- *  Sets ICE candidates - using an additional container to keep the order
+ *  Set the ICE candidates - using an additional container internaly to keep the order
  *
  *  @param {Object} data [description]
  */
 
-Connection.prototype.setIceCandidates = function ( data ) {
+Connection.prototype.setIceCandidates = function ( data, release ) {
 
   if ( this.closed ) throw new Error('Can\'t set ICE candidates!');
 
-  var conn = this.conn;
+  if ( !release ) return this._candidates.push( data );
 
-  if ( conn.remoteDescription || conn.localDescription ) {
+  var conn = this.conn,
 
-    if ( this._candidates ) delete this._candidates;
+      l    = data.length;
 
-    if ( !Array.isArray(data) ) data = [ data ];
+  for ( var i = 0; i < l; i++ ) conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
 
-    for ( var i = 0, l = data.length; i < l; i++ ) {
-
-      conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
-    }
-
-  } else {
-
-    if ( !this._candidates ) this._candidates = [];
-
-    this._candidates.push( data );
-  }
+  data.length = 0;
 };
 
 
@@ -173,7 +167,9 @@ Connection.prototype.createOffer = function() {
   var conn = this.conn;
 
   // initial setup channel for configuration
-  if ( moz ) conn.createDataChannel('[moz]');
+  if ( moz ) this.createDataChannel('[moz]');
+
+  this._counter = 0;
 
   conn.createOffer( function ( offer ) {
 
@@ -181,7 +177,15 @@ Connection.prototype.createOffer = function() {
 
     conn.setLocalDescription( offer, function(){
 
-      this.send( 'setConfigurations', offer );
+      setTimeout( sendOffer.bind(this), config.initialDelay, 0 );
+
+      function sendOffer ( last ) {
+
+        if ( last ) return setTimeout( sendOffer.bind(this), config.initialDelay,
+                                       this._counter - last);
+
+        this.send( 'setConfigurations', offer );
+      }
 
     }.bind(this), loggerr ); // config.SDPConstraints
 
@@ -209,7 +213,7 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
   conn.setRemoteDescription( desc, function(){
 
-    if ( this._candidates ) this.setIceCandidates( this._candidates );
+    if ( this._candidates.length ) this.setIceCandidates( this._candidates, true );
 
     if ( msg.type === 'offer' ) {
 
@@ -219,13 +223,23 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
         conn.setLocalDescription( answer, function(){
 
-          this.send( 'setConfigurations', answer );
+          setTimeout( sendAnswer.bind(this), config.initialDelay, 0 );
+
+          function sendAnswer ( last ) {
+
+            if ( last ) return setTimeout( sendAnswer.bind(this), config.initialDelay,
+                                           this._counter - last);
+
+            this.send( 'setConfigurations', answer );
+          }
 
         }.bind(this), loggerr ); // config.SDPConstraints
 
       }.bind(this), null, config.mediaConstraints );
 
-    } else {
+    } else { // receive answer
+
+      if ( moz ) delete this.channels['[moz]'];
 
       createDefaultChannels( this );
     }
@@ -241,17 +255,18 @@ Connection.prototype.setConfigurations = function ( msg ) {
  *  @param {Object} options   -
  */
 
-Connection.prototype.createDataChannel = function ( label, options ) {
+Connection.prototype.createDataChannel = function ( label ) {
 
   try {
 
-    var channel = this.conn.createDataChannel( label, { reliable: false });
+    // TODO: FF crashes on creation
+    var channel = this.conn.createDataChannel( label, moz ? {} : { reliable: false });
 
     this.channels[ label ] = new Handler( channel, this.info.remote );
 
   } catch ( e ) { // getting a "NotSupportedError" - but is working !
 
-    console.log('[Error] - Creating DataChannel (*)');
+    console.warn('[Error] - Creating DataChannel (*)');
   }
 };
 
@@ -299,7 +314,7 @@ Connection.prototype.send = function ( action, data, direct ) {
 Connection.prototype.close = function( channel ) {
 
   var handler  = this.channels,
-      keys     = Object.keys( handler );
+      keys     = getKeys( handler );
 
   if ( !channel ) channel = keys;
 
@@ -311,7 +326,7 @@ Connection.prototype.close = function( channel ) {
     delete handler[ channel[i] ];
   }
 
-  if ( !Object.keys( handler ).length ) this.conn.close();
+  if ( !getKeys( handler ).length ) this.conn.close();
 };
 
 
@@ -355,9 +370,9 @@ function adjustSDP ( sdp ) {
 
 function createDefaultChannels ( connection )  {
 
-  if ( Object.keys(connection.channels).length ) return;
+  if ( getKeys(connection.channels).length ) return;
 
-  var defaultChannels = Object.keys( defaultHandlers );
+  var defaultChannels = getKeys( defaultHandlers );
 
   for ( var i = 0, l = defaultChannels.length; i < l ; i++ ) {
 
@@ -383,7 +398,7 @@ function useChannels ( channel, data, proxy ) {
   var ready    = this.ready,
       channels = this.channels;
 
-  if ( !channel ) channel = Object.keys( channels );
+  if ( !channel ) channel = getKeys( channels );
 
   if ( !Array.isArray( channel ) ) channel = [ channel ];
 

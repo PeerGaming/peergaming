@@ -32,6 +32,17 @@ var SERVERLESS = null;
 
 var config = {
 
+
+  /**
+   *  Delay to ensure full candidate creation
+   *
+   *  Heuristics: [1] offer = 12  || answer = 6                  - for basic peerconnection
+   *              [2] offer =  6  || answer = 0 (=> no new ones) - for data channel
+   */
+
+  initialDelay :     1200,   // 12 * 100ms
+
+
   /**
    *  DataChannel specific settings
    *
