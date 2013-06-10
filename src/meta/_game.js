@@ -54,18 +54,24 @@ Game.prototype.start = function ( initialize ) {
   this._start = function(){ initialize(); INGAME = true; forward.call( this ); };
 
 
-  var ready = Object.keys( READY ).length;
+  var ready = getKeys( READY ).length;
 
   if ( ready  <  this.options.minPlayer ) return;     // less player  - wait
 
   if ( ready === this.options.minPlayer ) {
 
-    if ( PLAYER.pos === 0 ) this._start();
+    if ( PLAYER.pos === 0 ) {
+
+      if ( !INGAME ) return this._start();
+
+      // re-join to minmum | prevent reset
+      forward.call( this, getKeys(pg.peers)[0] );
+    }
 
     return;
   }
 
-  if ( ready  >  this.options.minPlayer ) {          // more player   - late join
+  if ( ready > this.options.minPlayer ) {          // more player   - late join
 
     if ( PLAYER.pos >= this.options.minPlayer ) request();
 
@@ -90,7 +96,7 @@ Game.prototype.unpause  = function(){};                   // TODO: 0.6.0 -> play
 
 function request() {
 
-  var keys = Object.keys( PEERS ),
+  var keys = getKeys( PEERS ),
       curr = PLAYER.pos;
 
   for ( var i = 0, l = keys.length; i < l; i++ ) {
@@ -117,7 +123,7 @@ function forward ( remoteID ) {
 
     setTimeout(function(){
 
-      var keys = Object.keys( PEERS ),
+      var keys = getKeys( PEERS ),
           curr = PLAYER.pos;
 
       for ( var i = 0, l = keys.length; i < l; i++ ) {
@@ -136,6 +142,7 @@ function forward ( remoteID ) {
   }.bind(this);
 
 
+
   if ( !remoteID ) return;
 
 
@@ -143,7 +150,7 @@ function forward ( remoteID ) {
 
   var conn = CONNECTIONS[ remoteID ],
 
-      keys = Object.keys( pg.sync ),
+      keys = getKeys( pg.sync ),
 
       prop;
 
