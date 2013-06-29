@@ -38,7 +38,11 @@ var Player = function ( account, origin ) {
 
   this.time = Date.now();
 
+  /** Assign properties **/
+
   this.init( id, account, data );
+
+  restoreBackup( this );
 
   if ( getKeys( callbackRefs ).length ) eventMap[ this.id ] = callbackRefs;
 
@@ -84,7 +88,7 @@ Player.prototype.join = function ( channel, params ) {
   if ( path.charAt( path.length - 1 ) !== '/' ) path += '/';
 
   // consider hash-cache
-  if ( path === '!/' + SESSION.route ) return checkRoute();
+  if ( win.location.hash === path && path === '!/' + SESSION.route ) return checkRoute();
 
   win.location.hash = path;
 };

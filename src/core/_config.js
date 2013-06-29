@@ -6,23 +6,6 @@
  */
 
 
-/**
- *  Public interface to set custom configurations
- *
- *  @type {Function} pg.config
- */
-
-
-
-
-/**
- *  Optional callback for handling credential exchange
- *
- *  @type {Function} SERVERLESS
- */
-
-var SERVERLESS = null;
-
 
 /**
  *  Internal configurations
@@ -34,13 +17,16 @@ var config = {
 
 
   /**
-   *  Delay to ensure full candidate creation
+   *  Settings for continue a former session
    *
-   *  Heuristics: [1] offer = 12  || answer = 6                  - for basic peerconnection
-   *              [2] offer =  6  || answer = 0 (=> no new ones) - for data channel
+   *  @type {Object} reconnectConfig
    */
 
-  initialDelay :     1200,   // 12 * 100ms
+  reconnectConfig: {
+
+    restoreEnabled :          false, //         - disabled by default
+    backupDuration : 30 * 60 * 1000  // 30 min  - duration to keep the local information (from start)
+  },
 
 
   /**
@@ -75,12 +61,14 @@ var config = {
    *  @type {Object} peerConfig
    */
 
-  peerConfig: {
+  connectionConfig: {
 
     iceServers: [{
 
-      url: !moz ? 'stun:stun.l.google.com:19302' :  // STUN server address
-                  'stun:23.21.150.121'
+      url      : !moz ? 'stun:stun.l.google.com:19302' :  // STUN server address
+                       'stun:23.21.150.121',
+      username : null,
+      password : null
     }]
   },
 
@@ -105,13 +93,13 @@ var config = {
 
   mediaConstraints: {
 
-    mandatory: {
+    'mandatory': {
 
       OfferToReceiveAudio   : true,
       OfferToReceiveVideo   : true
     },
 
-    optional: []
+    'optional': []
   },
 
 
@@ -167,7 +155,17 @@ function setConfig ( customConfig ) {
 
 setConfig.noServer = function ( hook ) {
 
-  if ( typeof hook === 'boolean' && hook ) return; // TODO: 0.6.0 -> useLocalDev();
+  if ( typeof hook !== 'function' ) return;
 
   SERVERLESS = hook;
+};
+
+
+/**
+ *  Enable local development, by using webstorage to exchange the credentials
+ *
+ */
+
+setConfig.localDev = function(){ // TODO: 0.6.0 -> useLocalDev();
+
 };
