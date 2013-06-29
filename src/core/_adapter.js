@@ -103,11 +103,11 @@ if ( !win.setImmediate ) {
 
 /** user MediaStream **/
 
-if ( !navigator.getUserMedia ) {
+if ( !nav.getUserMedia ) {
 
-  navigator.getUserMedia =  navigator.mozGetUserMedia     ||
-                            navigator.webkitGetUserMedia  ||
-                            navigator.msGetUserMedia;
+  nav.getUserMedia =  ( nav.mozGetUserMedia     ||
+                        nav.webkitGetUserMedia  ||
+                        nav.msGetUserMedia          ).bind(nav);
 }
 
 
@@ -117,6 +117,63 @@ if ( typeof win.RTCPeerConnection !== 'function' ) {
 
   win.RTCPeerConnection = win.mozRTCPeerConnection    ||
                           win.webkitRTCPeerConnection;
+
+
+  /** Modify the configurations to adjust the different address formats **/
+
+  win.RTCPeerConnection = (function(){
+
+    var vendorConnection = win.RTCPeerConnection;
+
+    return function adjustServer ( addresses, constraints ) {
+
+      var iceServers = addresses.iceServers,
+
+          current, server, url, type;
+
+      for ( var i = 0, l = iceServers.length; i < l; i++ ) {
+
+        current = iceServers[i];
+        server  = null;
+
+        url     = current.url;
+        type    = url.split(':')[0];
+
+        if ( type === 'stun' ) server = { url: url };
+
+        if ( type === 'turn' ) server = parseTURN ( url, current.username, current.password ) || {};
+
+        if ( !server.url ) throw new Error('Invalid server address - ', current );
+
+        iceServers[i] = server;
+      }
+
+      return new vendorConnection( addresses, constraints );
+    };
+
+
+    /** Select the appropriate TURN version **/
+
+    function parseTURN ( url, username, password ) {
+
+      if ( moz ) { // Firefox
+
+        if ( url.indexOf('transport=udp') !== -1 || url.indexOf('?transport') === -1 ) {
+
+          return { url: url.split('?')[0], credential: password, username: username };
+        }
+      }
+
+      if ( chrome ) { // Chrome
+
+        if ( chrome > 28 ) return { url: url, credential: password, username: username };
+
+        return { url: 'turn:' + username + '@' + url.split('turn:')[1], credential: password };
+      }
+    }
+
+  })();
+
 }
 
 
@@ -132,6 +189,25 @@ if ( typeof win.RTCIceCandidate !== 'function' ) {
 
   win.RTCIceCandidate = win.mozRTCIceCandidate;
 }
+
+
+/** Provide placeholder audio/video tracks for consistency **/
+
+if ( moz ) {
+
+  // or mozMediaStream ? // return this.videoTracks
+
+  MediaStream.prototype.getVideoTracks = function(){
+    return [];
+  };
+
+  MediaStream.prototype.getAudioTracks = function(){
+    return [];
+  };
+
+}
+
+
 
 
 /** Chrome **/
