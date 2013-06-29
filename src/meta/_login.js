@@ -16,6 +16,8 @@
 
 function login ( name, service, hook ) {
 
+  if ( PLAYER.id ) return PLAYER;
+
   if ( typeof service === 'function' ) { hook = service; service = null; }
 
   if ( service ) return requestOAuth( name, service, hook );

@@ -38,7 +38,7 @@ var Connection = function ( local, remote, initiator, transport ) {
 
 Connection.prototype.init = function(){
 
-  this.conn = new RTCPeerConnection( config.peerConfig, config.connectionConstraints );
+  this.conn = new RTCPeerConnection( config.connectionConfig, config.connectionConstraints );
 
   this.checkStateChanges();
 
@@ -181,8 +181,9 @@ Connection.prototype.createOffer = function() {
 
       function sendOffer ( last ) {
 
-        if ( last ) return setTimeout( sendOffer.bind(this), config.initialDelay,
-                                       this._counter - last);
+        var diff = this._counter - last;
+
+        if ( diff ) return setTimeout( sendOffer.bind(this), config.initialDelay, this._counter );
 
         this.send( 'setConfigurations', offer );
       }
@@ -227,8 +228,9 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
           function sendAnswer ( last ) {
 
-            if ( last ) return setTimeout( sendAnswer.bind(this), config.initialDelay,
-                                           this._counter - last);
+            var diff = this._counter - last;
+
+            if ( diff ) return setTimeout( sendAnswer.bind(this), config.initialDelay, this._counter );
 
             this.send( 'setConfigurations', answer );
           }
