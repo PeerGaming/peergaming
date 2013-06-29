@@ -22,11 +22,15 @@ var Connection = function ( local, remote, initiator, transport ) {
   if ( initiator ) this.info.initiator = true;
   if ( transport ) this.info.transport = transport;
 
-  this.channels    = {};
+  this.channels     =   {};
 
-  // internals for handling ICE candidates
-  this._candidates = [];
-  this._counter    =  0;
+  // internal: remote tracking
+  this._candidates  =   [];
+  this._fragments   =   {};
+
+  // internal: local handling
+  this._counter     =    0;
+  this._sendSDP = null;
 
   this.init();
 };
@@ -71,11 +75,21 @@ Connection.prototype.checkStateChanges = function(){
   }.bind(this);
 
 
+  conn.onsignalingstatechange = function ( e ) {
+
+    var signalingState = conn.signalingState;
+
+    this.ready = ( signalingState === 'stable' );
+    // if ( signalingState === 'closed' ) MANAGER.disconnect(this.info.remote);
+
+  }.bind(this);
+
+
   conn.oniceconnectionstatechange = function ( e ) {
 
-    var iceState = e.currentTarget.iceConnectionState;
+    var iceConnectionState = e.currentTarget.iceConnectionState;
 
-    if ( iceState === 'disconnected' ) {
+    if ( iceConnectionState === 'disconnected' ) {
 
       if ( this.info.pending ) { // interrupt
 
@@ -91,14 +105,6 @@ Connection.prototype.checkStateChanges = function(){
   }.bind(this);
 
 
-  conn.onsignalingstatechange = function ( e ) {
-
-    var signalingState = e.currentTarget.signalingState;
-
-    this.ready = ( signalingState === 'stable' );
-    // if ( signalingState === 'closed' ) MANAGER.disconnect(this.info.remote);
-
-  }.bind(this);
 };
 
 
@@ -126,13 +132,47 @@ Connection.prototype.receiveDataChannels = function(){
 
 Connection.prototype.findICECandidates = function(){
 
-  this.conn.onicecandidate = function ( e ) {
+  var conn     = this.conn,
 
-    // var iceGatheringState = e.currentTarget.iceConnectionState;
+      length   = getKeys( defaultHandlers ).length - 1,
+
+      advanced = false;
+
+
+  // remote just invokes half
+  if ( !this.info.initiator ) length = ~~( length/2 );
+
+  conn.onicecandidate = function ( e ) {
+
+    var iceGatheringState = conn.iceGatheringState;
+
+    // if ( moz && advanced ) return;
 
     if ( e.candidate ) { this._counter++; this.send( 'setIceCandidates', e.candidate ); }
 
+    // for DataChannel - some are still "gathering", not "complete"
+    if ( advanced ) { if ( !--length ) invokeExchange.call( this ); return; }
+
+    // FF => just 1x exchange with state "new"
+    if ( iceGatheringState === 'complete' || moz ) {
+
+      advanced = true;
+
+      invokeExchange.call( this );
+    }
+
   }.bind(this);
+
+
+  function invokeExchange(){
+
+    var num = this._counter; this._counter = 0;
+
+    if ( this._sendSDP ) return this._sendSDP(num);
+
+    this._sendSDP = num; // signal to be ready
+  }
+
 };
 
 
@@ -155,42 +195,49 @@ Connection.prototype.setIceCandidates = function ( data, release ) {
   for ( var i = 0; i < l; i++ ) conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
 
   data.length = 0;
+
+  delete this._fragments.candidates;
 };
 
 
 /**
- *  Create an offer
+ *  Create an offer (called for PeerConnectio & DataChannel)
  */
 
 Connection.prototype.createOffer = function() {
 
   var conn = this.conn;
 
-  // initial setup channel for configuration
-  if ( moz ) this.createDataChannel('[moz]');
+  // FF doesn't support re-negiotiation and requires the setup before
+  if ( moz ) createDefaultChannels( this );
 
-  this._counter = 0;
+  this._sendSDP = null;
 
+  // starts generating ICE candidates
   conn.createOffer( function ( offer ) {
 
     offer.sdp = adjustSDP( offer.sdp );
 
     conn.setLocalDescription( offer, function(){
 
-      setTimeout( sendOffer.bind(this), config.initialDelay, 0 );
-
-      function sendOffer ( last ) {
-
-        var diff = this._counter - last;
-
-        if ( diff ) return setTimeout( sendOffer.bind(this), config.initialDelay, this._counter );
-
-        this.send( 'setConfigurations', offer );
-      }
+      exchangeDescription.call( this, offer );
 
     }.bind(this), loggerr ); // config.SDPConstraints
 
   }.bind(this), loggerr, config.mediaConstraints );
+};
+
+
+/**
+ *  Declare the amount of packages which are
+ *
+ *  @param  {[type]} msg [description]
+ *  @return {[type]}     [description]
+ */
+
+Connection.prototype.expectPackages = function ( msg ) {
+
+  this._fragments[ msg.type ] = msg.size;
 };
 
 
@@ -212,9 +259,16 @@ Connection.prototype.setConfigurations = function ( msg ) {
   if ( this.closed ) throw new Error('Underlying PeerConnection got closed too early!');
 
 
+  if ( this._candidates.length < this._fragments.candidates ) {
+
+    return setTimeout( this.setConfigurations.bind(this), 100, msg );
+  }
+
   conn.setRemoteDescription( desc, function(){
 
-    if ( this._candidates.length ) this.setIceCandidates( this._candidates, true );
+    if ( this._candidates.length) this.setIceCandidates( this._candidates, true );
+
+    this._sendSDP = null;
 
     if ( msg.type === 'offer' ) {
 
@@ -224,16 +278,7 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
         conn.setLocalDescription( answer, function(){
 
-          setTimeout( sendAnswer.bind(this), config.initialDelay, 0 );
-
-          function sendAnswer ( last ) {
-
-            var diff = this._counter - last;
-
-            if ( diff ) return setTimeout( sendAnswer.bind(this), config.initialDelay, this._counter );
-
-            this.send( 'setConfigurations', answer );
-          }
+          exchangeDescription.call( this, answer );
 
         }.bind(this), loggerr ); // config.SDPConstraints
 
@@ -241,12 +286,13 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
     } else { // receive answer
 
-      if ( moz ) delete this.channels['[moz]'];
+      if ( moz ) return;
 
       createDefaultChannels( this );
     }
 
-  }.bind(this), loggerr );
+  }.bind(this), !moz ? loggerr : function(){} ); // FF -> supress warning for missing re-negotiation
+
 };
 
 
@@ -361,6 +407,29 @@ function adjustSDP ( sdp ) {
   }
 
   return sdp;
+}
+
+
+/**
+ *  Sending the SDP package to your partner
+ *
+ *  @param  {[type]} description [description]
+ */
+
+function exchangeDescription ( description ) {
+
+  var ready = this._sendSDP;
+
+  this._sendSDP = function ( num ) {
+
+    this.send( 'expectPackages', { type: 'candidates', size: num });
+
+    this.send( 'setConfigurations', description );
+
+  }.bind(this);
+
+  // on second exchange, the remote doesn't set any candidates and the ready/num will be 0
+  if ( ready !== void 0 ) this._sendSDP( ready );
 }
 
 
