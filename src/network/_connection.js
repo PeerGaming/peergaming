@@ -30,7 +30,7 @@ var Connection = function ( local, remote, initiator, transport ) {
 
   // internal: local handling
   this._counter     =    0;
-  this._sendSDP = null;
+  this._sendSDP     = null;
 
   this.init();
 };
@@ -146,11 +146,9 @@ Connection.prototype.findICECandidates = function(){
 
     var iceGatheringState = conn.iceGatheringState;
 
-    // if ( moz && advanced ) return;
-
     if ( e.candidate ) { this._counter++; this.send( 'setIceCandidates', e.candidate ); }
 
-    // for DataChannel - some are still "gathering", not "complete"
+    // for DataChannel - some candidates are still "gathering", not "complete"
     if ( advanced ) { if ( !--length ) invokeExchange.call( this ); return; }
 
     // FF => just 1x exchange with state "new"
@@ -208,12 +206,12 @@ Connection.prototype.createOffer = function() {
 
   var conn = this.conn;
 
-  // FF doesn't support re-negiotiation and requires the setup before
+  // FF doesn't support re-negiotiation -> requires the setup before
   if ( moz ) createDefaultChannels( this );
 
   this._sendSDP = null;
 
-  // starts generating ICE candidates
+  // start generating ICE candidates
   conn.createOffer( function ( offer ) {
 
     offer.sdp = adjustSDP( offer.sdp );
@@ -256,23 +254,28 @@ Connection.prototype.setConfigurations = function ( msg ) {
       desc = new RTCSessionDescription( msg );
 
 
-  if ( this.closed ) throw new Error('Underlying PeerConnection got closed too early!');
+  if ( this.closed ) {
+
+    alert('Sorry, but an error occoured. Please revisit the site!');
+
+    throw new Error('The underlying PeerConnection got closed too early...');
+  }
 
 
   if ( this._candidates.length < this._fragments.candidates ) {
 
-    return setTimeout( this.setConfigurations.bind(this), 100, msg );
+    return setTimeout( this.setConfigurations.bind(this), 1000, msg );
   }
 
-  conn.setRemoteDescription( desc, function(){
+  conn.setRemoteDescription( desc, function(){  // Chrome -> FF: firefox doesn't trigger the description
 
-    if ( this._candidates.length) this.setIceCandidates( this._candidates, true );
+    if ( this._candidates.length ) this.setIceCandidates( this._candidates, true );
 
     this._sendSDP = null;
 
     if ( msg.type === 'offer' ) {
 
-      conn.createAnswer( function ( answer ) {
+      conn.createAnswer( function ( answer ) {  // FF -> Chrome: chrome doesn't create an answer
 
         answer.sdp = adjustSDP( answer.sdp );
 
@@ -307,8 +310,7 @@ Connection.prototype.createDataChannel = function ( label ) {
 
   try {
 
-    // TODO: FF crashes on creation
-    var channel = this.conn.createDataChannel( label, moz ? {} : { reliable: false });
+    var channel = this.conn.createDataChannel( label, config.channelConfig );
 
     this.channels[ label ] = new Handler( channel, this.info.remote );
 
@@ -388,7 +390,7 @@ Connection.prototype.close = function( channel ) {
 function adjustSDP ( sdp ) {
 
   // crypto
-  if ( !~sdp.indexOf('a=crypto') ) {
+  if ( sdp.indexOf('a=crypto') < 0 ) {
 
     var crypto = [], length = 4;
 
@@ -398,11 +400,19 @@ function adjustSDP ( sdp ) {
   }
 
   // bandwidth
-  if ( ~sdp.indexOf('b=AS') ) {
+  if ( sdp.indexOf('b=AS') >= 0 ) {
 
-    sdp = sdp.replace( /b=AS:([0-9]*)/, function ( match, text ) {
+    sdp = sdp.replace(/b=AS:([0-9]*)/, function ( match, text ) {
 
-      return 'b=AS:' + config.channelConfig.BANDWIDTH;
+      return 'b=AS:' + config.handlerConfig.BANDWIDTH;
+    });
+  }
+
+  if ( sdp.indexOf('a=mid:data') >= 0 ) {
+
+    sdp = sdp.replace(/a=mid:data\r\n/g, function ( match, text ) {
+
+      return 'a=mid:data\r\nb=AS:' + config.handlerConfig.BANDWIDTH + '\r\n';
     });
   }
 
@@ -416,7 +426,7 @@ function adjustSDP ( sdp ) {
  *  @param  {[type]} description [description]
  */
 
-function exchangeDescription ( description ) {
+function exchangeDescription ( desc ) {
 
   var ready = this._sendSDP;
 
@@ -424,12 +434,12 @@ function exchangeDescription ( description ) {
 
     this.send( 'expectPackages', { type: 'candidates', size: num });
 
-    this.send( 'setConfigurations', description );
+    this.send( 'setConfigurations', desc );
 
   }.bind(this);
 
-  // on second exchange, the remote doesn't set any candidates and the ready/num will be 0
-  if ( ready !== void 0 ) this._sendSDP( ready );
+  // the remote doesn't set any candidates (ready/num will be 0) on the 2nd exchange + default (null)
+  if ( ready != void 0 ) this._sendSDP( ready );
 }
 
 
