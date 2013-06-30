@@ -1,5 +1,5 @@
 /**
- *	peergaming.js - v0.4.3 | 2013-06-02
+ *	peergaming.js - v0.4.7 | 2013-06-30
  *	http://peergaming.net
  *	Copyright (c) 2013, Stefan Dühring
  *	MIT License
@@ -34,10 +34,21 @@
 
 var win     = window,
     doc     = document,
-    moz     = !!win.navigator.mozGetUserMedia,
-    chrome  = !!win.chrome,
+    nav     = win.navigator,
+
+    moz     = nav.mozGetUserMedia ? parseFloat( nav.userAgent.match(/Firefox\/([0-9]+)\./).pop()       )
+                                  : false,
+
+    chrome  = win.chrome          ? parseFloat( nav.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./).pop() )
+                                  : false,
+
     SESSION = win.sessionStorage,
     LOCAL   = win.localStorage;
+
+
+/** native **/
+
+var getKeys = Object.keys;
 
 
 /** internal  **/
@@ -48,7 +59,9 @@ var ROOM        = '',        // current room
     MEDIAS      = {},        // mediastreams for each peer
     SOCKET      = null,      // client-server transport
     MANAGER     = null,      // delegation methods
-    INGAME      = false;     // information about the current state
+    INGAME      = false,     // information about the current state
+    SERVERLESS  = null,      // optional callback for manual handling
+    BACKUP      = {};        // store player data for reconnection
 
 
 /** references **/
@@ -165,11 +178,11 @@ if ( !win.setImmediate ) {
 
 /** user MediaStream **/
 
-if ( !navigator.getUserMedia ) {
+if ( !nav.getUserMedia ) {
 
-  navigator.getUserMedia =  navigator.mozGetUserMedia     ||
-                            navigator.webkitGetUserMedia  ||
-                            navigator.msGetUserMedia;
+  nav.getUserMedia =  ( nav.mozGetUserMedia     ||
+                        nav.webkitGetUserMedia  ||
+                        nav.msGetUserMedia          ).bind(nav);
 }
 
 
@@ -179,6 +192,63 @@ if ( typeof win.RTCPeerConnection !== 'function' ) {
 
   win.RTCPeerConnection = win.mozRTCPeerConnection    ||
                           win.webkitRTCPeerConnection;
+
+
+  /** Modify the configurations to adjust the different address formats **/
+
+  win.RTCPeerConnection = (function(){
+
+    var vendorConnection = win.RTCPeerConnection;
+
+    return function adjustServer ( addresses, constraints ) {
+
+      var iceServers = addresses.iceServers,
+
+          current, server, url, type;
+
+      for ( var i = 0, l = iceServers.length; i < l; i++ ) {
+
+        current = iceServers[i];
+        server  = null;
+
+        url     = current.url;
+        type    = url.split(':')[0];
+
+        if ( type === 'stun' ) server = { url: url };
+
+        if ( type === 'turn' ) server = parseTURN ( url, current.username, current.password ) || {};
+
+        if ( !server.url ) throw new Error('Invalid server address - ', current );
+
+        iceServers[i] = server;
+      }
+
+      return new vendorConnection( addresses, constraints );
+    };
+
+
+    /** Select the appropriate TURN version **/
+
+    function parseTURN ( url, username, password ) {
+
+      if ( moz ) { // Firefox
+
+        if ( url.indexOf('transport=udp') !== -1 || url.indexOf('?transport') === -1 ) {
+
+          return { url: url.split('?')[0], credential: password, username: username };
+        }
+      }
+
+      if ( chrome ) { // Chrome
+
+        if ( chrome > 28 ) return { url: url, credential: password, username: username };
+
+        return { url: 'turn:' + username + '@' + url.split('turn:')[1], credential: password };
+      }
+    }
+
+  })();
+
 }
 
 
@@ -194,6 +264,25 @@ if ( typeof win.RTCIceCandidate !== 'function' ) {
 
   win.RTCIceCandidate = win.mozRTCIceCandidate;
 }
+
+
+/** Provide placeholder audio/video tracks for consistency **/
+
+if ( moz ) {
+
+  // or mozMediaStream ? // return this.videoTracks
+
+  MediaStream.prototype.getVideoTracks = function(){
+    return [];
+  };
+
+  MediaStream.prototype.getAudioTracks = function(){
+    return [];
+  };
+
+}
+
+
 
 
 /** Chrome **/
@@ -240,10 +329,6 @@ for ( var i = 0, l = features.length; i < l; i++ ) {
 }
 
 if ( !win.RTCPeerConnection ) return alert('Your browser doesn\'t support PeerConnections yet.');
-
-/** last browser change broke API **/
-if ( moz ) return alert('Unfortunately the Firefox support got broken with the last update.\n\
-                         Please use Chrome at the moment and look forward for the next version!');
 
 
 /**
@@ -360,10 +445,10 @@ var reservedReference = context.pg,
 VERSION = {
 
   codeName    : 'spicy-phoenix',
-  full        : '0.4.3',
+  full        : '0.4.7',
   major       : 0,
   minor       : 4,
-  dot         : 3
+  dot         : 7
 };
 
 
@@ -388,23 +473,6 @@ function noConflict(){
  */
 
 
-/**
- *  Public interface to set custom configurations
- *
- *  @type {Function} pg.config
- */
-
-
-
-
-/**
- *  Optional callback for handling credential exchange
- *
- *  @type {Function} SERVERLESS
- */
-
-var SERVERLESS = null;
-
 
 /**
  *  Internal configurations
@@ -414,13 +482,27 @@ var SERVERLESS = null;
 
 var config = {
 
+
   /**
-   *  DataChannel specific settings
+   *  Settings for continue a former session
    *
-   *  @type {Object} channelConfig
+   *  @type {Object} reconnectConfig
    */
 
-  channelConfig: {
+  reconnectConfig: {
+
+    restoreEnabled :          false, //         - disabled by default
+    backupDuration : 30 * 60 * 1000  // 30 min  - duration to keep the local information (from start)
+  },
+
+
+  /**
+   *  Handler attributes
+   *
+   *  @type {Object} handlerConfig
+   */
+
+  handlerConfig: {
 
     BANDWIDTH   : 0x100000,   // 1MB  - increase DataChannel capacity
     MAX_BYTES   :     1024,   // 1kb  - max data size before splitting
@@ -446,25 +528,39 @@ var config = {
    *  @type {Object} peerConfig
    */
 
-  peerConfig: {
+  connectionConfig: {
 
-    iceServers: [{
+    'iceServers': [{
 
-      url: !moz ? 'stun:stun.l.google.com:19302' :  // STUN server address
-                  'stun:23.21.150.121'
+      url      : !moz ? 'stun:stun.l.google.com:19302' :  // STUN server address
+                        'stun:23.21.150.121',
+      username : null,
+      password : null
     }]
   },
 
 
   /**
-   *  Constraints for the SDP packages
+   *  Constraints for the PeerConnection & SDP packages
    *
    *  @type {Object} connectionContrains
    */
 
   connectionConstraints: {
 
-    optional: [{ RtpDataChannels: true }]  // enable DataChannel
+    'optional': [{ RtpDataChannels: true }]  // enable DataChannel
+  },
+
+
+  /**
+   *  DataChannel specific settings
+   */
+
+  channelConfig: {
+
+    reliable: false
+    // outOfOrderAllowed: true,
+    // maxRetransmitNum : 0
   },
 
 
@@ -476,13 +572,13 @@ var config = {
 
   mediaConstraints: {
 
-    mandatory: {
+    'mandatory': {
 
       OfferToReceiveAudio   : true,
       OfferToReceiveVideo   : true
     },
 
-    optional: []
+    'optional': []
   },
 
 
@@ -494,25 +590,20 @@ var config = {
 
   videoConstraints: {
 
-    mandatory: {
+    'mandatory': {
 
       maxHeight : 320,  // default dimension for android
-      maxWidth  : 240   //
+      maxWidth  : 240
     },
 
-    optional: []
+    'optional': [
+
+      { minWidth:  640, minHeight: 480 },
+      { minWidth: 1280, minHeight: 720 }
+    ]
   }
 
 };
-
-
-/** Previous settings for Firefox **/
-
-// if ( moz ) {
-
-//   config.connectionConstraints = { optional: [{ DtlsSrtpKeyAgreement   : 'true' }] };
-//   config.SDPConstraints        = { mandatory: { MozDontOfferDataChannel:  true  }  };
-// }
 
 
 /**
@@ -538,9 +629,19 @@ function setConfig ( customConfig ) {
 
 setConfig.noServer = function ( hook ) {
 
-  if ( typeof hook === 'boolean' && hook ) return; // TODO: 0.6.0 -> useLocalDev();
+  if ( typeof hook !== 'function' ) return;
 
   SERVERLESS = hook;
+};
+
+
+/**
+ *  Enable local development, by using webstorage to exchange the credentials
+ *
+ */
+
+setConfig.localDev = function(){ // TODO: 0.6.0 -> useLocalDev();
+
 };
 
 
@@ -635,7 +736,7 @@ function createQuery ( params ) {
 
   if ( typeof params != 'object' ) return;
 
-  var keys = Object.keys( params ),
+  var keys = getKeys( params ),
       query = [];
 
   for ( var i = 0, l = keys.length; i < l; i++ ) {
@@ -793,8 +894,6 @@ function checkProperties ( id, current ) {
  *  @param  {Object} current   -
  *  @return {Object}
  */
-
-var getKeys = Object.keys;
 
 function getDifferences ( last, current ) {
 
@@ -1116,7 +1215,7 @@ Stream.prototype.handle = function ( e ) {
       buffer  = this.readBuffer;
 
 
-  if ( data.part !== void 0 ) {
+  if ( data.part != void 0 ) {
 
     buffer.push( data.data );
 
@@ -1255,8 +1354,8 @@ Handler.prototype.send = function ( msg ) {
       buffer  = data; //stringToBuffer( data );
 
 
-  if ( buffer.length > config.channelConfig.MAX_BYTES ) {
-  // if ( buffer.byteLength > config.channelConfig.MAX_BYTES ) {
+  if ( buffer.length > config.handlerConfig.MAX_BYTES ) {
+  // if ( buffer.byteLength > config.handlerConfig.MAX_BYTES ) {
 
     buffer = createChunks( buffer );
 
@@ -1280,8 +1379,8 @@ Handler.prototype.send = function ( msg ) {
 
 function createChunks ( buffer ) {
 
-  var maxBytes  = config.channelConfig.MAX_BYTES,
-      chunkSize = config.channelConfig.CHUNK_SIZE,
+  var maxBytes  = config.handlerConfig.MAX_BYTES,
+      chunkSize = config.handlerConfig.CHUNK_SIZE,
       size      = buffer.length, //byteLength,
       chunks    = [],
 
@@ -1338,7 +1437,7 @@ var defaultHandlers = {
         account : PLAYER.account,
         time    : PLAYER.time,
         data    : PLAYER.data,                // TODO: 0.6.0 -> define values for secure access
-        list    : Object.keys( CONNECTIONS )
+        list    : getKeys( CONNECTIONS )
       });
     },
 
@@ -1730,7 +1829,15 @@ var Connection = function ( local, remote, initiator, transport ) {
   if ( initiator ) this.info.initiator = true;
   if ( transport ) this.info.transport = transport;
 
-  this.channels = {};
+  this.channels     =   {};
+
+  // internal: remote tracking
+  this._candidates  =   [];
+  this._fragments   =   {};
+
+  // internal: local handling
+  this._counter     =    0;
+  this._sendSDP     = null;
 
   this.init();
 };
@@ -1742,7 +1849,7 @@ var Connection = function ( local, remote, initiator, transport ) {
 
 Connection.prototype.init = function(){
 
-  this.conn = new RTCPeerConnection( config.peerConfig, config.connectionConstraints );
+  this.conn = new RTCPeerConnection( config.connectionConfig, config.connectionConstraints );
 
   this.checkStateChanges();
 
@@ -1765,7 +1872,7 @@ Connection.prototype.checkStateChanges = function(){
 
   var conn    = this.conn,
 
-      length  = Object.keys( defaultHandlers ).length;
+      length  = getKeys( defaultHandlers ).length;
 
 
   conn.onnegotiationneeded = function ( e ) {
@@ -1775,11 +1882,21 @@ Connection.prototype.checkStateChanges = function(){
   }.bind(this);
 
 
+  conn.onsignalingstatechange = function ( e ) {
+
+    var signalingState = conn.signalingState;
+
+    this.ready = ( signalingState === 'stable' );
+    // if ( signalingState === 'closed' ) MANAGER.disconnect(this.info.remote);
+
+  }.bind(this);
+
+
   conn.oniceconnectionstatechange = function ( e ) {
 
-    var iceState = e.currentTarget.iceConnectionState;
+    var iceConnectionState = e.currentTarget.iceConnectionState;
 
-    if ( iceState === 'disconnected' ) {
+    if ( iceConnectionState === 'disconnected' ) {
 
       if ( this.info.pending ) { // interrupt
 
@@ -1795,14 +1912,6 @@ Connection.prototype.checkStateChanges = function(){
   }.bind(this);
 
 
-  conn.onsignalingstatechange = function ( e ) {
-
-    var signalingState = e.currentTarget.signalingState;
-
-    this.ready = ( signalingState === 'stable' );
-    // if ( signalingState === 'closed' ) MANAGER.disconnect(this.info.remote);
-
-  }.bind(this);
 };
 
 
@@ -1830,70 +1939,110 @@ Connection.prototype.receiveDataChannels = function(){
 
 Connection.prototype.findICECandidates = function(){
 
-  this.conn.onicecandidate = function ( e ) {
+  var conn     = this.conn,
 
-    // var iceGatheringState = e.currentTarget.iceConnectionState;
+      length   = getKeys( defaultHandlers ).length - 1,
 
-    if ( e.candidate ) this.send( 'setIceCandidates', e.candidate );
+      advanced = false;
+
+
+  // remote just invokes half
+  if ( !this.info.initiator ) length = ~~( length/2 );
+
+  conn.onicecandidate = function ( e ) {
+
+    var iceGatheringState = conn.iceGatheringState;
+
+    if ( e.candidate ) { this._counter++; this.send( 'setIceCandidates', e.candidate ); }
+
+    // for DataChannel - some candidates are still "gathering", not "complete"
+    if ( advanced ) { if ( !--length ) invokeExchange.call( this ); return; }
+
+    // FF => just 1x exchange with state "new"
+    if ( iceGatheringState === 'complete' || moz ) {
+
+      advanced = true;
+
+      invokeExchange.call( this );
+    }
 
   }.bind(this);
+
+
+  function invokeExchange(){
+
+    var num = this._counter; this._counter = 0;
+
+    if ( this._sendSDP ) return this._sendSDP(num);
+
+    this._sendSDP = num; // signal to be ready
+  }
+
 };
 
 
 /**
- *  Sets ICE candidates - using an additional container to keep the order
+ *  Set the ICE candidates - using an additional container internaly to keep the order
  *
  *  @param {Object} data [description]
  */
 
-Connection.prototype.setIceCandidates = function ( data ) {
+Connection.prototype.setIceCandidates = function ( data, release ) {
 
   if ( this.closed ) throw new Error('Can\'t set ICE candidates!');
 
-  var conn = this.conn;
+  if ( !release ) return this._candidates.push( data );
 
-  if ( conn.remoteDescription || conn.localDescription ) {
+  var conn = this.conn,
 
-    if ( this._candidates ) delete this._candidates;
+      l    = data.length;
 
-    if ( !Array.isArray(data) ) data = [ data ];
+  for ( var i = 0; i < l; i++ ) conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
 
-    for ( var i = 0, l = data.length; i < l; i++ ) {
+  data.length = 0;
 
-      conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
-    }
-
-  } else {
-
-    if ( !this._candidates ) this._candidates = [];
-
-    this._candidates.push( data );
-  }
+  delete this._fragments.candidates;
 };
 
 
 /**
- *  Create an offer
+ *  Create an offer (called for PeerConnectio & DataChannel)
  */
 
 Connection.prototype.createOffer = function() {
 
   var conn = this.conn;
 
-  // initial setup channel for configuration
-  if ( moz ) conn.createDataChannel('[moz]');
+  // FF doesn't support re-negiotiation -> requires the setup before
+  if ( moz ) createDefaultChannels( this );
 
+  this._sendSDP = null;
+
+  // start generating ICE candidates
   conn.createOffer( function ( offer ) {
 
     offer.sdp = adjustSDP( offer.sdp );
 
     conn.setLocalDescription( offer, function(){
 
-      this.send( 'setConfigurations', offer );
+      exchangeDescription.call( this, offer );
 
     }.bind(this), loggerr ); // config.SDPConstraints
 
   }.bind(this), loggerr, config.mediaConstraints );
+};
+
+
+/**
+ *  Declare the amount of packages which are
+ *
+ *  @param  {[type]} msg [description]
+ *  @return {[type]}     [description]
+ */
+
+Connection.prototype.expectPackages = function ( msg ) {
+
+  this._fragments[ msg.type ] = msg.size;
 };
 
 
@@ -1912,33 +2061,48 @@ Connection.prototype.setConfigurations = function ( msg ) {
       desc = new RTCSessionDescription( msg );
 
 
-  if ( this.closed ) throw new Error('Underlying PeerConnection got closed too early!');
+  if ( this.closed ) {
+
+    alert('Sorry, but an error occoured. Please revisit the site!');
+
+    throw new Error('The underlying PeerConnection got closed too early...');
+  }
 
 
-  conn.setRemoteDescription( desc, function(){
+  if ( this._candidates.length < this._fragments.candidates ) {
 
-    if ( this._candidates ) this.setIceCandidates( this._candidates );
+    return setTimeout( this.setConfigurations.bind(this), 1000, msg );
+  }
+
+  conn.setRemoteDescription( desc, function(){  // Chrome -> FF: firefox doesn't trigger the description
+
+    if ( this._candidates.length ) this.setIceCandidates( this._candidates, true );
+
+    this._sendSDP = null;
 
     if ( msg.type === 'offer' ) {
 
-      conn.createAnswer( function ( answer ) {
+      conn.createAnswer( function ( answer ) {  // FF -> Chrome: chrome doesn't create an answer
 
         answer.sdp = adjustSDP( answer.sdp );
 
         conn.setLocalDescription( answer, function(){
 
-          this.send( 'setConfigurations', answer );
+          exchangeDescription.call( this, answer );
 
         }.bind(this), loggerr ); // config.SDPConstraints
 
       }.bind(this), null, config.mediaConstraints );
 
-    } else {
+    } else { // receive answer
+
+      if ( moz ) return;
 
       createDefaultChannels( this );
     }
 
-  }.bind(this), loggerr );
+  }.bind(this), !moz ? loggerr : function(){} ); // FF -> supress warning for missing re-negotiation
+
 };
 
 
@@ -1949,17 +2113,17 @@ Connection.prototype.setConfigurations = function ( msg ) {
  *  @param {Object} options   -
  */
 
-Connection.prototype.createDataChannel = function ( label, options ) {
+Connection.prototype.createDataChannel = function ( label ) {
 
   try {
 
-    var channel = this.conn.createDataChannel( label, { reliable: false });
+    var channel = this.conn.createDataChannel( label, config.channelConfig );
 
     this.channels[ label ] = new Handler( channel, this.info.remote );
 
   } catch ( e ) { // getting a "NotSupportedError" - but is working !
 
-    console.log('[Error] - Creating DataChannel (*)');
+    console.warn('[Error] - Creating DataChannel (*)');
   }
 };
 
@@ -2007,7 +2171,7 @@ Connection.prototype.send = function ( action, data, direct ) {
 Connection.prototype.close = function( channel ) {
 
   var handler  = this.channels,
-      keys     = Object.keys( handler );
+      keys     = getKeys( handler );
 
   if ( !channel ) channel = keys;
 
@@ -2019,7 +2183,7 @@ Connection.prototype.close = function( channel ) {
     delete handler[ channel[i] ];
   }
 
-  if ( !Object.keys( handler ).length ) this.conn.close();
+  if ( !getKeys( handler ).length ) this.conn.close();
 };
 
 
@@ -2033,7 +2197,7 @@ Connection.prototype.close = function( channel ) {
 function adjustSDP ( sdp ) {
 
   // crypto
-  if ( !~sdp.indexOf('a=crypto') ) {
+  if ( sdp.indexOf('a=crypto') < 0 ) {
 
     var crypto = [], length = 4;
 
@@ -2043,15 +2207,46 @@ function adjustSDP ( sdp ) {
   }
 
   // bandwidth
-  if ( ~sdp.indexOf('b=AS') ) {
+  if ( sdp.indexOf('b=AS') >= 0 ) {
 
-    sdp = sdp.replace( /b=AS:([0-9]*)/, function ( match, text ) {
+    sdp = sdp.replace(/b=AS:([0-9]*)/, function ( match, text ) {
 
-      return 'b=AS:' + config.channelConfig.BANDWIDTH;
+      return 'b=AS:' + config.handlerConfig.BANDWIDTH;
+    });
+  }
+
+  if ( sdp.indexOf('a=mid:data') >= 0 ) {
+
+    sdp = sdp.replace(/a=mid:data\r\n/g, function ( match, text ) {
+
+      return 'a=mid:data\r\nb=AS:' + config.handlerConfig.BANDWIDTH + '\r\n';
     });
   }
 
   return sdp;
+}
+
+
+/**
+ *  Sending the SDP package to your partner
+ *
+ *  @param  {[type]} description [description]
+ */
+
+function exchangeDescription ( desc ) {
+
+  var ready = this._sendSDP;
+
+  this._sendSDP = function ( num ) {
+
+    this.send( 'expectPackages', { type: 'candidates', size: num });
+
+    this.send( 'setConfigurations', desc );
+
+  }.bind(this);
+
+  // the remote doesn't set any candidates (ready/num will be 0) on the 2nd exchange + default (null)
+  if ( ready != void 0 ) this._sendSDP( ready );
 }
 
 
@@ -2063,9 +2258,9 @@ function adjustSDP ( sdp ) {
 
 function createDefaultChannels ( connection )  {
 
-  if ( Object.keys(connection.channels).length ) return;
+  if ( getKeys(connection.channels).length ) return;
 
-  var defaultChannels = Object.keys( defaultHandlers );
+  var defaultChannels = getKeys( defaultHandlers );
 
   for ( var i = 0, l = defaultChannels.length; i < l ; i++ ) {
 
@@ -2091,7 +2286,7 @@ function useChannels ( channel, data, proxy ) {
   var ready    = this.ready,
       channels = this.channels;
 
-  if ( !channel ) channel = Object.keys( channels );
+  if ( !channel ) channel = getKeys( channels );
 
   if ( !Array.isArray( channel ) ) channel = [ channel ];
 
@@ -2109,11 +2304,13 @@ function useChannels ( channel, data, proxy ) {
  */
 
 
-var DELAY    =  0,  // max. latency evaluation
+var DELAY    =    0,  // max. latency evaluation
 
-    READY    = {},  // record of current ready users
+    PINGS    =  100,  // amount of packages to exchange for the latency test
 
-    TODO     = {};  // available peers to connect
+    READY    =   {},  // record of current ready users
+
+    TODO     =   {};  // available peers to connect
 
 
 MANAGER = (function(){
@@ -2145,7 +2342,7 @@ MANAGER = (function(){
 
       remoteID = remoteList[i];
 
-      if ( remoteID === localID || CONNECTIONS[ remoteID ] ) continue;
+      if ( remoteID === localID || CONNECTIONS[ remoteID ] ) continue; // skip
 
       TODO[ remoteID ] = transport;
     }
@@ -2186,8 +2383,8 @@ MANAGER = (function(){
 
     delete READY[ remoteID ];
 
-    PLAYER.emit( 'disconnect', peer );
-    ROOM  .emit( 'leave'     , peer );
+    PLAYER.emit( 'disconnect',      peer );
+    if ( ROOM ) ROOM.emit( 'leave', peer );
 
 
     CONNECTIONS[ remoteID ].close();
@@ -2217,7 +2414,8 @@ MANAGER = (function(){
 
 
   /**
-   *  Inform peers about key/value change by multicast
+   *  Inform other peers about the key/value change by using a multicast
+   *  and updates the local backup
    *
    *  @param  {String}               key     -
    *  @param  {String|Number|Object} value   -
@@ -2225,7 +2423,9 @@ MANAGER = (function(){
 
   function update ( key, value ) {
 
-    var ids = Object.keys( CONNECTIONS );
+    updateBackup();
+
+    var ids = getKeys( CONNECTIONS );
 
     for ( var i = 0, l = ids.length; i < l; i++ ) {
 
@@ -2276,7 +2476,7 @@ MANAGER = (function(){
 
     var conn = CONNECTIONS[ remoteID ],
 
-        num  = 100,
+        num  = PINGS,
 
         col = timer[ remoteID ] = [ num ];
 
@@ -2299,17 +2499,17 @@ MANAGER = (function(){
 
   function progress ( part ) {
 
-    part = 100 - part;  // 0 -> 100
+    part = PINGS - part;  // 0 -> 100
 
-    var curr  = Object.keys( PEERS ).length,
-        diff  = Object.keys( TODO  ).length,
+    var curr  = getKeys( PEERS ).length,
+        diff  = getKeys( TODO  ).length,
         max   = diff + curr;
 
     part = ~~( curr * part / max );
 
     if ( part <= perc ) return;
 
-    ROOM.emit( 'progress', perc = part );
+    if ( ROOM ) ROOM.emit( 'progress', perc = part, max );
 
     // if ( perc === 99 ) perc = 0; // reset ?
   }
@@ -2321,7 +2521,7 @@ MANAGER = (function(){
 
   function ready (){
 
-    var keys  = Object.keys( PEERS ),
+    var keys  = getKeys( PEERS ),
 
         list  = [],
 
@@ -2337,7 +2537,7 @@ MANAGER = (function(){
     }
 
 
-    var entry = Object.keys( TODO ).pop();
+    var entry = getKeys( TODO ).pop();
 
     if ( entry ) {
 
@@ -2363,8 +2563,9 @@ MANAGER = (function(){
 
       READY[ peer.id ] = true;
 
-      PLAYER.emit( 'connection', peer );
-      ROOM  .emit( 'enter'     , peer );
+      PLAYER.emit( 'connection'     , peer );
+
+      if ( ROOM ) ROOM.emit( 'enter', peer );
     }
   }
 
@@ -2375,7 +2576,7 @@ MANAGER = (function(){
 
   function order (){
 
-    var keys  = Object.keys( PEERS ),
+    var keys  = getKeys( PEERS ),
 
         times = {};
 
@@ -2383,7 +2584,7 @@ MANAGER = (function(){
 
     for ( var i = 0, l = keys.length; i < l; i++ ) times[ PEERS[ keys[i] ].time ] = keys[i];
 
-    var list = Object.keys( times ).sort( rank ).map( function ( key ) { return times[key]; }),
+    var list = getKeys( times ).sort( rank ).map( function ( key ) { return times[key]; }),
 
         user;
 
@@ -2433,6 +2634,57 @@ extend( INFO, {
 });
 
 // TODO: 0.6.0 -> data & info
+
+/**
+ *  Backup
+ *  ======
+ *
+ *  Using local stored information to provide a backup for reconnection.
+ */
+
+if ( LOCAL.player ) {
+
+  var range = parseFloat( JSON.parse(LOCAL.player).time ) +
+              config.reconnectConfig.backupDuration - Date.now();
+
+  if ( range >= 0 ) extend( BACKUP, JSON.parse(LOCAL.player) );
+}
+
+LOCAL.clear();
+
+
+/**
+ *  Overwrites the data in the localStorage
+ */
+
+function updateBackup() {
+
+  LOCAL.player = JSON.stringify(PLAYER);
+}
+
+
+/**
+ *  Uses the former data as initial values
+ *
+ *  TODO: check if account information (name) should also be stored
+ *
+ *  @param  {[type]} data [description]
+ */
+
+function restoreBackup ( player ) {
+
+  if ( !config.reconnectConfig.restoreEnabled ) return;
+
+  if ( BACKUP.id   ) player.id   = BACKUP.id;
+  if ( BACKUP.time ) player.time = BACKUP.time;
+
+  if ( !BACKUP.data ) return;
+
+  var data = player.data,
+      last = BACKUP.data, keys = getKeys(last);
+
+  for ( var i = 0, l = keys.length; i < l; i++ ) data[ keys[i] ] = last[ keys[i] ];
+}
 
 /**
  *  Auth
@@ -2530,6 +2782,8 @@ function requestPersona ( id, callback ) {
 
 function login ( name, service, hook ) {
 
+  if ( PLAYER.id ) return PLAYER;
+
   if ( typeof service === 'function' ) { hook = service; service = null; }
 
   if ( service ) return requestOAuth( name, service, hook );
@@ -2589,13 +2843,12 @@ function createPlayer ( account, hook ) {
  */
 
 
-var channelRoutes =        {},  // collection of the channel routes
 
-    gameRoutes    =        {},  // collection of the game routes
+var DEFAULT_ROUTE = 'lobby/',
+    LAST_ROUTE    =     null,  // reference to the last route
 
-    LAST_ROUTE    =      null,  // reference to the last route
-
-    DEFAULT_ROUTE =  'lobby/';
+    channelRoutes =       {},  // collection of the channel routes
+    gameRoutes    =       {};  // collection of the game routes
 
 
 /**
@@ -2669,7 +2922,7 @@ function checkRoute() {
   if ( args.length < 1 ) return;
 
   // TODO: 0.7.0 -> customRoutes
-  // if ( Object.keys( CUSTOM_PATTERNS ).length ) extractRoute();
+  // if ( getKeys( CUSTOM_PATTERNS ).length ) extractRoute();
 
   matchRoute( args );
 }
@@ -2690,35 +2943,37 @@ function matchRoute ( args ) {
 
   if ( !room ) {
 
-    win.location.hash = '!/' + DEFAULT_ROUTE.substr(1);
+    win.location.hash = '!/' + DEFAULT_ROUTE;
 
     return;
   }
 
-  ROOM = room = !args[0].length ? CHANNELS[ room ] || CHANNELS[ '*' ]  :
-                                     GAMES[ room ] ||    GAMES[ '*' ]  ;
+  var type = !args[0].length ? 'CHANNEL' : 'GAME';
 
-    var params = args; // TODO: 0.7.0 -> parse for custom routes
+  ROOM = room = ( type === 'CHANNEL' ) ? CHANNELS[ room ] || CHANNELS[ '*' ]  :
+                                         GAMES[ args[0] ] ||    GAMES[ '*' ]  ;
+
+  var params = args; // TODO: 0.7.0 -> parse for custom routes
 
   if ( LAST_ROUTE === INFO.route ) return;
 
   if ( room ) {
 
-    if ( LAST_ROUTE  ) {
+    if ( LAST_ROUTE  ) {  // change room
 
-      var keys = Object.keys( CONNECTIONS );
+      var keys = getKeys( CONNECTIONS );
 
       for ( var i = 0, l = keys.length; i < l; i++ ) MANAGER.disconnect( keys[i] );
 
       SOCKET.send({ action: 'change', data: LAST_ROUTE });
     }
 
-    LAST_ROUTE = INFO.route;
-
   } else {
 
-    throw new Error('Missing channel/game handler !');
+    console.warn('[MISSING] ', type ,' handler doesn\'t exist!');
   }
+
+  LAST_ROUTE = INFO.route;
 }
 
 
@@ -2898,18 +3153,24 @@ Game.prototype.start = function ( initialize ) {
   this._start = function(){ initialize(); INGAME = true; forward.call( this ); };
 
 
-  var ready = Object.keys( READY ).length;
+  var ready = getKeys( READY ).length;
 
   if ( ready  <  this.options.minPlayer ) return;     // less player  - wait
 
   if ( ready === this.options.minPlayer ) {
 
-    if ( PLAYER.pos === 0 ) this._start();
+    if ( PLAYER.pos === 0 ) {
+
+      if ( !INGAME ) return this._start();
+
+      // re-join to minmum | prevent reset
+      forward.call( this, getKeys(pg.peers)[0] );
+    }
 
     return;
   }
 
-  if ( ready  >  this.options.minPlayer ) {          // more player   - late join
+  if ( ready > this.options.minPlayer ) {          // more player   - late join
 
     if ( PLAYER.pos >= this.options.minPlayer ) request();
 
@@ -2934,7 +3195,7 @@ Game.prototype.unpause  = function(){};                   // TODO: 0.6.0 -> play
 
 function request() {
 
-  var keys = Object.keys( PEERS ),
+  var keys = getKeys( PEERS ),
       curr = PLAYER.pos;
 
   for ( var i = 0, l = keys.length; i < l; i++ ) {
@@ -2961,7 +3222,7 @@ function forward ( remoteID ) {
 
     setTimeout(function(){
 
-      var keys = Object.keys( PEERS ),
+      var keys = getKeys( PEERS ),
           curr = PLAYER.pos;
 
       for ( var i = 0, l = keys.length; i < l; i++ ) {
@@ -2980,6 +3241,7 @@ function forward ( remoteID ) {
   }.bind(this);
 
 
+
   if ( !remoteID ) return;
 
 
@@ -2987,7 +3249,7 @@ function forward ( remoteID ) {
 
   var conn = CONNECTIONS[ remoteID ],
 
-      keys = Object.keys( pg.sync ),
+      keys = getKeys( pg.sync ),
 
       prop;
 
@@ -3220,9 +3482,13 @@ var Player = function ( account, origin ) {
 
   this.time = Date.now();
 
+  /** Assign properties **/
+
   this.init( id, account, data );
 
-  if ( Object.keys( callbackRefs ).length ) eventMap[ this.id ] = callbackRefs;
+  restoreBackup( this );
+
+  if ( getKeys( callbackRefs ).length ) eventMap[ this.id ] = callbackRefs;
 
 
   console.log('\n\t\t:: ' + this.id + ' ::\n');
@@ -3266,7 +3532,7 @@ Player.prototype.join = function ( channel, params ) {
   if ( path.charAt( path.length - 1 ) !== '/' ) path += '/';
 
   // consider hash-cache
-  if ( path === '!/' + SESSION.route ) return checkRoute();
+  if ( win.location.hash === path && path === '!/' + SESSION.route ) return checkRoute();
 
   win.location.hash = path;
 };
@@ -3285,7 +3551,7 @@ Player.prototype.send = function ( list, msg ) {
 
   if ( typeof msg !== 'string' ) msg = msg.toString();
 
-  if ( !list ) list = Object.keys( CONNECTIONS );
+  if ( !list ) list = getKeys( CONNECTIONS );
 
   if ( !Array.isArray( list ) ) list = [ list ];
 
@@ -3486,7 +3752,7 @@ function batch ( fn ) {
 
     timeoutID = null;
 
-    var keys = Object.keys(list),
+    var keys = getKeys(list),
 
         prop;
 
@@ -3546,9 +3812,9 @@ function sync ( key, value, confirmed ) {
     return;
   }
 
-  var ids = Object.keys( CONNECTIONS );
+  var ids = getKeys( CONNECTIONS );
 
-  // TODO: 0.6.0 -> conflict with multiple ?
+  // TODO: 0.6.0 -> conflict with multiple ? - currently just one
   CACHE[key] = { list: ids, results: [] };
 
   CACHE[key].results[ PLAYER.pos ] = value;
@@ -3570,7 +3836,9 @@ function sync ( key, value, confirmed ) {
 
 function resync ( remoteID, key, value ) {
 
-  if ( !CACHE[key] ) { // noConflict
+  var entry = CACHE[key];
+
+  if ( !entry ) { // noConflict
 
     sync( key, value, true );
 
@@ -3580,7 +3848,7 @@ function resync ( remoteID, key, value ) {
   // TODO: 0.6.0 -> handle conflict (lower pos)
   console.log('[CONFLICT]');
 
-  // var entry = CACHE[key];
+  // take the reslt from the element which is lower -> can be called multiple times on mulit conflicts etc.
 
   // entry.list.length -= 1;
 
