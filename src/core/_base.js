@@ -20,10 +20,10 @@ var reservedReference = context.pg,
 VERSION = {
 
   codeName    : 'spicy-phoenix',
-  full        : '0.4.3',
+  full        : '0.4.7',
   major       : 0,
   minor       : 4,
-  dot         : 3
+  dot         : 7
 };
 
 

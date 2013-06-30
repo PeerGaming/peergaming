@@ -5,7 +5,7 @@ PeerGaming - Share the Fun
 
 A Client-Side Multiplayer Gaming Framework for the Web.
 
-_Latest Release: 0.4.0 ([changelog](https://github.com/PeerGaming/peergaming/blob/master/HISTORY.md))_
+_Latest Release: 0.4.7 ([changelog](https://github.com/PeerGaming/peergaming/blob/master/HISTORY.md))_
 
 
 ## Introduction
@@ -19,15 +19,19 @@ as no additional server component is required.
 
 ## Support
 
-With the latest Firefox update the DataChannel implementations got changed and broke the API.
-Therefore _PeerGaming_ is only running in Chrome 26++ right now. The next version will
-provide a proper handling.
+  Firefox : 23
+  Chrome  : 26++
+
+With the latest update Firefox is supported again. Unfortunately the DataChannel
+implementation still differs with the one in Chrome, so it won't work if you connect
+both kinds. The next version will provide a proper handling for interoperability.
 
 
 ## Features
 
 * library agnostic (!= dependency)
 * easy setup / automatic connection
+* optional backup for reconnection
 * reactive data handling
 * serverless hook
 

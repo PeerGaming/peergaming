@@ -3,7 +3,7 @@
 [Bug Fixes and Stability]
 
 * fix cross-browser interoperability (Firefox)
-* offer a hook for missing browser support
+* offer a hook for missing errors / browser support
 
 
 ## 0.6.0 / 2013-XX-XX

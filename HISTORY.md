@@ -1,3 +1,12 @@
+## 0.4.7 / 2013-06-30
+
+* singleton: return same player instance on multiple login
+* update adapter configurations for TURN server for chrome & firefox
+* provide a local backup for reconnection
+* improve connection establishment by checking the gatheringState
+* re-enable firefox support (just FF-FF)
+
+
 ## 0.4.3 / 2013-06-02
 
 * Bug Fix: restrict messages to direct connection (see _update_, _sync_)
