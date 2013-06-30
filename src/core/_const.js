@@ -10,8 +10,14 @@
 
 var win     = window,
     doc     = document,
-    moz     = !!win.navigator.mozGetUserMedia,
-    chrome  = !!win.chrome,
+    nav     = win.navigator,
+
+    moz     = nav.mozGetUserMedia ? parseFloat( nav.userAgent.match(/Firefox\/([0-9]+)\./).pop()       )
+                                  : false,
+
+    chrome  = win.chrome          ? parseFloat( nav.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./).pop() )
+                                  : false,
+
     SESSION = win.sessionStorage,
     LOCAL   = win.localStorage;
 
@@ -29,7 +35,9 @@ var ROOM        = '',        // current room
     MEDIAS      = {},        // mediastreams for each peer
     SOCKET      = null,      // client-server transport
     MANAGER     = null,      // delegation methods
-    INGAME      = false;     // information about the current state
+    INGAME      = false,     // information about the current state
+    SERVERLESS  = null,      // optional callback for manual handling
+    BACKUP      = {};        // store player data for reconnection
 
 
 /** references **/
