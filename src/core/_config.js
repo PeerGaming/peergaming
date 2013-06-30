@@ -30,12 +30,12 @@ var config = {
 
 
   /**
-   *  DataChannel specific settings
+   *  Handler attributes
    *
-   *  @type {Object} channelConfig
+   *  @type {Object} handlerConfig
    */
 
-  channelConfig: {
+  handlerConfig: {
 
     BANDWIDTH   : 0x100000,   // 1MB  - increase DataChannel capacity
     MAX_BYTES   :     1024,   // 1kb  - max data size before splitting
@@ -63,10 +63,10 @@ var config = {
 
   connectionConfig: {
 
-    iceServers: [{
+    'iceServers': [{
 
       url      : !moz ? 'stun:stun.l.google.com:19302' :  // STUN server address
-                       'stun:23.21.150.121',
+                        'stun:23.21.150.121',
       username : null,
       password : null
     }]
@@ -74,14 +74,26 @@ var config = {
 
 
   /**
-   *  Constraints for the SDP packages
+   *  Constraints for the PeerConnection & SDP packages
    *
    *  @type {Object} connectionContrains
    */
 
   connectionConstraints: {
 
-    optional: [{ RtpDataChannels: true }]  // enable DataChannel
+    'optional': [{ RtpDataChannels: true }]  // enable DataChannel
+  },
+
+
+  /**
+   *  DataChannel specific settings
+   */
+
+  channelConfig: {
+
+    reliable: false
+    // outOfOrderAllowed: true,
+    // maxRetransmitNum : 0
   },
 
 
@@ -111,25 +123,20 @@ var config = {
 
   videoConstraints: {
 
-    mandatory: {
+    'mandatory': {
 
       maxHeight : 320,  // default dimension for android
-      maxWidth  : 240   //
+      maxWidth  : 240
     },
 
-    optional: []
+    'optional': [
+
+      { minWidth:  640, minHeight: 480 },
+      { minWidth: 1280, minHeight: 720 }
+    ]
   }
 
 };
-
-
-/** Previous settings for Firefox **/
-
-// if ( moz ) {
-
-//   config.connectionConstraints = { optional: [{ DtlsSrtpKeyAgreement   : 'true' }] };
-//   config.SDPConstraints        = { mandatory: { MozDontOfferDataChannel:  true  }  };
-// }
 
 
 /**
