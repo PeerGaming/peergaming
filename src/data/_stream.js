@@ -50,7 +50,7 @@ Stream.prototype.handle = function ( e ) {
       buffer  = this.readBuffer;
 
 
-  if ( data.part !== void 0 ) {
+  if ( data.part != void 0 ) {
 
     buffer.push( data.data );
 
