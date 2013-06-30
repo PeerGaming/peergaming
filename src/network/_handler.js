@@ -81,8 +81,8 @@ Handler.prototype.send = function ( msg ) {
       buffer  = data; //stringToBuffer( data );
 
 
-  if ( buffer.length > config.channelConfig.MAX_BYTES ) {
-  // if ( buffer.byteLength > config.channelConfig.MAX_BYTES ) {
+  if ( buffer.length > config.handlerConfig.MAX_BYTES ) {
+  // if ( buffer.byteLength > config.handlerConfig.MAX_BYTES ) {
 
     buffer = createChunks( buffer );
 
@@ -106,8 +106,8 @@ Handler.prototype.send = function ( msg ) {
 
 function createChunks ( buffer ) {
 
-  var maxBytes  = config.channelConfig.MAX_BYTES,
-      chunkSize = config.channelConfig.CHUNK_SIZE,
+  var maxBytes  = config.handlerConfig.MAX_BYTES,
+      chunkSize = config.handlerConfig.CHUNK_SIZE,
       size      = buffer.length, //byteLength,
       chunks    = [],
 

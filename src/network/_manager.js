@@ -6,11 +6,13 @@
  */
 
 
-var DELAY    =  0,  // max. latency evaluation
+var DELAY    =    0,  // max. latency evaluation
 
-    READY    = {},  // record of current ready users
+    PINGS    =  100,  // amount of packages to exchange for the latency test
 
-    TODO     = {};  // available peers to connect
+    READY    =   {},  // record of current ready users
+
+    TODO     =   {};  // available peers to connect
 
 
 MANAGER = (function(){
@@ -42,7 +44,7 @@ MANAGER = (function(){
 
       remoteID = remoteList[i];
 
-      if ( remoteID === localID || CONNECTIONS[ remoteID ] ) continue;
+      if ( remoteID === localID || CONNECTIONS[ remoteID ] ) continue; // skip
 
       TODO[ remoteID ] = transport;
     }
@@ -114,13 +116,16 @@ MANAGER = (function(){
 
 
   /**
-   *  Inform peers about key/value change by multicast
+   *  Inform other peers about the key/value change by using a multicast
+   *  and updates the local backup
    *
    *  @param  {String}               key     -
    *  @param  {String|Number|Object} value   -
    */
 
   function update ( key, value ) {
+
+    updateBackup();
 
     var ids = getKeys( CONNECTIONS );
 
@@ -173,7 +178,7 @@ MANAGER = (function(){
 
     var conn = CONNECTIONS[ remoteID ],
 
-        num  = 100,
+        num  = PINGS,
 
         col = timer[ remoteID ] = [ num ];
 
@@ -196,7 +201,7 @@ MANAGER = (function(){
 
   function progress ( part ) {
 
-    part = 100 - part;  // 0 -> 100
+    part = PINGS - part;  // 0 -> 100
 
     var curr  = getKeys( PEERS ).length,
         diff  = getKeys( TODO  ).length,
@@ -206,7 +211,7 @@ MANAGER = (function(){
 
     if ( part <= perc ) return;
 
-    if ( ROOM ) ROOM.emit( 'progress', perc = part );
+    if ( ROOM ) ROOM.emit( 'progress', perc = part, max );
 
     // if ( perc === 99 ) perc = 0; // reset ?
   }
