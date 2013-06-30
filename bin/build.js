@@ -3,16 +3,16 @@
 /*global node, require, console, process */
 
 /**
- *	Build script to concatinate multiple files in a declerative way (inspired by Sprockets).
+ *  Build script to concatinate multiple files in a declerative way (inspired by Sprockets).
  *
- *	Following optional parameters are possible:
+ *  Following optional parameters are possible:
  *
- *	-w || --watch	: watch files for changes
- *	-h || --hint	: hint for common mistakes
- *	-m || --min		: creates a minified version
- *	-t || --test	: running tests
+ *  -w || --watch : watch files for changes
+ *  -h || --hint  : hint for common mistakes
+ *  -m || --min   : creates a minified version
+ *  -t || --test  : running tests
  *
- *	-d || --dev		: enable all flags
+ *  -d || --dev   : enable all flags
  */
 
 
@@ -20,13 +20,13 @@
 
 var config = {
 
-	src		: '/src',
-	dist	: '/dist',
-	specs	: '/test',
-	watch	: false,
-	hint	: false,
-	test	: false,
-	min		: false
+  src   : '/src',
+  dist  : '/dist',
+  specs : '/test',
+  watch : false,
+  hint  : false,
+  test  : false,
+  min   : false
 };
 
 /* input */
@@ -34,18 +34,18 @@ var flags = process.argv.slice(2);
 
 for ( var i = 0, l = flags.length; i < l; i++ ) {
 
-	if ( flags[i] === '--watch'	|| flags[i] === '-w' ) config.watch	= true;
-	if ( flags[i] === '--hint'	|| flags[i] === '-h' ) config.hint	= true;
-	if ( flags[i] === '--test'	|| flags[i] === '-t' ) config.test	= true;
-	if ( flags[i] === '--min'	|| flags[i] === '-m' ) config.min	= true;
+  if ( flags[i] === '--watch' || flags[i] === '-w' ) config.watch = true;
+  if ( flags[i] === '--hint'  || flags[i] === '-h' ) config.hint  = true;
+  if ( flags[i] === '--test'  || flags[i] === '-t' ) config.test  = true;
+  if ( flags[i] === '--min' || flags[i] === '-m' ) config.min = true;
 
-	if ( flags[i] === '--dev' || flags[i] === '-d' ) {
+  if ( flags[i] === '--dev' || flags[i] === '-d' ) {
 
-		config.watch	= true;
-		config.hint		= true;
-		config.test		= true;
-		config.min		= false;
-	}
+    config.watch  = true;
+    config.hint   = true;
+    config.test   = true;
+    config.min    = false;
+  }
 }
 
 
@@ -56,45 +56,45 @@ var jshint, UglifyJS, mocha, chai;
 // linting through jshint
 if ( config.hint ) {
 
-	try { jshint = require('../node_modules/.bin/jshint');	} catch ( err ) {
+  try { jshint = require('../node_modules/.bin/jshint');  } catch ( err ) {
 
-		if ( err.code === 'MODULE_NOT_FOUND' ) {
+    if ( err.code === 'MODULE_NOT_FOUND' ) {
 
-			// console.log('[Error] Missing Module "jshint"\t- to install: npm -g install jshint');
-		}
-	}
+      // console.log('[Error] Missing Module "jshint"\t- to install: npm -g install jshint');
+    }
+  }
 }
 
 // using uglify for minification
 if ( config.min ) {
 
-	try { UglifyJS = require('../node_modules/.bin/uglify-js');	} catch ( err ) {
+  try { UglifyJS = require('../node_modules/.bin/uglify-js'); } catch ( err ) {
 
-		if ( err.code === 'MODULE_NOT_FOUND' ) {
+    if ( err.code === 'MODULE_NOT_FOUND' ) {
 
-			// console.log('[Error] Missing Module "uglify-js"\t- to install: npm -g install uglify-js');
-		}
-	}
+      // console.log('[Error] Missing Module "uglify-js"\t- to install: npm -g install uglify-js');
+    }
+  }
 }
 
 // running tests via mocha + chai
 if ( config.test ) {
 
-	try { mocha = require('../node_modules/.bin/mocha'); } catch ( err ) {
+  try { mocha = require('../node_modules/.bin/mocha'); } catch ( err ) {
 
-		if ( err.code === 'MODULE_NOT_FOUND' ) {
+    if ( err.code === 'MODULE_NOT_FOUND' ) {
 
-			// console.log('[Error] Missing Module "mocha"\t- to install: npm -g install mocha');
-		}
-	}
+      // console.log('[Error] Missing Module "mocha"\t- to install: npm -g install mocha');
+    }
+  }
 
-	try { chai = require('../node_modules/.bin/chai'); } catch ( err ) {
+  try { chai = require('../node_modules/.bin/chai'); } catch ( err ) {
 
-		if ( err.code === 'MODULE_NOT_FOUND' ) {
+    if ( err.code === 'MODULE_NOT_FOUND' ) {
 
-			// console.log('[Error] Missing Module "chai"\t- to install: npm -g install chai');
-		}
-	}
+      // console.log('[Error] Missing Module "chai"\t- to install: npm -g install chai');
+    }
+  }
 }
 
 
@@ -102,397 +102,397 @@ if ( config.test ) {
 /* process */
 (function(){
 
-	'use strict';
+  'use strict';
 
-	var fs = require('fs');
+  var fs = require('fs');
 
-	// adjust path for "make"
-	var cwd = process.cwd() + ( ~process.cwd().indexOf('bin') ? '' : '/bin' ),
+  // adjust path for "make"
+  var cwd = process.cwd() + ( process.cwd().indexOf('bin') >= 0 ? '' : '/bin' ),
 
-		root = cwd.substr( 0, cwd.lastIndexOf('/') ),
+      root = cwd.substr( 0, cwd.lastIndexOf('/') ),
 
-		fileName, info, code, tmp;
+      fileName, info, code, tmp;
 
-	init();
-
-
-	var directories, pending, keys, parsing, cache, ready;
+  init();
 
 
-	function init(){
-
-		directories = {};
-		pending = 1;
-		keys = [];
-		parsing = 0;
-		cache = {};
-
-		fs.readdir( root, function ( err, files ) {
-
-			if ( err ) throw err;
-
-			if ( !info ) {
-
-				// TODO: just check the single variant - just parse via require('package')
-				for ( var i = 0, l = files.length; i < l; i++ ) {
-
-					if ( files[i].match('(P|p)ackage.json') ) {
-
-						getPackage( root + '/' + files[i] );
-						return;
-					}
-				}
-			}
-
-			readDir( root + config.src );
-		});
-	}
+  var directories, pending, keys, parsing, cache, ready;
 
 
-	function getPackage ( path ) {
+  function init(){
 
-		fs.readFile( path, 'utf8', function ( err, data ) {
+    directories = {};
+    pending = 1;
+    keys = [];
+    parsing = 0;
+    cache = {};
 
-			if ( err ) throw err;
+    fs.readdir( root, function ( err, files ) {
 
-			info = JSON.parse( data );
+      if ( err ) throw err;
 
-			readDir( root + config.src );
-		});
-	}
+      if ( !info ) {
 
+        // TODO: just check the single variant - just parse via require('package')
+        for ( var i = 0, l = files.length; i < l; i++ ) {
 
-	function readDir ( path ) {
+          if ( files[i].match('(P|p)ackage.json') ) {
 
-		var current = path.substr( root.length );
+            getPackage( root + '/' + files[i] );
+            return;
+          }
+        }
+      }
 
-		directories[current] = {};
-
-		fs.readdir( path, function ( err, files ) {
-
-			if ( err ) throw err;
-
-			pending += files.length - 1; // see init, check
-
-			for ( var i = 0, l = files.length; i < l; i++ ) getStats( path, current, files[i] );
-		});
-	}
-
-
-	function getStats ( path, current, file ) {
-
-		path += '/' + file;
-
-		fs.stat( path, function ( err, stats ) {
-
-			if ( err ) throw err;
-
-			if ( stats.isDirectory() ) {
-
-				readDir( path );
-
-			} else if ( stats.isFile() ) {
-
-				pending--;
-
-				directories[current][ file ] = path;
-			}
-
-			if ( !pending ) readFiles( config.src );
-		});
-	}
+      readDir( root + config.src );
+    });
+  }
 
 
-	function readFiles ( key, replace ) {
+  function getPackage ( path ) {
 
-		var file = directories[ key ],
+    fs.readFile( path, 'utf8', function ( err, data ) {
 
-			keys = Object.keys( file );
+      if ( err ) throw err;
 
-		for ( var i = 0, l = keys.length; i < l; i++ ) {
+      info = JSON.parse( data );
 
-			parsing++;
+      readDir( root + config.src );
+    });
+  }
 
-			// delegate function call, re-usage
-			fs.readFile( file[ keys[i] ], 'utf8', !replace ? parse : replace.bind(keys[i]) );
-		}
-	}
 
-	var DIRECTIVE_PATTERN	= /\/\/=\s*require\s*(.*?)$/gm,
+  function readDir ( path ) {
+
+    var current = path.substr( root.length );
+
+    directories[current] = {};
+
+    fs.readdir( path, function ( err, files ) {
+
+      if ( err ) throw err;
+
+      pending += files.length - 1; // see init, check
+
+      for ( var i = 0, l = files.length; i < l; i++ ) getStats( path, current, files[i] );
+    });
+  }
+
+
+  function getStats ( path, current, file ) {
+
+    path += '/' + file;
+
+    fs.stat( path, function ( err, stats ) {
+
+      if ( err ) throw err;
+
+      if ( stats.isDirectory() ) {
+
+        readDir( path );
+
+      } else if ( stats.isFile() ) {
+
+        pending--;
+
+        directories[current][ file ] = path;
+      }
+
+      if ( !pending ) readFiles( config.src );
+    });
+  }
+
+
+  function readFiles ( key, replace ) {
+
+    var file = directories[ key ],
+
+      keys = Object.keys( file );
+
+    for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+      parsing++;
+
+      // delegate function call, re-usage
+      fs.readFile( file[ keys[i] ], 'utf8', !replace ? parse : replace.bind(keys[i]) );
+    }
+  }
+
+  var DIRECTIVE_PATTERN = /\/\/=\s*require\s*(.*?)$/gm,
       TABBED_PATTERN    = new RegExp( '\t' + DIRECTIVE_PATTERN.source, 'gm' );
 
-	function parse ( err, data ) {
+  function parse ( err, data ) {
 
-		if ( err ) throw err;
+    if ( err ) throw err;
 
-		if ( --parsing > 0 ) return;
+    if ( --parsing > 0 ) return;
 
-		// TODO: improve regex for verbosity -> e.g. path like sprockets: ./data
-		code = data.replace( TABBED_PATTERN, function ( match, text ) {
+    // TODO: improve regex for verbosity -> e.g. path like sprockets: ./data
+    code = data.replace( TABBED_PATTERN, function ( match, text ) {
 
-			text = text.replace(/\'|\"/g, '');
+      text = text.replace(/\'|\"/g, '');
 
-			if ( cache[text] ) return cache[text];
+      if ( cache[text] ) return cache[text];
 
-			keys.push( text ); return match;
-		});
+      keys.push( text ); return match;
+    });
 
-		if ( keys.length && code === data ) {
+    if ( keys.length && code === data ) {
 
-			for ( var i = 0, l = keys.length; i < l; i++ ) reserve( keys[i] );
+      for ( var i = 0, l = keys.length; i < l; i++ ) reserve( keys[i] );
 
-		} else {
+    } else {
 
-			write( code );
-		}
-	}
+      write( code );
+    }
+  }
 
 
-	function reserve ( key ) {
+  function reserve ( key ) {
 
-		cache[key] = {};
+    cache[key] = {};
 
-		readFiles( config.src + '/' + key, function ( err, data ) {
+    readFiles( config.src + '/' + key, function ( err, data ) {
 
-			if ( err ) throw err;
+      if ( err ) throw err;
 
-			cache[key][this] = data;
+      cache[key][this] = data;
 
 
-			if ( !--parsing ) {
+      if ( !--parsing ) {
 
-				var entries = Object.keys(cache),
+        var entries = Object.keys(cache),
 
-					name; // temp
+          name; // temp
 
-				for ( var i = 0, l = entries.length; i < l; i++ ) {
+        for ( var i = 0, l = entries.length; i < l; i++ ) {
 
-					name = keys[i];
+          name = keys[i];
 
-					tmp = cache[ name ];
+          tmp = cache[ name ];
 
-					if ( tmp[ name + '.js' ] ) { // summary
+          if ( tmp[ name + '.js' ] ) { // summary
 
-						cache[ name ] = tmp[ name + '.js' ].replace( DIRECTIVE_PATTERN, _replace );
-					}
-				}
+            cache[ name ] = tmp[ name + '.js' ].replace( DIRECTIVE_PATTERN, _replace );
+          }
+        }
 
-				readFiles( config.src );
-			}
-		});
-	}
+        readFiles( config.src );
+      }
+    });
+  }
 
-	function _replace ( match, text ) {
+  function _replace ( match, text ) {
 
-		text = text.replace(/\'|\"/g, '');
+    text = text.replace(/\'|\"/g, '');
 
-		if ( tmp[text] ) return tmp[text];
+    if ( tmp[text] ) return tmp[text];
 
-		return match;
-	}
+    return match;
+  }
 
 
-	function write ( text ) {
+  function write ( text ) {
 
-		if ( info && info.name ) {
+    if ( info && info.name ) {
 
-			fileName = info.name.toLowerCase();
+      fileName = info.name.toLowerCase();
 
-			// include Banner
-			text = addHeader( fileName + '.js', text );
+      // include Banner
+      text = addHeader( fileName + '.js', text );
 
-		} else {
+    } else {
 
-			fileName = 'default-build';
-		}
+      fileName = 'default-build';
+    }
 
-		fs.writeFile( root + config.dist + '/' + fileName + '.js', text, 'utf8', function ( err ) {
+    fs.writeFile( root + config.dist + '/' + fileName + '.js', text, 'utf8', function ( err ) {
 
-			if ( err ) throw err;
+      if ( err ) throw err;
 
-			check();
+      check();
 
-			ready = true;
+      ready = true;
 
-			if ( !config.watch ) return;
+      if ( !config.watch ) return;
 
 
-			// set unique watching
-			config.watch = null;
+      // set unique watching
+      config.watch = null;
 
-			console.log('\n\t\t:: Watching ::\n');
+      console.log('\n\t\t:: Watching ::\n');
 
-			var watch = fs.watch || fs.watchFile,
+      var watch = fs.watch || fs.watchFile,
 
-				dirNames = Object.keys( directories ),
+        dirNames = Object.keys( directories ),
 
-				name,	// temp
+        name, // temp
 
-				i, l;	// iterator
+        i, l; // iterator
 
-			for ( i = 0, l = dirNames.length; i < l; i++ ) {
+      for ( i = 0, l = dirNames.length; i < l; i++ ) {
 
-				name = root + dirNames[i];
+        name = root + dirNames[i];
 
-				fs.unwatchFile( name );
-				watch( name, cycle );
-			}
+        fs.unwatchFile( name );
+        watch( name, cycle );
+      }
 
-		});
-	}
+    });
+  }
 
-	function addHeader ( filename, content ) {
+  function addHeader ( filename, content ) {
 
-		var date = new Date(),
-			year = date.getFullYear(),
-			month = date.getMonth() + 1,
-			day = date.getDate();
+    var date  = new Date(),
+        year  = date.getFullYear(),
+        month = date.getMonth() + 1,
+        day   = date.getDate();
 
-		if ( month < 10 ) month = '0' + month;
-		if ( day < 10 )	day = '0' + day;
+    if ( month < 10 ) month = '0' + month;
+    if ( day < 10 ) day = '0' + day;
 
-		date = year + '-' + month + '-' + day;
+    date = year + '-' + month + '-' + day;
 
-		var header = [
-			'/**\n',
-			' *\t', filename, ' - ', 'v' + info.version, ' | ', date, '\n',
-			' *\t', info.homepage, '\n',
-			' *\t', 'Copyright (c) ', year, ', ', info.author.name, '\n',
-			' *\t', info.license, ' License\n',
-			' */\n'
-		].join('');
+    var header = [
+      '/**\n',
+      ' *\t', filename, ' - ', 'v' + info.version, ' | ', date, '\n',
+      ' *\t', info.homepage, '\n',
+      ' *\t', 'Copyright (c) ', year, ', ', info.author.name, '\n',
+      ' *\t', info.license, ' License\n',
+      ' */\n'
+    ].join('');
 
-		return header + '\n' + content;
-	}
+    return header + '\n' + content;
+  }
 
 
-	// workaround unstable API
-	var changed = false,
-		exists = false;
+  // workaround unstable API
+  var changed = false,
+      exists  = false;
 
-	function cycle ( event, filename ) {
+  function cycle ( event, filename ) {
 
-		changed = !changed;
+    changed = !changed;
 
-		if  ( !changed || !ready ) return;
+    if  ( !changed || !ready ) return;
 
-		ready = false;
+    ready = false;
 
-		var date = new Date(),
-			year = date.getFullYear(),
-			month = date.getMonth() + 1,
-			day = date.getDate(),
-			hours = date.getHours(),
-			minutes = date.getMinutes(),
-			seconds = date.getSeconds();
+    var date    = new Date(),
+        year    = date.getFullYear(),
+        month   = date.getMonth() + 1,
+        day     = date.getDate(),
+        hours   = date.getHours(),
+        minutes = date.getMinutes(),
+        seconds = date.getSeconds();
 
-		if ( month < 10 ) month = '0' + month;
-		if ( day < 10 )	day = '0' + day;
-		if ( hours < 10 ) hours = '0' + hours;
-		if ( minutes < 10 ) minutes = '0' + minutes;
-		if ( seconds < 10 ) seconds = '0' + seconds;
+    if ( month < 10 ) month = '0' + month;
+    if ( day < 10 ) day = '0' + day;
+    if ( hours < 10 ) hours = '0' + hours;
+    if ( minutes < 10 ) minutes = '0' + minutes;
+    if ( seconds < 10 ) seconds = '0' + seconds;
 
-		var msg = ['[ ', year, '-', month, '-', day, ' | ',
-					hours, ':', minutes, ':', seconds, ' ] ',
-					event + 'd "', filename, '"'].join(''),
+    var msg = ['[ ', year, '-', month, '-', day, ' | ',
+          hours, ':', minutes, ':', seconds, ' ] ',
+          event + 'd "', filename, '"'].join(''),
 
-			dir = root + '/bin/log/',
+      dir = root + '/bin/log/',
 
-			file = dir + [year,'-',month,'-',day].join('');
+      file = dir + [year,'-',month,'-',day].join('');
 
-		if ( exists ) {
+    if ( exists ) {
 
-			log( file, msg );
+      log( file, msg );
 
-		} else {
+    } else {
 
-			fs.exists( dir, function ( e ) {
+      fs.exists( dir, function ( e ) {
 
-				if ( !e ) {
+        if ( !e ) {
 
-					fs.mkdir( dir, function(){
+          fs.mkdir( dir, function(){
 
-						exists = true;
+            exists = true;
 
-						log( file, msg );
-					});
+            log( file, msg );
+          });
 
-				}  else {
+        }  else {
 
-					exists = true;
+          exists = true;
 
-					log( file, msg );
-				}
-			});
-		}
-	}
+          log( file, msg );
+        }
+      });
+    }
+  }
 
 
-	function log ( file, msg ) {
+  function log ( file, msg ) {
 
-		fs.appendFile( file, msg + '\n', function ( err ) {
+    fs.appendFile( file, msg + '\n', function ( err ) {
 
-			if ( err ) throw err;
+      if ( err ) throw err;
 
-			console.log(msg);
-			init();
-		});
-	}
+      console.log(msg);
+      init();
+    });
+  }
 
 
-	function check(){
+  function check(){
 
-		// if ( config.hint && jshint ) {
-		//	console.log('hinting');
-		// }
+    // if ( config.hint && jshint ) {
+    //  console.log('hinting');
+    // }
 
-		// if ( config.min && UglifyJS ) {
-		//	console.log('minify');
-		// }
+    // if ( config.min && UglifyJS ) {
+    //  console.log('minify');
+    // }
 
-		// if ( config.test && mocha ) {
-		//	console.log('test');
-		// }
+    // if ( config.test && mocha ) {
+    //  console.log('test');
+    // }
 
 
-		// REST-API Minification
-		if ( config.min ) {
+    // REST-API Minification
+    if ( config.min ) {
 
-			console.log('\nBuild \t\t=> ' + config.dist + '/' + fileName + '.js');
+      console.log('\nBuild \t\t=> ' + config.dist + '/' + fileName + '.js');
 
-			var spawn = require('child_process').spawn,
+      var spawn = require('child_process').spawn,
 
-				minify = spawn('bash' , [ root + '/bin/minify.sh' ]);
+        minify = spawn('bash' , [ root + '/bin/minify.sh' ]);
 
-			minify.on('exit', function(){
+      minify.on('exit', function(){
 
-				fileName = fileName + '.min.js';
+        fileName = fileName + '.min.js';
 
-				var dir		= config.dist + '/' + fileName,
-					path	= root + dir;
+        var dir   = config.dist + '/' + fileName,
+          path  = root + dir;
 
-				fs.exists( path, function ( exists ) {
+        fs.exists( path, function ( exists ) {
 
-					if ( !exists ) return;
+          if ( !exists ) return;
 
-					fs.readFile( path, 'utf8', function ( err, data ) {
+          fs.readFile( path, 'utf8', function ( err, data ) {
 
-						if ( err ) throw err;
+            if ( err ) throw err;
 
-						data = addHeader( fileName, data );
+            data = addHeader( fileName, data );
 
-						fs.writeFile( path, data, 'utf8', function ( err ) {
+            fs.writeFile( path, data, 'utf8', function ( err ) {
 
-							if ( err ) throw err;
+              if ( err ) throw err;
 
-							console.log('Minified \t=> ' + dir + '\n');
-						});
-					});
-				});
-			});
+              console.log('Minified \t=> ' + dir + '\n');
+            });
+          });
+        });
+      });
 
-		}
+    }
 
-	}
+  }
 
 })();
