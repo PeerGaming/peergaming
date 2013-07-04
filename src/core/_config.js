@@ -63,13 +63,20 @@ var config = {
 
   connectionConfig: {
 
-    'iceServers': [{
+    'iceServers': [
 
-      url      : !moz ? 'stun:stun.l.google.com:19302' :  // STUN server address
-                        'stun:23.21.150.121',
-      username : null,
-      password : null
-    }]
+      // STUN server address - e.g. Google
+      {
+        url : chrome ? 'stun:stun.l.google.com:19302' : 'stun:23.21.150.121'
+      },
+
+      // TURN server relay - e.g. Numb (Viagenie)
+      {
+        url        : 'turn:numb.viagenie.ca',
+        username   : 'demo@peergaming.net',
+        credential : 'demo'
+      }
+    ]
   },
 
 
@@ -173,6 +180,19 @@ setConfig.noServer = function ( hook ) {
  *
  */
 
-setConfig.localDev = function(){ // TODO: 0.6.0 -> useLocalDev();
+setConfig.localDev = function ( num ) { // TODO: 0.6.0 -> useLocalDev();
+
+  if ( typeof num !== 'number' ) num = parseFloat( num );
+
+  if ( isNaN(num) ) num = 1;
+
+  // the number defines how many split views should be open (reduced to keep them square)
+  //
+  // 1 -> normal, just this window (user will open another window by himself)
+  //
+  // 2 -> split into half, both got half width etc. and exchange
+
+  // // if one closes or reloads -> the parent windows will be closes as well ! (so that a refresh can
+  // happen right away !)
 
 };
