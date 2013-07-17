@@ -112,16 +112,21 @@ var defaultHandlers = {
 
     // late-join
     if ( data.request ) return forward( msg.local );
+    if ( data.check   ) extend( SYNC, JSON.parse(data.sync) );
 
-    // next in chain
-    ensure();
+    setImmediate( checkReadyState );
 
-    function ensure(){
+    // synchronized shared object & next in chain
+    function checkReadyState() {
 
-      if ( !ROOM._start ) return setTimeout( ensure, DELAY );
+      if ( data.sync !== JSON.stringify(SYNC) || checkCaches() || !ROOM._start ) {
+
+        return setTimeout( checkReadyState, DELAY );
+      }
 
       ROOM._start();
     }
+
   },
 
 
@@ -155,7 +160,9 @@ var defaultHandlers = {
 
     var data = msg.data;
 
-    if ( !data.resync ) return resync( msg.local, data.key, data.value );
+    // console.log('[VERSION] - ', data.version ); // 0.8 -> version sync
+
+    if ( data.action ) return SYNCFLOW[ data.action ]( msg.local, data.key, data.value );
 
     sync( data.key, data.value, true );
   },
@@ -186,6 +193,8 @@ var defaultHandlers = {
     msg = JSON.parse( msg );
 
     console.log(msg.action);
+
+    // --> 0.6.0
   }
 
 };
