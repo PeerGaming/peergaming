@@ -21,7 +21,7 @@ var Handler = function ( channel, remote ) {
 
   this.channel = channel;
 
-  this.stream  = new Stream({ readable: true, writeable: true });
+  this.stream  = new Stream({ readable: true, writable: true });
 
   this.actions = defaultHandlers[ label ] || defaultHandlers.custom;
 

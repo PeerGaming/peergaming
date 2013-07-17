@@ -10,7 +10,7 @@ var features  = [ 'URL', 'Blob', 'crypto', 'RTCPeerConnection' ];
 
 for ( var i = 0, l = features.length; i < l; i++ ) {
 
-  if ( !(features[i] in win ) ) console.log( 'Missing: ', features[i] );
+  if ( !(features[i] in win) ) throw new Error( '[MISSING FEATURE] ' + features[i] );
 }
 
 if ( !win.RTCPeerConnection ) return alert('Your browser doesn\'t support PeerConnections yet.');

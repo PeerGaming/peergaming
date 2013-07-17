@@ -65,12 +65,12 @@ var config = {
 
     'iceServers': [
 
-      // STUN server address - e.g. Google
+      // STUN server = address - e.g. Google
       {
         url : chrome ? 'stun:stun.l.google.com:19302' : 'stun:23.21.150.121'
       },
 
-      // TURN server relay - e.g. Numb (Viagenie)
+      // TURN server = relay - e.g. Numb (Viagenie)
       {
         url        : 'turn:numb.viagenie.ca',
         username   : 'demo@peergaming.net',
@@ -109,6 +109,12 @@ var config = {
    *
    *  @type {Object} mediaConstraints
    */
+
+  permissions: {
+
+    audio: true,
+    video: true
+  },
 
   mediaConstraints: {
 
@@ -170,6 +176,8 @@ function setConfig ( customConfig ) {
 setConfig.noServer = function ( hook ) {
 
   if ( typeof hook !== 'function' ) return;
+
+  extend( config, { connectionConfig: { 'iceServers': [] } });
 
   SERVERLESS = hook;
 };
