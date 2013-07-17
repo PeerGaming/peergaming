@@ -17,7 +17,7 @@ var Stream = function ( options ) {
   if ( !options ) options = {};
 
   this.readable     = options.readable;
-  this.writeable    = options.readable;
+  this.writable     = options.writable;
 
   this.ready        = true;
 
@@ -41,7 +41,7 @@ inherits( Stream, Emitter );
  *  @param  {Object} e   -
  */
 
-Stream.prototype.handle = function ( e ) {
+Stream.prototype.handle = function handle ( e ) {
 
   var msg     = e.data,
 
@@ -74,7 +74,7 @@ Stream.prototype.handle = function ( e ) {
  *  @return {Boolean}
  */
 
-Stream.prototype.write = function ( msg ) {
+Stream.prototype.write = function write ( msg ) {
 
   this.writeBuffer.push( msg );
 
@@ -98,7 +98,7 @@ Stream.prototype.write = function ( msg ) {
  *  @return {Object}
  */
 
-Stream.prototype.pipe = function ( trg ) {
+Stream.prototype.pipe = function pipe ( trg ) {
 
   this.on( 'data', function ( chunk ) { trg.handle( chunk ); });
 
