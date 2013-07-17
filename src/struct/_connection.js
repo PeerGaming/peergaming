@@ -3,6 +3,8 @@
  *  ==========
  *
  *  A wrapper for PeerConnection - including DataChannel setup.
+ *
+ *  http://dev.w3.org/2011/webrtc/editor/webrtc.html
  */
 
 
@@ -80,7 +82,12 @@ Connection.prototype.checkStateChanges = function(){
     var signalingState = conn.signalingState;
 
     this.ready = ( signalingState === 'stable' );
-    // if ( signalingState === 'closed' ) MANAGER.disconnect(this.info.remote);
+
+    if ( signalingState === 'closed' ) {
+
+      console.log('[CLOSED]');
+      MANAGER.disconnect(this.info.remote);
+    }
 
   }.bind(this);
 
@@ -138,9 +145,8 @@ Connection.prototype.findICECandidates = function(){
 
       advanced = false;
 
-
-  // remote just invokes half
-  if ( !this.info.initiator ) length = ~~( length/2 );
+  // previous: remote just invokes half - now even local /* if ( !this.info.initiator ) */
+  length = ~~( length/2 );
 
   conn.onicecandidate = function ( e ) {
 
@@ -222,7 +228,7 @@ Connection.prototype.createOffer = function() {
 
     }.bind(this), loggerr ); // config.SDPConstraints
 
-  }.bind(this), loggerr, config.mediaConstraints );
+  }.bind(this), loggerr );
 };
 
 
@@ -261,6 +267,7 @@ Connection.prototype.setConfigurations = function ( msg ) {
     throw new Error('The underlying PeerConnection got closed too early...');
   }
 
+  // console.log( desc.sdp );
 
   if ( this._candidates.length < this._fragments.candidates ) {
 
@@ -285,7 +292,7 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
         }.bind(this), loggerr ); // config.SDPConstraints
 
-      }.bind(this), null, config.mediaConstraints );
+      }.bind(this), null );//, config.mediaConstraints );
 
     } else { // receive answer
 
@@ -300,7 +307,7 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
 
 /**
- *  Creates a handler for the DataChannel
+ *  Creates a handler for the DataChannel // doesnt belong to connection, but datachannel...
  *
  *  @param {String} label     -
  *  @param {Object} options   -
@@ -428,7 +435,7 @@ function adjustSDP ( sdp ) {
 
 function exchangeDescription ( desc ) {
 
-  var ready = this._sendSDP;
+  var ready = this._sendSDP; // amount of candidates to expect // improve naming of the variables...
 
   this._sendSDP = function ( num ) {
 
