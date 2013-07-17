@@ -3,6 +3,9 @@
  *  =======
  *
  *  Normalize different browser behavior - using prefixes and workarounds.
+ *
+ *  Based on Adapter.js - r4281
+ *  (https://code.google.com/p/webrtc/source/browse/trunk/samples/js/base/adapter.js)
  */
 
 
@@ -120,10 +123,13 @@ if ( typeof win.RTCPeerConnection !== 'function' ) {
 
 
   /** Modify the configurations to adjust the different address formats **/
-
   win.RTCPeerConnection = (function(){
 
     var vendorConnection = win.RTCPeerConnection;
+
+    // innerReference ?
+    var Chrome  = chrome,
+        Firefox = moz;
 
     return function adjustServer ( addresses, constraints ) {
 
@@ -141,9 +147,9 @@ if ( typeof win.RTCPeerConnection !== 'function' ) {
 
         if ( type === 'stun' ) server = { url: url };
 
-        if ( type === 'turn' ) server = parseTURN ( url, current.username, current.password ) || {};
+        if ( type === 'turn' ) server = parseTURN( url, current.username, current.credential ) || {};
 
-        if ( !server.url ) throw new Error('Invalid server address - ', current );
+        if ( !server.url ) throw new Error('Invalid server address!', current, server );
 
         iceServers[i] = server;
       }
@@ -154,21 +160,21 @@ if ( typeof win.RTCPeerConnection !== 'function' ) {
 
     /** Select the appropriate TURN version **/
 
-    function parseTURN ( url, username, password ) {
+    function parseTURN ( url, username, credential ) {
 
-      if ( moz ) { // Firefox
+      if ( Firefox ) {
 
         if ( url.indexOf('transport=udp') !== -1 || url.indexOf('?transport') === -1 ) {
 
-          return { url: url.split('?')[0], credential: password, username: username };
+          return { url: url.split('?')[0], credential: credential, username: username };
         }
       }
 
-      if ( chrome ) { // Chrome
+      if ( Chrome ) {
 
-        if ( chrome > 28 ) return { url: url, credential: password, username: username };
+        if ( Chrome > 28 ) return { url: url, credential: credential, username: username };
 
-        return { url: 'turn:' + username + '@' + url.split('turn:')[1], credential: password };
+        return { url: 'turn:' + username + '@' + url.split('turn:')[1], credential: credential };
       }
     }
 
