@@ -15,14 +15,24 @@
 SYNC = getReactor( batch(sync) );
 
 
-var CACHE  = {},  // record of still pending properties
+var CACHE    = {},  // record of still pending properties
 
-    SOLVED = {};  // temporary list for confirmed values
+    SOLVED   = {},  // temporary list for confirmed values
+
+    // SYNCNO   =  0,  // version tracking , 0.8
+
+    SYNCFLOW = {    // steps for synchronisation
+
+      'request' : requestSync,
+      'confirm' : confirmSync
+    };
 
 
 /**
- *  Combine multiplee changes to one batch,
- *  to process them as one and avoid unrequired network transfer
+ *  Combine multiple changes to one batch,
+ *  to process them as one and avoid unrequired network transfer,
+ *  especially as complex objects or arrays can be transfered and
+ *  else each property would be synced with one transmission !
  *
  *  @param  {Function} fn    -
  *  @return {Function}
@@ -52,8 +62,6 @@ function batch ( fn ) {
       delete list[ prop ];
     }
 
-    /** defined in game -> forward **/
-    if ( STARTER ) STARTER();
   }
 
 
@@ -76,68 +84,110 @@ function batch ( fn ) {
  *  @param  {Boolean}              confirmed   -
  */
 
-function sync ( key, value, confirmed ) {
+function sync ( key, value, resync ) {
 
-  if ( confirmed ) {
+  var resolved = !handleCaches.apply( this, arguments );
 
-    if ( !CACHE[key] || CACHE[key].results[ PLAYER.pos ] !== value ) {
-
-      SOLVED[ key ]  = true;
-      pg.sync[ key ] = value;
-    }
-
-    delete CACHE[key];        // console.log( '[CONFIRMED]', value    );
-    return;
-  }
-
-
-  if ( CACHE[ key ] ) return; // console.log( '[CACHED]', CACHE[key]  );
-
-  if ( SOLVED[ key ] ) {      // console.log( '[SOLVED]', SOLVED[key] );
-
-    delete SOLVED[key];
-    return;
-  }
+  if ( resolved ) return;
 
   var ids = getKeys( CONNECTIONS );
 
-  // TODO: 0.6.0 -> conflict with multiple ?
   CACHE[key] = { list: ids, results: [] };
 
   CACHE[key].results[ PLAYER.pos ] = value;
 
-  for ( var i = 0, l = ids.length; i < l; i++ ) {
+  MANAGER.broadcast( 'sync', { action: 'request', key: key, value: value }, true );
 
-    CONNECTIONS[ ids[i] ].send( 'sync', { key: key, value: value }, true );
-  }
+  // SYNCNO++;   // 0.8 -> improve conflict solving, using versioning for the caches & sync
+  // MANAGER.broadcast( 'sync', { version: SYNCNO, action: 'request', key: key, value: value }, true );
 }
 
 
 /**
- *  Exchange value with remote data & merge on conflict
+ *
  *
  *  @param  {String} remoteID   -
  *  @param  {String} key        -
  *  @param  {String} value      -
  */
 
-function resync ( remoteID, key, value ) {
+function requestSync ( remoteID, key, value ) {
 
-  if ( !CACHE[key] ) { // noConflict
+  var entry = CACHE[key];
 
-    sync( key, value, true );
+  if ( entry != void 0 ) value = entry;
 
-    return CONNECTIONS[ remoteID ].send( 'sync', { resync: true, key: key, value: value }, true );
+  CONNECTIONS[ remoteID ].send( 'sync', { action: 'confirm', key: key, value: value }, true );
+}
+
+
+/**
+ *  Exchange value with remote data & merge on conflict / merge....
+ */
+
+function confirmSync ( remoteID, key, value ) { // resync to all
+
+  var entry = CACHE[key];
+
+  entry.results[ PEERS[remoteID].pos ] = value;
+
+  entry.list.length--;
+
+  // TODO: requires responses from all requests or deadlock
+  if ( entry.list.length > 0 ) return;
+
+  value = entry.results[0]; // priority
+
+  sync( key, value, true ); // set local
+
+  MANAGER.broadcast( 'sync', { key: key, value: value }, true );
+}
+
+
+
+
+/**
+ *  [handleCaches description]
+ *
+ *  // returns true if it shouldn't be shared/sent to remote peers
+ *  // remote setting their local value
+ *
+ *  @param  {[type]} key    [description]
+ *  @param  {[type]} value  [description]
+ *  @param  {[type]} resync [description]
+ *  @return {[type]}        [description]
+ */
+
+function handleCaches ( key, value, resync ) {
+
+  if ( resync ) {
+
+    if ( !CACHE[key] ) {
+
+      SOLVED[  key ] = true;
+
+      pg.sync[ key ] = value;
+    }
+
+    if ( CACHE[key] ) delete CACHE[key];
+
+    return;                                             // console.log( '[CONFIRMED]', value    );
   }
 
-  // TODO: 0.6.0 -> handle conflict (lower pos)
-  console.log('[CONFLICT]');
+  if ( CACHE[key] ) return;                             // console.log( '[CACHED]', CACHE[key]  );
 
-  // var entry = CACHE[key];
+  if ( SOLVED[ key ] ) { delete SOLVED[key]; return; }  // console.log( '[SOLVED]', SOLVED[key] );
 
-  // entry.list.length -= 1;
+  return true;
+}
 
-  // entry.results[ PEERS[remoteID].pos ] = value;
 
-  // if ( entry.list.length ) return;
+
+/**
+ *  Check the status of the caches, e.g. they are ready (empty)
+ */
+
+function checkCaches(){
+
+  return getKeys(CACHE).length || getKeys(SOLVED).length;
 }
