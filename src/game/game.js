@@ -3,3 +3,4 @@
 //= require "_player.js"
 //= require "_loop.js"
 //= require "_sync.js"
+//= require "_game.js"

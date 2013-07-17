@@ -17,7 +17,7 @@
 
 	//= require "core"
 	//= require "utils"
-	//= require "data"
+	//= require "struct"
 	//= require "network"
 	//= require "meta"
 	//= require "game"

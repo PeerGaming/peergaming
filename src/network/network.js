@@ -1,5 +1,5 @@
 //= require "_handler.js"
 //= require "_service.js"
 //= require "_socket.js"
-//= require "_connection.js"
+//= require "_data.js"
 //= require "_manager.js"
