@@ -8,7 +8,7 @@
 
 var reactList =  [],   // record of reactors
 
-    SYNC      = 100;   // delay to check the difference of properties
+    SYNCDELAY = 100;   // delay to check the difference of properties
 
 
 /**
@@ -57,7 +57,7 @@ function checkProperties ( id, current ) {
     for ( i = 0, l = remove.length; i < l; i++ ) delete last[ remove[i] ];
   }
 
-  setTimeout( checkProperties, SYNC, id, current );
+  setTimeout( checkProperties, SYNCDELAY, id, current );
 }
 
 
@@ -110,10 +110,9 @@ function defineProperty ( id, current, prop ) {
         // prevent redundancy: old = new
         if ( value === reactList[id].reference[ prop ] ) return;
 
-
         if ( typeof value === 'object' ) {
 
-          if ( !Array.isArray(value) ) {
+          if ( Array.isArray(value) ) {
 
             /**
              *  Method cloaking inspured by @Watch.JS
