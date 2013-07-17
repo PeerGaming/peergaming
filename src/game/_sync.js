@@ -191,3 +191,22 @@ function checkCaches(){
 
   return getKeys(CACHE).length || getKeys(SOLVED).length;
 }
+
+
+/**
+ *  Refreshes the value from another object, writing it directly to the synced data
+ *
+ *  @param  {Object} obj [description]
+ */
+
+function loadSync ( obj ) {
+
+  var keys = getKeys( obj ), prop;
+
+  for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+    prop = keys[i];
+
+    sync( prop, obj[prop], true );
+  }
+}

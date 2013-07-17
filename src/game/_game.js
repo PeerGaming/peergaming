@@ -54,6 +54,8 @@ Game.prototype.start = function ( initialize ) {
 
   var ready = getKeys( READY ).length;
 
+  if ( INGAME ) return;
+
   if ( ready  <  this.options.minPlayer ) return;   // less player - wait
 
   if ( ready === this.options.minPlayer ) {
@@ -63,8 +65,10 @@ Game.prototype.start = function ( initialize ) {
       if ( !INGAME ) return this._start();
 
       // re-join to minmum | prevent reset
-      return forward.call( this, getKeys(pg.peers)[0] );
+      forward.call( this, getKeys(PEERS)[0] );
     }
+
+    return;
   }
 
   if ( ready  >  this.options.maxPlayer ) return;   // too much player
@@ -119,9 +123,7 @@ function request(){
  *  @param {String} remoteID   - will be provided by late join & request
  */
 
-function forward ( remoteID ) {
-
-  var late = !!remoteID;
+function forward ( remoteID, late ) {
 
   if ( !remoteID ) remoteID = getNext();
 
@@ -129,7 +131,7 @@ function forward ( remoteID ) {
 
   if ( checkCaches() ) return setTimeout( forward, DELAY, remoteID );
 
-  CONNECTIONS[ remoteID ].send( 'start', { sync: JSON.stringify(SYNC), check: late }, true );
+  CONNECTIONS[ remoteID ].send( 'start', { sync: JSON.stringify(SYNC), belated: late }, true );
 }
 
 

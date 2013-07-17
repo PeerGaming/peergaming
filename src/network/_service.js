@@ -111,8 +111,9 @@ var defaultHandlers = {
     var data = msg.data || {};
 
     // late-join
-    if ( data.request ) return forward( msg.local );
-    if ( data.check   ) extend( SYNC, JSON.parse(data.sync) );
+    if ( data.request ) return forward( msg.local, true );
+    if ( data.belated ) loadSync( JSON.parse(data.sync) );
+
 
     setImmediate( checkReadyState );
 
