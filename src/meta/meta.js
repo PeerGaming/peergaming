@@ -1,4 +1,5 @@
 //= require "_info.js"
+//= require "_watch.js"
 //= require "_backup.js"
 //= require "_auth.js"
 //= require "_login.js"
