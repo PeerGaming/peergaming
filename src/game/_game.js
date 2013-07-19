@@ -49,7 +49,7 @@ inherits( Game, Channel );
 
 Game.prototype.start = function ( initialize ) {
 
-  this._start = function(){ initialize(); INGAME = true; forward.call( this ); };
+  this._start = function(){ initialize(); forward.call( this ); };
 
 
   var ready = getKeys( READY ).length;
@@ -127,9 +127,14 @@ function forward ( remoteID, late ) {
 
   if ( !remoteID ) remoteID = getNext();
 
-  if ( !remoteID ) return; // end of chain
-
   if ( checkCaches() ) return setTimeout( forward, DELAY, remoteID );
+
+  if ( !remoteID ) { // end of chain - start loop
+
+    MANAGER.broadcast( 'start', { sync: JSON.stringify(SYNC), loop: true });
+
+    return setTimeout( startLoop, SYNCDELAY+DELAY ); // local delay for synchronized order
+  }
 
   CONNECTIONS[ remoteID ].send( 'start', { sync: JSON.stringify(SYNC), belated: late }, true );
 }

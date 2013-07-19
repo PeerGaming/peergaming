@@ -125,6 +125,10 @@ var defaultHandlers = {
         return setTimeout( checkReadyState, DELAY );
       }
 
+      // invoke loop
+      if ( data.loop ) return startLoop();
+
+      // initialize game
       ROOM._start();
     }
 

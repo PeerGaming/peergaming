@@ -6,40 +6,92 @@
  */
 
 
-var RUNNING = false,  // current state of loop
+var WAITING = true, // waiting for the initialization = current state of the loop
 
-    REF     = null;   // refenrece for the callback
+    RENDER  = null, // refenrece for the callback
+
+    FRAME   = null; // reference to the request Animation frmae...
+
 
 /**
- *  Setup the rendering loop and provide inject the time difference
+ *  Provide the rendering function
  *
  *  @param  {Function} render   -
  */
 
 function loop ( render ) {
 
-  if ( RUNNING ) return;
+  if ( !RENDER ) RENDER = render;
+}
 
-  RUNNING = true;
 
-  REF     = render;
+/**
+ *  Invoke the game by starting the loop
+ */
 
-  var time = 0, delta = 0, last = 0;
+function startLoop(){
 
-  requestAnimationFrame( function () { last = win.performance.now(); run(); });
+  // console.log('[LOOP]');
+
+  INGAME = true;
+
+  // cancel on late-join
+  loop.stop();
+
+  loop.resume();
+}
+
+
+/**
+ *  Stop the loop
+ */
+
+loop.stop = function(){
+
+  WAITING = true;
+
+  if ( FRAME ) {
+
+    // console.log('[STOP]');
+    cancelAnimationFrame( FRAME );
+
+    FRAME = null;
+  }
+};
+
+
+/**
+ *  Setup the rendering loop and provide inject the time difference
+ *
+ *  workaround: firefox doesn't use performance.now() but Date.now()
+ */
+
+loop.resume = function(){
+
+  if ( !INGAME || !WAITING ) return;
+
+  WAITING = false;
+
+  // console.log('[RESUME]');
+
+  var time = 0, delta = 0, last = 0, render = RENDER;
+
+  FRAME = requestAnimationFrame( function(){ last = win.performance.now(); run(); });
 
   function run() {
 
-    // workaround: firefox doesn't use performance.now() but Date.now()
     time  = win.performance.now();
     delta = time - last;
     last  = time;
 
-    render( delta ); // throttle( render, delta );
+    render( delta );
+    // throttle( render, delta );
 
-    if ( RUNNING ) requestAnimationFrame( run );
+    if ( WAITING ) return;
+
+    FRAME = requestAnimationFrame( run );
   }
-}
+};
 
 
 var LOOP_TIME = DELAY,   // treshhold for fix framerate
@@ -64,26 +116,6 @@ function throttle ( render, delta ) {
     render( delta );
   }
 }
-
-
-/**
- *  Stop the loop
- */
-
-loop.stop = function(){
-
-  RUNNING = false;
-};
-
-
-/**
- *  Restart the loop
- */
-
-loop.resume = function(){
-
-  loop(REF);
-};
 
 
 /**
