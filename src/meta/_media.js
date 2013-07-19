@@ -1,49 +1,40 @@
 /**
- *  Media
- *  =====
+ *  MediaConnection
+ *  ===============
  *
  *  Wrapper for handling MediaStreams - creating an additional connection asides the DataChannel.
- */
-
-
-/**
- *  Constructor to setup up the basic information
  *
- *  @param  {String}  local       -
- *  @param  {String}  remote      -
- *  @param  {Boolean} initiator   -
- *  @param  {Object}  transport   -
+ *
+    // https://groups.google.com/forum/?fromgroups#!topic/discuss-webrtc/0CsB2dztSJI
+    https://gist.github.com/yoeran/5983887
  */
+  // TODO: automatic errorhandle retrieves mesage etc., if remote result won't be displayed....
+  // send request to create the Media() also on the remote system !
+  // still needs to create a peerconnection as the foundation
 
-var Media = function ( local, remote, initiator, transport ) {
+// inlcude improve audio playback, through using a audio context...
+//
+//
+  // will change to: MediaStreamAudioSourceNode
+  // http://stackoverflow.com/questions/17332711/is-there-any-way-to-use-createmediastreamsource-on-an-audiocontext-in-firefox-23
 
-  this.info = { local: local, remote: remote, pending: true };
 
-  if ( initiator ) this.info.initiator = true;
-  if ( transport ) this.info.transport = transport;
 
-  this.channels = {};
+var MediaConnection = function ( local, remote, initiator, transport, config, callback ) {
+
+  Connection.apply( this, arguments );
 
   this.init();
-};
 
+  this.info.config = config;
 
-/**
- *  Create connection and setup receiver
- */
-
-Media.prototype.init = function(){
-
-  this.conn = new RTCPeerConnection( config.peerConfig, config.connectionConstraints );
-
-  this.checkStateChanges();
-
-  this.findICECandidates();
+  this.attachStream();
 
   if ( this.info.initiator ) {
 
-    this.requestStream();
+    this.requestStream( callback );
   }
+
 };
 
 
@@ -51,33 +42,26 @@ Media.prototype.init = function(){
  *  Media <- Connection
  */
 
-inherits( Media, Connection );
+inherits( MediaConnection, Connection );
 
 
 /**
  *  Attach handler for incoming streams
  */
 
-Media.prototype.attachStream = function(){
+MediaConnection.prototype.attachStream = function(){
 
   var conn = this.conn;
 
-  conn.onaddstream = function ( e ) {
+  conn.onaddstream = function ( e ) { // remote via connection != local, -> therefore otherhandler
 
-    console.log('[MEDIA] - Added Stream');
-    console.log(e);
+    var stream = e.stream;
 
-    // var video = document.createElement('video');
-    // video.src = URL.createObjectURL( e.stream );
-    // video.autoplay = true;
+    if ( !eventMap[PLAYER.id].media ) return useDefaultAudio( stream );
 
-    // var box = document.createElement('div');
-    // box.textContent = this.remoteID;
-    // box.className = 'name';
-    // box.appendChild(video);
+    PLAYER.emit( 'media', stream, this.info.remote );
 
-    // document.body.appendChild( box );
-  };
+  }.bind(this);
 
 
   conn.onremovestream = function ( e ) {
@@ -86,7 +70,8 @@ Media.prototype.attachStream = function(){
 
     // document.getElementById('vid2').src = null;
     URL.revokeObjectURL( e.stream );
-  };
+
+  }.bind(this);
 
 };
 
@@ -97,27 +82,82 @@ Media.prototype.attachStream = function(){
  *  @param {String} el   -
  */
 
-Media.prototype.requestStream = function ( el ) {
+MediaConnection.prototype.requestStream = function ( callback ) {
 
-  var permissions = { audio: true, video: true };
+  var permissions = this.info.config || config.permissions;
 
-  win.navigator.getUserMedia( permissions, function ( stream ) {
+  nav.getUserMedia( permissions, success.bind(this), fail.bind(this) );
 
-    var videoTracks = stream.getVideoTracks(),
-        audioTracks = stream.getAudioTracks();
 
-    conn.addStream( stream );
+  function success ( stream ) {
 
-    // this.createOffer();
+    // var videoTracks = stream.getVideoTracks(),
+        // audioTracks = stream.getAudioTracks();
 
-    if ( !el ) return;
+    // filterAudio( stream );
 
-    var video = document.createElement('video');
+    this.conn.addStream( stream );
 
-    video.src      = createObjectURL( stream );
-    video.autoplay = true;
+    this.createOffer();
 
-    document.getElementById( el ).appendChild( video );
-  });
+    if ( callback ) callback( stream );
+  }
+
+  function fail ( err ) {
+
+    console.log('[DENIED] - ', err );
+  }
 
 };
+
+
+/**
+ *  Select the messeneger for communication & transfer
+ *
+ *  @param {String}  action   -
+ *  @param {Object}  data     -
+ *  @param {Boolean} direct   - defines if the action should only be execute via a direct connection
+ */
+
+MediaConnection.prototype.send = function ( action, data ) {
+
+  this.info.transport.send( 'media', { action: action, data: data });
+};
+
+
+
+function filterAudio ( stream ) {
+
+  var atx      = new AudioContext(),
+      input    = atx.createMediaStreamSource( stream ),
+      analyser = atx.createAnalyser(),
+      filter   = atx.createBiquadFilter(),
+      volume   = atx.createGainNode();
+
+
+  input.connect( analyser);
+
+  analyser.connect( filter );
+
+  filter.connect( volume );
+
+  volume.gain.value = 0.8;
+
+  volume.connect( atx.destination );
+
+  console.log('[AUDIO] ', atx);
+}
+
+
+function useDefaultAudio ( stream ) {
+
+  // filterAudio( stream );
+
+  var audio = new Audio();
+
+  audio.src = URL.createObjectURL( stream );
+
+  audio.autoplay = true;
+
+  audio.load();
+}

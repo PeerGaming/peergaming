@@ -24,8 +24,6 @@ var Connection = function ( local, remote, initiator, transport ) {
   if ( initiator ) this.info.initiator = true;
   if ( transport ) this.info.transport = transport;
 
-  this.channels     =   {};
-
   // internal: remote tracking
   this._candidates  =   [];
   this._fragments   =   {};
@@ -33,8 +31,6 @@ var Connection = function ( local, remote, initiator, transport ) {
   // internal: local handling
   this._counter     =    0;
   this._sendSDP     = null;
-
-  this.init();
 };
 
 
@@ -48,13 +44,19 @@ Connection.prototype.init = function(){
 
   this.checkStateChanges();
 
-  this.receiveDataChannels();
-
   this.findICECandidates();
 
-  if ( this.info.initiator ) {
+  if ( this instanceof DataConnection ) {
 
-    this.createOffer();
+    this.channels = {};
+
+    this.receiveDataChannels();
+
+    if ( this.info.initiator ) {
+
+      this.createOffer();
+    }
+
   }
 };
 
@@ -96,6 +98,8 @@ Connection.prototype.checkStateChanges = function(){
 
     var iceConnectionState = e.currentTarget.iceConnectionState;
 
+    // TODO: minimize interuption , perhaps workaround - just on connecting ?
+    // console.log(iceConnectionState);
     if ( iceConnectionState === 'disconnected' ) {
 
       if ( this.info.pending ) { // interrupt
@@ -116,24 +120,6 @@ Connection.prototype.checkStateChanges = function(){
 
 
 /**
- *  Receive remotely create channel and sets up local handler
- */
-
-Connection.prototype.receiveDataChannels = function(){
-
-  this.conn.ondatachannel = function ( e ) {
-
-    var channel = e.channel,
-
-        label   = channel.label;
-
-    this.channels[ label ] = new Handler( channel, this.info.remote );
-
-  }.bind(this);
-};
-
-
-/**
  *  Find and exchanges ICE candidates
  */
 
@@ -141,12 +127,13 @@ Connection.prototype.findICECandidates = function(){
 
   var conn     = this.conn,
 
-      length   = getKeys( defaultHandlers ).length - 1,
+      length   = 4,
 
       advanced = false;
 
-  // previous: remote just invokes half - now even local /* if ( !this.info.initiator ) */
-  length = ~~( length/2 );
+  // TODO: hardcoded value, any reason behind this magic numbers ?
+  // length   = ~~(( getKeys( defaultHandlers ).length - 1 ) / 2),
+  if ( !this.info.initiator ) length--;
 
   conn.onicecandidate = function ( e ) {
 
@@ -212,8 +199,11 @@ Connection.prototype.createOffer = function() {
 
   var conn = this.conn;
 
-  // FF doesn't support re-negiotiation -> requires the setup before
-  if ( moz ) createDefaultChannels( this );
+  if ( this instanceof DataConnection ) {
+
+    // FF doesn't support re-negiotiation -> requires the setup before
+    if ( moz ) createDefaultChannels( this );
+  }
 
   this._sendSDP = null;
 
@@ -228,7 +218,7 @@ Connection.prototype.createOffer = function() {
 
     }.bind(this), loggerr ); // config.SDPConstraints
 
-  }.bind(this), loggerr );
+  }.bind(this), loggerr, config.mediaConstraints );
 };
 
 
@@ -262,9 +252,13 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
   if ( this.closed ) {
 
+    msg = 'The underlying PeerConnection got closed too early...';
+
+    WATCH.emit('error', {  msg: msg, line: 259 });
+
     alert('Sorry, but an error occoured. Please revisit the site!');
 
-    throw new Error('The underlying PeerConnection got closed too early...');
+    throw new Error(msg);
   }
 
   // console.log( desc.sdp );
@@ -292,74 +286,25 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
         }.bind(this), loggerr ); // config.SDPConstraints
 
-      }.bind(this), null );//, config.mediaConstraints );
+      }.bind(this), loggerr, config.mediaConstraints );
 
     } else { // receive answer
 
-      if ( moz ) return;
+      if ( this instanceof DataConnection ) {
 
-      createDefaultChannels( this );
+        if ( moz ) return;
+
+        createDefaultChannels( this );
+      } else {
+
+        console.log('[END] - TODO: MediaConnection cleanup + handlers'); // what now ?
+      }
     }
 
   }.bind(this), !moz ? loggerr : function(){} ); // FF -> supress warning for missing re-negotiation
 
 };
 
-
-/**
- *  Creates a handler for the DataChannel // doesnt belong to connection, but datachannel...
- *
- *  @param {String} label     -
- *  @param {Object} options   -
- */
-
-Connection.prototype.createDataChannel = function ( label ) {
-
-  try {
-
-    var channel = this.conn.createDataChannel( label, config.channelConfig );
-
-    this.channels[ label ] = new Handler( channel, this.info.remote );
-
-  } catch ( e ) { // getting a "NotSupportedError" - but is working !
-
-    console.warn('[Error] - Creating DataChannel (*)');
-  }
-};
-
-
-/**
- *  Select the messeneger for communication & transfer
- *
- *  @param {String}  action   -
- *  @param {Object}  data     -
- *  @param {Boolean} direct   - defines if the action should only be execute via a direct connection
- */
-
-Connection.prototype.send = function ( action, data, direct ) {
-
-  if ( !this.info.pending ) {
-
-    this.send = useChannels.bind(this);
-
-    this.send( action, data );
-
-  } else {
-
-    if ( direct ) return;
-
-    var remote = this.info.remote;
-
-    if ( this.info.transport ) {
-
-      var proxy = { action: action, local: PLAYER.id, remote: remote };
-
-      return this.info.transport.send( 'register', data, proxy );
-    }
-
-    SOCKET.send({ action: action, data: data, remote: remote });
-  }
-};
 
 
 /**
@@ -370,20 +315,7 @@ Connection.prototype.send = function ( action, data, direct ) {
 
 Connection.prototype.close = function( channel ) {
 
-  var handler  = this.channels,
-      keys     = getKeys( handler );
-
-  if ( !channel ) channel = keys;
-
-  if ( !Array.isArray( channel ) ) channel = [ channel ];
-
-  for ( var i = 0, l = channel.length; i < l; i++ ) {
-
-    handler[ channel[i] ].channel.close();
-    delete handler[ channel[i] ];
-  }
-
-  if ( !getKeys( handler ).length ) this.conn.close();
+  this.conn.close();
 };
 
 
@@ -447,51 +379,4 @@ function exchangeDescription ( desc ) {
 
   // the remote doesn't set any candidates (ready/num will be 0) on the 2nd exchange + default (null)
   if ( ready != void 0 ) this._sendSDP( ready );
-}
-
-
-/**
- *  Create basic DataChannel setup
- *
- *  @param {Object} connection   - reference to this connection
- */
-
-function createDefaultChannels ( connection )  {
-
-  if ( getKeys(connection.channels).length ) return;
-
-  var defaultChannels = getKeys( defaultHandlers );
-
-  for ( var i = 0, l = defaultChannels.length; i < l ; i++ ) {
-
-    connection.createDataChannel( defaultChannels[i] );
-  }
-}
-
-
-/**
- *  Replace previous socket usage with direct DataChannel connections
- *
- *  @param {String} channel   -
- *  @param {Object} data      -
- *  @param {Object} proxy     -
- */
-
-function useChannels ( channel, data, proxy ) {
-
-  var msg = { action: channel, local: PLAYER.id, data: data, remote: this.info.remote };
-
-  extend( msg, proxy );
-
-  var ready    = this.ready,
-      channels = this.channels;
-
-  if ( !channel ) channel = getKeys( channels );
-
-  if ( !Array.isArray( channel ) ) channel = [ channel ];
-
-  for ( var i = 0, l = channel.length; i < l; i++ ) {
-
-    if ( ready && channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
-  }
 }
