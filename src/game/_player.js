@@ -97,8 +97,8 @@ Player.prototype.join = function ( channel, params ) {
 /**
  *  Sends a message to a specific peer, a list of peers or even all
  *
- *  @param  {Array}  list   -
- *  @param  {String} msg    -
+ *  @param  {String||Array}  list   -
+ *  @param  {String}         msg    -
  */
 
 Player.prototype.send = function ( list, msg ) {
@@ -119,16 +119,41 @@ Player.prototype.send = function ( list, msg ) {
 
 
 /**
- *  Creates and offers a MediaStream
+ *  Creates a MediaStream and offers streaming
  *
- *  @param  {String}   id         -
- *  @param  {Object}   config     -
- *  @param  {Function} callback   -
+ *  @param  {String||Array}   list         -
+ *  @param  {Object}          config     -
+ *  @param  {Function}        callback   -
  */
 
-Player.prototype.media = function ( id, config, callback ) {
+var options = {
 
-  // || TODO: 0.5.0 -> mediaStream()
+  'String'   : 'list',
+  'Array'    : 'list',
+  'Object'   : 'config',
+  'Function' : 'callback'
+};
+
+Player.prototype.media = function ( list, config, callback ) {
+
+  var args = {};
+
+  if ( list )     args[ options[ type(list)     ] ] = list;
+  if ( config )   args[ options[ type(config)   ] ] = config;
+  if ( callback ) args[ options[ type(callback) ] ] = callback;
+
+  list     = args.list;
+  config   = args.config;
+  callback = args.callback;
+
+  if ( !list ) list = getKeys( CONNECTIONS );
+
+  if ( !Array.isArray( list ) ) list = [ list ];
+
+  for ( var i = 0, l = list.length; i < l; i++ ) {
+
+    MANAGER.share( list[i], true, config, callback );
+  }
 };
 
 

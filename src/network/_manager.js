@@ -12,7 +12,9 @@ var DELAY    =    0,  // max. latency evaluation
 
     READY    =   {},  // record of current ready users
 
-    TODO     =   {};  // available peers to connect
+    TODO     =   {},  // available peers to connect
+
+    CURRENT  = null;  // current connection which is getting established
 
 
 MANAGER = (function(){
@@ -31,11 +33,15 @@ MANAGER = (function(){
 
     if ( !Array.isArray(remoteList) ) remoteList = [ remoteList ];
 
-    var localID  = PLAYER.id,
+    var localID = PLAYER.id, remoteID;
 
-        remoteID = remoteList.pop();
 
-    this.connect( remoteID, true, transport );
+    if ( !CURRENT ) {
+
+      remoteID = remoteList.pop();
+
+      this.connect( remoteID, true, transport );
+    }
 
 
     if ( !remoteList.length ) return;
@@ -65,9 +71,28 @@ MANAGER = (function(){
 
     // console.log( '[connect] to - "' + remoteID + '"' );
 
+    CURRENT = remoteID; // currently connecting
+
     PEERS[ remoteID ] = new Peer({ id: remoteID });
 
-    CONNECTIONS[ remoteID ] = new Connection( PLAYER.id, remoteID, initiator, transport );
+    // CONNECTIONS[ remoteID ] = new Connection( PLAYER.id, remoteID, initiator, transport );
+
+    CONNECTIONS[ remoteID ] = new DataConnection( PLAYER.id, remoteID, initiator, transport );
+  }
+
+
+  // TODO -> check for "exchange & create", initiator...
+
+  // use the existing data channel to exchange the credentials, still needs "initiator" flag, as new connection
+  function share ( remoteID, initiator, config, callback ) {
+
+    if ( MEDIAS[remoteID] || remoteID === PLAYER.id ) return;
+
+    var transport = CONNECTIONS[remoteID];
+
+    if ( !transport.ready ) return;
+
+    MEDIAS[ remoteID ] = new MediaConnection( PLAYER.id, remoteID, initiator, transport, config, callback );
   }
 
 
@@ -100,6 +125,9 @@ MANAGER = (function(){
   }
 
 
+
+
+
   /**
    *  Set credentials and create entries as SDP & candidates arrives
    *
@@ -116,7 +144,7 @@ MANAGER = (function(){
 
 
   /**
-   *  Inform other peers about the key/value change by using a multicast
+   *  Inform other peers about the key/value change by using a broadcast
    *  and updates the local backup
    *
    *  @param  {String}               key     -
@@ -127,11 +155,24 @@ MANAGER = (function(){
 
     updateBackup();
 
+    broadcast( 'update', { key: key, value: value }, true );
+  }
+
+
+
+
+  /**
+   *  Transfering data to a specific group (as in this caste to all,
+   *  its just like a broadcast).
+   */
+
+  function broadcast ( action, data, direct ) {
+
     var ids = getKeys( CONNECTIONS );
 
     for ( var i = 0, l = ids.length; i < l; i++ ) {
 
-      CONNECTIONS[ ids[i] ].send( 'update', { key: key, value: value }, true );
+      CONNECTIONS[ ids[i] ].send( action, data, direct );
     }
   }
 
@@ -221,7 +262,7 @@ MANAGER = (function(){
    *  Determines if all peers are connected and then emits the connections
    */
 
-  function ready (){
+  function ready(){
 
     var keys  = getKeys( PEERS ),
 
@@ -247,6 +288,8 @@ MANAGER = (function(){
 
       delete TODO[ entry ];
 
+      CURRENT = null;
+
       return MANAGER.check( entry, transport );
     }
 
@@ -259,7 +302,7 @@ MANAGER = (function(){
     }
 
 
-    function invoke( peer ) {
+    function invoke ( peer ) {
 
       if ( READY[ peer.id ] ) return;
 
@@ -276,7 +319,7 @@ MANAGER = (function(){
    *  Defines the peer order - ranked by the appearance / inital load
    */
 
-  function order (){
+  function order(){
 
     var keys  = getKeys( PEERS ),
 
@@ -308,9 +351,11 @@ MANAGER = (function(){
 
   return {
 
+    broadcast  : broadcast,
     check      : check,
     connect    : connect,
     disconnect : disconnect,
+    share      : share,
     set        : set,
     update     : update,
     setup      : setup

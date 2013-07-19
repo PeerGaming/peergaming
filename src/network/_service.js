@@ -186,6 +186,24 @@ var defaultHandlers = {
 
 
   /**
+   *  [ description]
+   *  @return {[type]} [description]
+   */
+
+  media: function ( msg ) {
+
+    msg = JSON.parse( msg );
+
+    var data = msg.data;
+
+    if ( !MEDIAS[ msg.local ] ) MANAGER.share( msg.local, false );
+
+    MEDIAS[ msg.local ][ data.action ]( data.data );
+    // default: offer to talk as well // - options can disable it
+  },
+
+
+  /**
    *  Using a shared channel to delegate remote calls
    *
    *  @param {Object} msg   -
