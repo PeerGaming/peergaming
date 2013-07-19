@@ -98,8 +98,66 @@ function sync ( key, value, resync ) {
 
   MANAGER.broadcast( 'sync', { action: 'request', key: key, value: value }, true );
 
+  if ( !config.synchronConfig.naiveSync ) {
+
+    // advancedSync
+    pg.sync[ key ] = void 0;
+    loop.stop();
+  }
+
   // SYNCNO++;   // 0.8 -> improve conflict solving, using versioning for the caches & sync
   // MANAGER.broadcast( 'sync', { version: SYNCNO, action: 'request', key: key, value: value }, true );
+}
+
+
+/**
+ *  [handleCaches description]
+ *
+ *  // returns true if it shouldn't be shared/sent to remote peers
+ *  // remote setting their local value || // also not set on the local environment
+ *
+ *  @param  {[type]} key    [description]
+ *  @param  {[type]} value  [description]
+ *  @param  {[type]} resync [description]
+ *  @return {[type]}        [description]
+ */
+
+function handleCaches ( key, value, resync ) {
+
+  if ( resync ) {
+
+    // console.log('[SOLVED]');
+
+    if ( CACHE[key] ) delete CACHE[key];
+
+    SOLVED[  key ] = true;
+    pg.sync[ key ] = value;
+
+    return;                                           // console.log( '[CONFIRMED]', value    );
+  }
+
+  if ( CACHE[key]  ) return;                          // console.log( '[CACHED]', CACHE[key]  );
+
+  if ( SOLVED[key] ) {
+
+    delete SOLVED[key];
+
+    WATCH.emit('sync', key, value );
+
+    return loop.resume();                             // console.log( '[SOLVED]', SOLVED[key] );
+  }
+
+  return true;
+}
+
+
+/**
+ *  Check the status of the caches, e.g. they are ready (empty)
+ */
+
+function checkCaches(){
+
+  return getKeys(CACHE).length || getKeys(SOLVED).length;
 }
 
 
@@ -113,9 +171,22 @@ function sync ( key, value, resync ) {
 
 function requestSync ( remoteID, key, value ) {
 
+  if ( !config.synchronConfig.naiveSync ) loop.stop();
+
   var entry = CACHE[key];
 
-  if ( entry != void 0 ) value = entry;
+  if ( entry != void 0 ) {
+
+    // console.log('[CACHE HIT]');
+
+    value = entry;
+
+  } else {
+
+    // console.log('[CACHE MISS]');
+
+    CACHE[key] = value;
+  }
 
   CONNECTIONS[ remoteID ].send( 'sync', { action: 'confirm', key: key, value: value }, true );
 }
@@ -136,60 +207,85 @@ function confirmSync ( remoteID, key, value ) { // resync to all
   // TODO: requires responses from all requests or deadlock
   if ( entry.list.length > 0 ) return;
 
-  value = entry.results[0]; // priority
-
-  sync( key, value, true ); // set local
+  value = getSyncValue( entry.results );
 
   MANAGER.broadcast( 'sync', { key: key, value: value }, true );
+
+  sync( key, value, true ); // set local
 }
 
 
-
-
 /**
- *  [handleCaches description]
+ *  Determine which value should be picked for the resynchronisation.
  *
- *  // returns true if it shouldn't be shared/sent to remote peers
- *  // remote setting their local value
+ *  Compares the frequency and picks the one with most votes,
+ *  the position be used as the criteria for priority (regarding a tie).
  *
- *  @param  {[type]} key    [description]
- *  @param  {[type]} value  [description]
- *  @param  {[type]} resync [description]
- *  @return {[type]}        [description]
+ *  @param  {[type]} results [description]
+ *  @return {[type]}         [description]
  */
 
-function handleCaches ( key, value, resync ) {
+function getSyncValue ( results ) {
 
-  if ( resync ) {
+  if ( config.synchronConfig.naiveSync ) return results[0];
 
-    if ( !CACHE[key] ) {
 
-      SOLVED[  key ] = true;
+  var serialResults = [],
 
-      pg.sync[ key ] = value;
-    }
+      frequency     = {},
 
-    if ( CACHE[key] ) delete CACHE[key];
+      entry;
 
-    return;                                             // console.log( '[CONFIRMED]', value    );
+  for ( var i = 0, l = results.length; i < l; i++ ) {
+
+    entry = JSON.stringify( results[i] );
+
+    serialResults.push( entry );
+
+    if ( !frequency[entry] ) frequency[entry] = 0;
+
+    frequency[entry]++;
   }
 
-  if ( CACHE[key] ) return;                             // console.log( '[CACHED]', CACHE[key]  );
 
-  if ( SOLVED[ key ] ) { delete SOLVED[key]; return; }  // console.log( '[SOLVED]', SOLVED[key] );
+  var keys  = getKeys( frequency ),
 
-  return true;
-}
+      votes =  0,
+
+      most  = [],
+
+      value;
+
+  for ( i = 0, l = keys.length; i < l; i++ ) {
+
+    entry = keys[i];
+
+    value = frequency[entry];
+
+    if ( value >= votes ) {
+
+      if ( value > votes ) {
+
+        most.length = 0;
+
+        votes = value;
+      }
+
+      most.push( entry );
+    }
+  }
 
 
+  var priority = serialResults.length;
 
-/**
- *  Check the status of the caches, e.g. they are ready (empty)
- */
+  for ( i = 0, l = most.length; i < l; i++ ) {
 
-function checkCaches(){
+    value = serialResults.indexOf( most[i] );
 
-  return getKeys(CACHE).length || getKeys(SOLVED).length;
+    if ( value < priority ) priority = value;
+  }
+
+  return results[priority];
 }
 
 

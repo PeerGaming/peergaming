@@ -30,6 +30,19 @@ var config = {
 
 
   /**
+   *  Settings for synchronization
+   *
+   *  @type {Object} synchronConfig
+   */
+
+  synchronConfig: {
+
+    naiveSync: false // if use naiveSync - faster but not reliable, as used for signaling
+                     // used with pg.on('sync', function ( key, value ) { })
+  },
+
+
+  /**
    *  Handler attributes
    *
    *  @type {Object} handlerConfig
@@ -112,8 +125,8 @@ var config = {
 
   permissions: {
 
-    audio: true,
-    video: true
+    audio: true
+    // video: true
   },
 
   mediaConstraints: {
