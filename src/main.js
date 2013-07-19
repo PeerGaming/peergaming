@@ -31,6 +31,7 @@
     'info'        : INFO,             // -> meta/_info.js
 
     'config'      : setConfig,        // -> core/_config.js
+    'watch'       : getWatcher,       // -> meta/_watch.js
     'login'       : login,            // -> meta/_login.js
 
     'player'      : PLAYER,           // -> game/_player.js

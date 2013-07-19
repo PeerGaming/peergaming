@@ -17,7 +17,7 @@ var eventMap = {};
 
 var Emitter = function() {
 
-  if ( this instanceof Peer ) {
+  if ( Peer && this instanceof Peer ) {
 
     eventMap[ this.id ] = {};
 
