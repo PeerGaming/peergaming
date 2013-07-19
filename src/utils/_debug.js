@@ -48,6 +48,8 @@ function loggerr ( err )  {
 
   console.warn('[ERROR] ', err );
   console.warn( err.name + ': ' + err.message );
+
+  WATCH.emit('error', { name: err.name, msg: err.message });
 }
 
 
@@ -73,3 +75,30 @@ function isDebugging(){
 
   return console.profiles.length > existingProfiles;
 }
+
+
+/**
+ *  Synchron RPC calls for debugging/testing
+ */
+
+win.test = (function() {
+
+  var calls = {
+
+    sync: function ( key, value ) { pg.sync[key] = value; }
+  };
+
+
+  localCheck['test'] = function ( cmd, key, value ) {
+
+    if ( calls[cmd] ) calls[cmd]( key, value );
+  };
+
+  return function ( cmd, key, value ) {
+
+    LOCAL['test'] = JSON.stringify([ cmd, key, value ]);
+
+    if ( calls[cmd] ) calls[cmd]( key, value );
+  };
+
+})();

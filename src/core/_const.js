@@ -11,6 +11,7 @@
 var win     = window,
     doc     = document,
     nav     = win.navigator,
+    // loc     = win.location,
 
     moz     = nav.mozGetUserMedia ? parseFloat( nav.userAgent.match(/Firefox\/([0-9]+)\./).pop()       )
                                   : false,
@@ -44,6 +45,7 @@ var ROOM        = '',        // current room
 
 var VERSION     = null,      // pg.VERSION
     INFO        =   {},      // pg.info
+    WATCH       = null,      // pg.watch
     PLAYER      = null,      // pg.player
     PEERS       =   {},      // pg.peers
     DATA        =   [],      // pg.data
