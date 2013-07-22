@@ -7,10 +7,10 @@
 
 if ( LOCAL['player'] ) {
 
-  var range = parseFloat( JSON.parse(LOCAL.player).time ) +
+  var range = parseFloat( JSON.parse(LOCAL['player']).time ) +
               config.reconnectConfig.backupDuration - Date.now();
 
-  if ( range >= 0 ) extend( BACKUP, JSON.parse(LOCAL.player) );
+  if ( range >= 0 ) extend( BACKUP, JSON.parse(LOCAL['player']) );
 }
 
 delete LOCAL['player'];
@@ -23,6 +23,8 @@ delete LOCAL['player'];
  */
 
 function updateBackup() {
+
+  if ( !config.reconnectConfig.restoreEnabled ) return;
 
   LOCAL['player'] = JSON.stringify(PLAYER);
 }
