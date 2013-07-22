@@ -1,3 +1,20 @@
+## 0.5.0 / 2013-07-23
+
+* add MediaStreams via "player.media()"
+* new public API: pg.watch, for error + sync
+* remove Emitter inheritance by peers/players,
+  move events to "pg.watch()"
+
+
+## 0.4.8 / 2013-07-19
+
+* Bug Fix: restructuring the order by adding new players
+* fix react type attachments (array != object)
+* improve sync & solving conflicts
+* seperation of media & data-connections
+* advancedSync option (+ flag in config.syncConfig - naive)
+
+
 ## 0.4.7 / 2013-06-30
 
 * singleton: return same player instance on multiple login

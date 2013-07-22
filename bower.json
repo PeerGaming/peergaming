@@ -1,7 +1,7 @@
 {
   "name"        : "PeerGaming",
   "description" : "A Client-Side Multiplayer Gaming Framework for the Web",
-  "version"     : "0.4.7",
+  "version"     : "0.5.0",
   "main"        : "dist/peergaming.js",
   "ignore"      : [
     "bin",
@@ -9,12 +9,13 @@
     "test",
     ".editorconfig",
     ".gitattributes",
-    ".CONTRIBUTING.md",
-    ".HISTORY.md",
+    "CONTRIBUTING.md",
+    "Gruntfile.js",
+    "HISTORY.md",
     "LICENSE",
     "Makefile",
     "TODO.md",
-    "component.json",
+    "bower.json",
     "package.json"
   ]
 }

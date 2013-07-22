@@ -1,8 +1,14 @@
 {
 	"name"				: "PeerGaming",
 	"description"	: "A Client-Side Multiplayer Gaming Framework for the Web",
-	"version"			: "0.4.7",
+	"version"			: "0.5.0",
 	"homepage"		: "http://peergaming.net",
+
+	"repository"	: {
+		"type" 			: "git",
+		"url"	 			: "https://github.com/PeerGaming/peergaming.git"
+	},
+
 	"author"			: {
 		"name"			: "Stefan Dühring",
 		"email"			: "Autarc@gmail.com",
@@ -12,6 +18,8 @@
 	"keywords"		: [ "Games", "Multiplayer", "Network", "P2P", "DataChannel" ],
 
 	"devDependencies"	: {
+
+		"grunt"					: "latest",
 		"uglify-js"			: "latest",
 		"jshint"				: "latest",
 		"testem"				: "latest",

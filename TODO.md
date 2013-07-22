@@ -1,26 +1,23 @@
-## 0.5.0 / 2013-06-XX
-
-[Bug Fixes and Stability]
-
-* fix cross-browser interoperability (Firefox)
-* offer a hook for missing errors / browser support
-
-
 ## 0.6.0 / 2013-XX-XX
 
 __Codename: Sweet Dragon__
 
 [Secure and Easy]
 
+* emit an event on missing browser support
 * add & handle additional options for the rooms
 * allow synchronized pause & resume (voting system)
 * an interface for accessing data (server + pg.info)
 * define custom handler for datachannel transmissions (RPC)
 * standalone local development - exchange via WebStorages
 * define a secure access for changing "peer.data"
+* hide "time" and "pos" of the users
+* Chrome - Firefox interoperability
 
 
 ## 0.7.0 / 2013-XX-XX
+
+__Codename: sour __
 
 [Competition and external Services]
 
@@ -32,7 +29,9 @@ __Codename: Sweet Dragon__
 * support login with other services (OAuth)
 
 
-## 0.8.0 / 2013-XX-XX
+## 0.8.0 / 201X-XX-XX
+
+__Codename: acrid __
 
 * using an unified standard (look into: http://openpeer.org/ )
 * write tests for maintable code
@@ -40,5 +39,7 @@ __Codename: Sweet Dragon__
 
 
 ## 0.9.0 / 2013-XX-XX
+
+__Codename: greasy__
 
 * using a DHT option for logging history of channels/chats
