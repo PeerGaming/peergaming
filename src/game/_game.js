@@ -64,7 +64,7 @@ Game.prototype.start = function ( initialize ) {
 
       if ( !INGAME ) return this._start();
 
-      // re-join to minmum | prevent reset
+      // re-join to minmum | prevent reset (won't be called cause the return in line 57 ?)
       forward.call( this, getKeys(PEERS)[0] );
     }
 
@@ -86,10 +86,10 @@ Game.prototype.start = function ( initialize ) {
  *  @param  {Object} options    -
  */
 
-Game.prototype.config = function ( options ) {
+// Game.prototype.config = function ( options ) {
 
-  extend( this.options, options );
-};
+//   extend( this.options, options );
+// };
 
 
 Game.prototype.end      = function(){ INGAME = false; };  // TODO: 0.6.0 -> player handling

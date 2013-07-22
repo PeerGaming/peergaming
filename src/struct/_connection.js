@@ -207,11 +207,11 @@ Connection.prototype.createOffer = function() {
 
   this._sendSDP = null;
 
-  // start generating ICE candidates
   conn.createOffer( function ( offer ) {
 
     offer.sdp = adjustSDP( offer.sdp );
 
+    // start generating ICE candidates
     conn.setLocalDescription( offer, function(){
 
       exchangeDescription.call( this, offer );
@@ -321,7 +321,7 @@ Connection.prototype.close = function( channel ) {
 
 /**
  *  Modifying the SDP parameter for interoperability and bandwidth
- *  (see: RFC - http://www.ietf.org/rfc/rfc2327.txt )
+ *  (see: RFC - http://tools.ietf.org/html/rfc4566 )
  *
  *  @param {Object} sdp   -
  */

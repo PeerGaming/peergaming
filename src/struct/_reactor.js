@@ -3,6 +3,9 @@
  *  =======
  *
  *  A reactive object which notifies its subscribers as properties get changed.
+ *
+ *  Care: delete react[prop] -> removes the handler and no changes are watched, instead
+ *                              set it to null/undefined/void 0
  */
 
 

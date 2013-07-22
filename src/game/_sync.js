@@ -219,7 +219,7 @@ function confirmSync ( remoteID, key, value ) { // resync to all
  *  Determine which value should be picked for the resynchronisation.
  *
  *  Compares the frequency and picks the one with most votes,
- *  the position be used as the criteria for priority (regarding a tie).
+ *  the position is used as the criteria for priority (regarding a tie).
  *
  *  @param  {[type]} results [description]
  *  @return {[type]}         [description]
