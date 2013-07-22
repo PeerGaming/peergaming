@@ -5,7 +5,7 @@ PeerGaming - Share the Fun
 
 A Client-Side Multiplayer Gaming Framework for the Web.
 
-_Latest Release: 0.4.7 ([changelog](https://github.com/PeerGaming/peergaming/blob/master/HISTORY.md))_
+_Latest Release: 0.5.0 ([changelog](https://github.com/PeerGaming/peergaming/blob/master/HISTORY.md))_
 
 
 ## Introduction
@@ -32,8 +32,9 @@ both kinds. The next version will provide a proper handling for interoperability
 * library agnostic (!= dependency)
 * easy setup / automatic connection
 * optional backup for reconnection
-* reactive data handling
-* serverless hook
+* use reactive data handling
+* solve synchronization conflicts
+* offer a serverless hook
 
 
 ## Info
@@ -49,6 +50,7 @@ The documentation is still work in progress and will be available later at [docs
   pg.VERSION      : obj - refers to the current version
   pg.info         : obj - information about the state
   pg.config       : fn  - configuration for the network
+  pg.watch        : fn  - notifications by internal events
   pg.login        : fn  - set identifier and create player
   pg.player       : obj - own user instance (writeable)
   pg.peers        : obj - list of connected players (readable)
@@ -121,7 +123,7 @@ pg.game( 'test', function ( game ) {
 
 /** [*] Handle messages **/
 
-pg.player.on( 'message', function ( msg ) {
+pg.watch( 'message', function ( msg ) {
 
   console.log('[MESSAGE] - ' + JSON.parse(msg).data.msg );
 });
