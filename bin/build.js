@@ -460,16 +460,16 @@ if ( config.test ) {
 
       console.log('\nBuild \t\t=> ' + config.dist + '/' + fileName + '.js');
 
-      var spawn = require('child_process').spawn,
+      var spawn  = require('child_process').spawn,
 
-        minify = spawn('bash' , [ root + '/bin/minify.sh' ]);
+          minify = spawn('bash' , [ root + '/bin/minify.sh' ]);
 
       minify.on('exit', function(){
 
         fileName = fileName + '.min.js';
 
         var dir   = config.dist + '/' + fileName,
-          path  = root + dir;
+            path  = root + dir;
 
         fs.exists( path, function ( exists ) {
 

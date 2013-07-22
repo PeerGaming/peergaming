@@ -1,5 +1,5 @@
 /**
- *	peergaming.js - v0.4.7 | 2013-06-30
+ *	peergaming.js - v0.5.0 | 2013-07-23
  *	http://peergaming.net
  *	Copyright (c) 2013, Stefan Dühring
  *	MIT License
@@ -35,6 +35,7 @@
 var win     = window,
     doc     = document,
     nav     = win.navigator,
+    // loc     = win.location,
 
     moz     = nav.mozGetUserMedia ? parseFloat( nav.userAgent.match(/Firefox\/([0-9]+)\./).pop()       )
                                   : false,
@@ -68,7 +69,8 @@ var ROOM        = '',        // current room
 
 var VERSION     = null,      // pg.VERSION
     INFO        =   {},      // pg.info
-    PLAYER      = null,      // pg.player
+    WATCH       = null,      // pg.watch
+    PLAYER      =   {},      // pg.player
     PEERS       =   {},      // pg.peers
     DATA        =   [],      // pg.data
     SYNC        = null;      // pg.sync
@@ -78,6 +80,9 @@ var VERSION     = null,      // pg.VERSION
  *  =======
  *
  *  Normalize different browser behavior - using prefixes and workarounds.
+ *
+ *  Based on Adapter.js - r4281
+ *  (https://code.google.com/p/webrtc/source/browse/trunk/samples/js/base/adapter.js)
  */
 
 
@@ -161,7 +166,7 @@ if ( !win.setImmediate ) {
 
     win.addEventListener( 'message', handle, true );
 
-    function handle() { callbacks.shift()(); }
+    function handle ( e ) { if ( e.data === 'setImmediate' ) callbacks.shift()(); }
 
     return function ( fn ) {
 
@@ -169,20 +174,26 @@ if ( !win.setImmediate ) {
 
       callbacks.push( fn );
 
-      win.postMessage( 'setImmediate', '*' );
+      win.postMessage( 'setImmediate', win.location.href );
     };
 
   })();
 }
 
 
-/** user MediaStream **/
+/** MediaStream **/
 
 if ( !nav.getUserMedia ) {
 
   nav.getUserMedia =  ( nav.mozGetUserMedia     ||
                         nav.webkitGetUserMedia  ||
                         nav.msGetUserMedia          ).bind(nav);
+}
+
+
+if ( !win.AudioContext ) {
+
+  win.AudioContext = win.webkitAudioContext;
 }
 
 
@@ -195,10 +206,13 @@ if ( typeof win.RTCPeerConnection !== 'function' ) {
 
 
   /** Modify the configurations to adjust the different address formats **/
-
   win.RTCPeerConnection = (function(){
 
     var vendorConnection = win.RTCPeerConnection;
+
+    // innerReference ?
+    var Chrome  = chrome,
+        Firefox = moz;
 
     return function adjustServer ( addresses, constraints ) {
 
@@ -216,9 +230,9 @@ if ( typeof win.RTCPeerConnection !== 'function' ) {
 
         if ( type === 'stun' ) server = { url: url };
 
-        if ( type === 'turn' ) server = parseTURN ( url, current.username, current.password ) || {};
+        if ( type === 'turn' ) server = parseTURN( url, current.username, current.credential ) || {};
 
-        if ( !server.url ) throw new Error('Invalid server address - ', current );
+        if ( !server.url ) throw new Error('Invalid server address!', current, server );
 
         iceServers[i] = server;
       }
@@ -229,21 +243,21 @@ if ( typeof win.RTCPeerConnection !== 'function' ) {
 
     /** Select the appropriate TURN version **/
 
-    function parseTURN ( url, username, password ) {
+    function parseTURN ( url, username, credential ) {
 
-      if ( moz ) { // Firefox
+      if ( Firefox ) {
 
         if ( url.indexOf('transport=udp') !== -1 || url.indexOf('?transport') === -1 ) {
 
-          return { url: url.split('?')[0], credential: password, username: username };
+          return { url: url.split('?')[0], credential: credential, username: username };
         }
       }
 
-      if ( chrome ) { // Chrome
+      if ( Chrome ) {
 
-        if ( chrome > 28 ) return { url: url, credential: password, username: username };
+        if ( Chrome > 28 ) return { url: url, credential: credential, username: username };
 
-        return { url: 'turn:' + username + '@' + url.split('turn:')[1], credential: password };
+        return { url: 'turn:' + username + '@' + url.split('turn:')[1], credential: credential };
       }
     }
 
@@ -325,7 +339,7 @@ var features  = [ 'URL', 'Blob', 'crypto', 'RTCPeerConnection' ];
 
 for ( var i = 0, l = features.length; i < l; i++ ) {
 
-  if ( !(features[i] in win ) ) console.log( 'Missing: ', features[i] );
+  if ( !(features[i] in win) ) throw new Error( '[MISSING FEATURE] ' + features[i] );
 }
 
 if ( !win.RTCPeerConnection ) return alert('Your browser doesn\'t support PeerConnections yet.');
@@ -346,82 +360,6 @@ var littleEndian = (function(){
 
     return !!arr8[0]; // 255 0 0 - litte  ||  0 0 255 - big
 })();
-
-/**
- *  Debug
- *  =====
- *
- *  Debugging calls to help on local development.
- */
-
-
-/**
- *  Show a counted debug message
- *
- *  @param {String} text   -
- */
-
-function debug ( text ) {
-
-  if ( !PLAYER || !LOCAL.log ) LOCAL.log = 0;
-
-  if ( text[text.length - 1] === '\n' ) {
-
-    text = text.substring( 0, text.length - 1 );
-  }
-
-  var num = ++localStorage.log,
-      msg = '(' + num + ') - ' + ( (performance.now()) / 1000 ).toFixed(3) + ': ' + text;
-
-  console.log( msg );
-}
-
-
-/**
- *  Resets "debug"-counter
- */
-
-win.clearDebug = function() {
-
-  delete LOCAL.log;
-};
-
-
-/**
- *  General logger to show error messages
- *
- *  @param {Object} err   -
- */
-
-function loggerr ( err )  {
-
-  console.warn('[ERROR] ', err );
-  console.warn( err.name + ': ' + err.message );
-}
-
-
-/**
- *  Informs if the developer tools are enabled for debugging
- *  (see: https://github.com/adamschwartz/chrome-inspector-detector )
- *
- *  @return {Boolean}
- */
-
-function isDebugging(){
-
-  // firebug
-  if ( moz ) return !!console.log;
-
-  // chrome
-  var existingProfiles = console.profiles.length;
-
-  console.profile();
-  console.profileEnd();
-
-  if ( console.clear ) console.clear();
-
-  return console.profiles.length > existingProfiles;
-}
 
 /**
  *  Base
@@ -445,10 +383,10 @@ var reservedReference = context.pg,
 VERSION = {
 
   codeName    : 'spicy-phoenix',
-  full        : '0.4.7',
+  full        : '0.5.0',
   major       : 0,
-  minor       : 4,
-  dot         : 7
+  minor       : 5,
+  dot         : 0
 };
 
 
@@ -497,6 +435,19 @@ var config = {
 
 
   /**
+   *  Settings for synchronization
+   *
+   *  @type {Object} synchronConfig
+   */
+
+  synchronConfig: {
+
+    naiveSync: false // if use naiveSync - faster but not reliable, as used for signaling
+                     // used with pg.on('sync', function ( key, value ) { })
+  },
+
+
+  /**
    *  Handler attributes
    *
    *  @type {Object} handlerConfig
@@ -530,13 +481,20 @@ var config = {
 
   connectionConfig: {
 
-    'iceServers': [{
+    'iceServers': [
 
-      url      : !moz ? 'stun:stun.l.google.com:19302' :  // STUN server address
-                        'stun:23.21.150.121',
-      username : null,
-      password : null
-    }]
+      // STUN server = address - e.g. Google
+      {
+        url : chrome ? 'stun:stun.l.google.com:19302' : 'stun:23.21.150.121'
+      },
+
+      // TURN server = relay - e.g. Numb (Viagenie)
+      {
+        url        : 'turn:numb.viagenie.ca',
+        username   : 'demo@peergaming.net',
+        credential : 'demo'
+      }
+    ]
   },
 
 
@@ -569,6 +527,12 @@ var config = {
    *
    *  @type {Object} mediaConstraints
    */
+
+  permissions: {
+
+    audio: true
+    // video: true
+  },
 
   mediaConstraints: {
 
@@ -631,6 +595,8 @@ setConfig.noServer = function ( hook ) {
 
   if ( typeof hook !== 'function' ) return;
 
+  extend( config, { connectionConfig: { 'iceServers': [] } });
+
   SERVERLESS = hook;
 };
 
@@ -640,7 +606,20 @@ setConfig.noServer = function ( hook ) {
  *
  */
 
-setConfig.localDev = function(){ // TODO: 0.6.0 -> useLocalDev();
+setConfig.localDev = function ( num ) { // TODO: 0.6.0 -> useLocalDev();
+
+  if ( typeof num !== 'number' ) num = parseFloat( num );
+
+  if ( isNaN(num) ) num = 1;
+
+  // the number defines how many split views should be open (reduced to keep them square)
+  //
+  // 1 -> normal, just this window (user will open another window by himself)
+  //
+  // 2 -> split into half, both got half width etc. and exchange
+
+  // // if one closes or reloads -> the parent windows will be closes as well ! (so that a refresh can
+  // happen right away !)
 
 };
 
@@ -823,18 +802,266 @@ function executeQueue ( list ) {
 //   return String.fromCharCode.apply( null, new Uint16Array( buffer ) ) ;
 // };
 
+/**
+ *  Local
+ *  =====
+ *
+ *  Helpers to shared messages to on the local system betweeen different window instances.
+ *
+ *  - localStorage | storage-event
+ *  - shared web worker ( not available in all browsers)
+ *  - postMessage (restricted to own windows)
+ *
+ *  - caveats: currently just in chrome, firefox doesn't support shared web workers yet
+ *             (therefore use the fallback with exchanging localStorage + event.listener)
+ *
+ *
+ *  // localStorage[''] = value // works, but can be that nativ method will be overwritten...
+ *
+ *  - key, setItem, getItem, removeItem, length
+ *
+ *
+ *  - TODO: handle unload ?!
+ *
+ *  https://developer.mozilla.org/en-US/docs/Mozilla/Gecko/DOM_Storage_implementation_notes?redirectlocale=en-US&redirectslug=DOM%2FStorage%2FImplementation
+ */
+
+
+// event is fired on a change towards the local storage
+
+var localCheck = {};
+
+win.addEventListener('storage', function ( e ) {
+
+  var key   = e.key;
+      value = e.newValue,
+      ref   = localCheck[key];
+
+  try { value = JSON.parse( value ); } catch ( err ) { console.log(err); }
+
+  if ( !Array.isArray(value) ) value = [ value ];
+
+  if ( typeof ref === 'function' ) ref.apply( ref, value );
+});
+
+
+
+
+
+
+// as the worker is just for sharing, sync betweeen tabs, the postmessage can be hardcoded !
+// var defineBridge = function ( post, response ) {
+
+//   if ( !win.SharedWorker ) return localFallback.apply( null, arguments );
+
+
+//   // self.onconnect = function(){
+//   //
+//   // counting...
+//   // }
+
+// // 'self.onmessage' + post.toString()
+//   post = 'self.onmessage = function ( e ) { postMessage("Worker : " + e.data ); }';
+// // .toString()
+//   var url = URL.createObjectURL( new Blob([ post ], { type: 'text/javascript' }) );
+
+
+//   var worker = new SharedWorker(url, 'shared' );//SharedWorker( url );
+
+//   worker.port.onmessage = response;
+//   // worker.port.addEventListener('message', response || function ( e ) { console.log( e ); });
+
+//   worker.port.start(); // shared worker needs to be started
+
+//   console.log(worker);
+
+//   // worker.port.addEventListener('connect', function ( e ) {
+
+//   //   var clientPort = e.source;
+
+//   //   console.log(clientPort);
+
+//   //   clientPort.addEventListener('message', function ( e ) {
+
+//   //     var data = e.data;
+//   //     console.log('redirecet data ?', data );
+
+//   //     // clientPort.postMessage('worked with data');
+//   //   });
+
+//   // });
+
+
+//   worker.port.addEventListener('error', function ( e ) {
+
+//     throw new Error( e.message + ' (' + e.filename + ':' + e.lineno + ')' );
+//   });
+
+//   // worker.port.postMessage('test');
+
+//   return { send: function ( params ) { worker.port.postMessage( params ); } }; // reference for posting input
+// };
+
+
+
+
+// function localFallback ( post, response ) {
+
+
+//   return { send: function(){ } };
+// }
+
+
+// shared worker from inline script ?
+// else if not possible - fallback via localstorage eventhandling is the only option...
+
+
+// shared workers require that both system access the same url -> blobs are unique...
+
+
+
+ // <div id="shared_worker_script" style="display:none">
+ //     var count = 0;
+ //     onconnect = function(e) {
+ //       count++;
+ //       e.ports[0].postMessage('shared-worker ping: ' + count);
+ //     }
+ //   </div>
+
+ //     url = getBlobForScript('shared_worker_script');
+ //     log("shared url: " + url);
+ //     var sw = new SharedWorker(url, 'shared');
+ //     sw.port.onmessage = function(event) {
+ //       log("Received: " + event.data);
+ //     }
+
+ //     function getBlobForScript(id) {
+ //       // var bb = new BlobBuilder();
+ //       // bb.append(document.getElementById(id).innerText);
+ //       var blob = new Blob([document.getElementById(id).innerText ])
+ //       return window.webkitURL.createObjectURL(blob);
+ //     }
+
+/**
+ *  Debug
+ *  =====
+ *
+ *  Debugging calls to help on local development.
+ */
+
+
+/**
+ *  Show a counted debug message
+ *
+ *  @param {String} text   -
+ */
+
+function debug ( text ) {
+
+  if ( !PLAYER || !LOCAL.log ) LOCAL.log = 0;
+
+  if ( text[text.length - 1] === '\n' ) {
+
+    text = text.substring( 0, text.length - 1 );
+  }
+
+  var num = ++localStorage.log,
+      msg = '(' + num + ') - ' + ( (performance.now()) / 1000 ).toFixed(3) + ': ' + text;
+
+  console.log( msg );
+}
+
+
+/**
+ *  Resets "debug"-counter
+ */
+
+win.clearDebug = function() {
+
+  delete LOCAL.log;
+};
+
+
+/**
+ *  General logger to show error messages
+ *
+ *  @param {Object} err   -
+ */
+
+function loggerr ( err )  {
+
+  console.warn('[ERROR] ', err );
+  console.warn( err.name + ': ' + err.message );
+
+  WATCH.emit('error', { name: err.name, msg: err.message });
+}
+
+
+/**
+ *  Informs if the developer tools are enabled for debugging
+ *  (see: https://github.com/adamschwartz/chrome-inspector-detector )
+ *
+ *  @return {Boolean}
+ */
+
+function isDebugging(){
+
+  // firebug
+  if ( moz ) return !!console.log;
+
+  // chrome
+  var existingProfiles = console.profiles.length;
+
+  console.profile();
+  console.profileEnd();
+
+  if ( console.clear ) console.clear();
+
+  return console.profiles.length > existingProfiles;
+}
+
+
+/**
+ *  Synchron RPC calls for debugging/testing
+ */
+
+win.test = (function() {
+
+  var calls = {
+
+    sync: function ( key, value ) { pg.sync[key] = value; }
+  };
+
+
+  localCheck['test'] = function ( cmd, key, value ) {
+
+    if ( calls[cmd] ) calls[cmd]( key, value );
+  };
+
+  return function ( cmd, key, value ) {
+
+    LOCAL['test'] = JSON.stringify([ cmd, key, value ]);
+
+    if ( calls[cmd] ) calls[cmd]( key, value );
+  };
+
+})();
+
 
 /**
  *  Reactor
  *  =======
  *
  *  A reactive object which notifies its subscribers as properties get changed.
+ *
+ *  Care: delete react[prop] -> removes the handler and no changes are watched, instead
+ *                              set it to null/undefined/void 0
  */
 
 
 var reactList =  [],   // record of reactors
 
-    SYNC      = 100;   // delay to check the difference of properties
+    SYNCDELAY = 100;   // delay to check the difference of properties
 
 
 /**
@@ -883,7 +1110,7 @@ function checkProperties ( id, current ) {
     for ( i = 0, l = remove.length; i < l; i++ ) delete last[ remove[i] ];
   }
 
-  setTimeout( checkProperties, SYNC, id, current );
+  setTimeout( checkProperties, SYNCDELAY, id, current );
 }
 
 
@@ -936,10 +1163,9 @@ function defineProperty ( id, current, prop ) {
         // prevent redundancy: old = new
         if ( value === reactList[id].reference[ prop ] ) return;
 
-
         if ( typeof value === 'object' ) {
 
-          if ( !Array.isArray(value) ) {
+          if ( Array.isArray(value) ) {
 
             /**
              *  Method cloaking inspured by @Watch.JS
@@ -1018,9 +1244,6 @@ function defineProperty ( id, current, prop ) {
  *  A Mediator for handling messages via events.
  */
 
-// user: player - peers
-var eventMap = {};
-
 
 /**
  *  Constructor to setup the container for the topics
@@ -1030,14 +1253,7 @@ var eventMap = {};
 
 var Emitter = function() {
 
-  if ( this instanceof Peer ) {
-
-    eventMap[ this.id ] = {};
-
-  } else {
-
-    this._events        = {};
-  }
+  this._events = {};
 
   return this;
 };
@@ -1058,7 +1274,7 @@ Emitter.prototype.on = function ( topics, callback, context ) {
 
   topics = topics.split(' ');
 
-  var events  = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+  var events  = this._events,
       length  = topics.length,
       topic;
 
@@ -1108,7 +1324,7 @@ Emitter.prototype.once = function ( topics, callback, context ) {
 
 Emitter.prototype.emit = function ( topic ) {
 
-  var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+  var events    = this._events,
 
       listeners = events[ topic ];
 
@@ -1138,7 +1354,7 @@ Emitter.prototype.emit = function ( topic ) {
 
 Emitter.prototype.off = function ( topic, callback ) {
 
-  var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+  var events    = this._events,
       listeners = events[ topic ];
 
   if ( !listeners ) return;
@@ -1182,7 +1398,7 @@ var Stream = function ( options ) {
   if ( !options ) options = {};
 
   this.readable     = options.readable;
-  this.writeable    = options.readable;
+  this.writable     = options.writable;
 
   this.ready        = true;
 
@@ -1206,7 +1422,7 @@ inherits( Stream, Emitter );
  *  @param  {Object} e   -
  */
 
-Stream.prototype.handle = function ( e ) {
+Stream.prototype.handle = function handle ( e ) {
 
   var msg     = e.data,
 
@@ -1239,7 +1455,7 @@ Stream.prototype.handle = function ( e ) {
  *  @return {Boolean}
  */
 
-Stream.prototype.write = function ( msg ) {
+Stream.prototype.write = function write ( msg ) {
 
   this.writeBuffer.push( msg );
 
@@ -1263,12 +1479,395 @@ Stream.prototype.write = function ( msg ) {
  *  @return {Object}
  */
 
-Stream.prototype.pipe = function ( trg ) {
+Stream.prototype.pipe = function pipe ( trg ) {
 
   this.on( 'data', function ( chunk ) { trg.handle( chunk ); });
 
   return trg;
 };
+
+/**
+ *  Connection
+ *  ==========
+ *
+ *  A wrapper for PeerConnection - including DataChannel setup.
+ *
+ *  http://dev.w3.org/2011/webrtc/editor/webrtc.html
+ */
+
+
+/**
+ *  Constructor to setup up the basic information
+ *
+ *  @param {String}  local       -
+ *  @param {String}  remote      -
+ *  @param {Boolean} initiator   -
+ *  @param {Object}  transport   -
+ */
+
+var Connection = function ( local, remote, initiator, transport ) {
+
+  this.info = { local: local, remote: remote, pending: true };
+
+  if ( initiator ) this.info.initiator = true;
+  if ( transport ) this.info.transport = transport;
+
+  // internal: remote tracking
+  this._candidates  =   [];
+  this._fragments   =   {};
+
+  // internal: local handling
+  this._counter     =    0;
+  this._sendSDP     = null;
+};
+
+
+/**
+ *  Create connection and setup receiver
+ */
+
+Connection.prototype.init = function(){
+
+  this.conn = new RTCPeerConnection( config.connectionConfig, config.connectionConstraints );
+
+  this.checkStateChanges();
+
+  this.findICECandidates();
+
+  if ( this instanceof DataConnection ) {
+
+    this.channels = {};
+
+    this.receiveDataChannels();
+
+    if ( this.info.initiator ) {
+
+      this.createOffer();
+    }
+
+  }
+};
+
+
+/**
+ *  Setup for re-negotiation and statechange
+ */
+
+Connection.prototype.checkStateChanges = function(){
+
+  var conn    = this.conn,
+
+      length  = getKeys( defaultHandlers ).length;
+
+
+  conn.onnegotiationneeded = function ( e ) {
+
+    if ( !--length ) this.createOffer();
+
+  }.bind(this);
+
+
+  conn.onsignalingstatechange = function ( e ) {
+
+    var signalingState = conn.signalingState;
+
+    this.ready = ( signalingState === 'stable' );
+
+    if ( signalingState === 'closed' ) {
+
+      console.log('[CLOSED]');
+      MANAGER.disconnect(this.info.remote);
+    }
+
+  }.bind(this);
+
+
+  conn.oniceconnectionstatechange = function ( e ) {
+
+    var iceConnectionState = e.currentTarget.iceConnectionState;
+
+    // TODO: minimize interuption , perhaps workaround - just on connecting ?
+    // console.log(iceConnectionState);
+    if ( iceConnectionState === 'disconnected' ) {
+
+      if ( this.info.pending ) { // interrupt
+
+        this.closed = true;
+
+      } else { // cleanup closed connection
+
+        MANAGER.disconnect( this.info.remote );
+      }
+
+    }
+
+  }.bind(this);
+
+
+};
+
+
+/**
+ *  Find and exchanges ICE candidates
+ */
+
+Connection.prototype.findICECandidates = function(){
+
+  var conn     = this.conn,
+
+      length   = 4,
+
+      advanced = false;
+
+  // TODO: hardcoded value, any reason behind this magic numbers ?
+  // length   = ~~(( getKeys( defaultHandlers ).length - 1 ) / 2),
+  if ( !this.info.initiator ) length--;
+
+  conn.onicecandidate = function ( e ) {
+
+    var iceGatheringState = conn.iceGatheringState;
+
+    if ( e.candidate ) { this._counter++; this.send( 'setIceCandidates', e.candidate ); }
+
+    // for DataChannel - some candidates are still "gathering", not "complete"
+    if ( advanced ) { if ( !--length ) invokeExchange.call( this ); return; }
+
+    // FF => just 1x exchange with state "new"
+    if ( iceGatheringState === 'complete' || moz ) {
+
+      advanced = true;
+
+      invokeExchange.call( this );
+    }
+
+  }.bind(this);
+
+
+  function invokeExchange(){
+
+    var num = this._counter; this._counter = 0;
+
+    if ( this._sendSDP ) return this._sendSDP(num);
+
+    this._sendSDP = num; // signal to be ready
+  }
+
+};
+
+
+/**
+ *  Set the ICE candidates - using an additional container internaly to keep the order
+ *
+ *  @param {Object} data [description]
+ */
+
+Connection.prototype.setIceCandidates = function ( data, release ) {
+
+  if ( this.closed ) throw new Error('Can\'t set ICE candidates!');
+
+  if ( !release ) return this._candidates.push( data );
+
+  var conn = this.conn,
+
+      l    = data.length;
+
+  for ( var i = 0; i < l; i++ ) conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
+
+  data.length = 0;
+
+  delete this._fragments.candidates;
+};
+
+
+/**
+ *  Create an offer (called for PeerConnectio & DataChannel)
+ */
+
+Connection.prototype.createOffer = function() {
+
+  var conn = this.conn;
+
+  if ( this instanceof DataConnection ) {
+
+    // FF doesn't support re-negiotiation -> requires the setup before
+    if ( moz ) createDefaultChannels( this );
+  }
+
+  this._sendSDP = null;
+
+  conn.createOffer( function ( offer ) {
+
+    offer.sdp = adjustSDP( offer.sdp );
+
+    // start generating ICE candidates
+    conn.setLocalDescription( offer, function(){
+
+      exchangeDescription.call( this, offer );
+
+    }.bind(this), loggerr ); // config.SDPConstraints
+
+  }.bind(this), loggerr, config.mediaConstraints );
+};
+
+
+/**
+ *  Declare the amount of packages which are
+ *
+ *  @param  {[type]} msg [description]
+ *  @return {[type]}     [description]
+ */
+
+Connection.prototype.expectPackages = function ( msg ) {
+
+  this._fragments[ msg.type ] = msg.size;
+};
+
+
+/**
+ *  Exchange settings and set the descriptions
+ *
+ *  @param {Object} msg   -
+ */
+
+Connection.prototype.setConfigurations = function ( msg ) {
+
+  // console.log( '[SDP] - ' +  msg.type );  // description
+
+  var conn = this.conn,
+
+      desc = new RTCSessionDescription( msg );
+
+
+  if ( this.closed ) {
+
+    msg = 'The underlying PeerConnection got closed too early...';
+
+    WATCH.emit('error', {  msg: msg, line: 259 });
+
+    alert('Sorry, but an error occoured. Please revisit the site!');
+
+    throw new Error(msg);
+  }
+
+  // console.log( desc.sdp );
+
+  if ( this._candidates.length < this._fragments.candidates ) {
+
+    return setTimeout( this.setConfigurations.bind(this), 1000, msg );
+  }
+
+  conn.setRemoteDescription( desc, function(){  // Chrome -> FF: firefox doesn't trigger the description
+
+    if ( this._candidates.length ) this.setIceCandidates( this._candidates, true );
+
+    this._sendSDP = null;
+
+    if ( msg.type === 'offer' ) {
+
+      conn.createAnswer( function ( answer ) {  // FF -> Chrome: chrome doesn't create an answer
+
+        answer.sdp = adjustSDP( answer.sdp );
+
+        conn.setLocalDescription( answer, function(){
+
+          exchangeDescription.call( this, answer );
+
+        }.bind(this), loggerr ); // config.SDPConstraints
+
+      }.bind(this), loggerr, config.mediaConstraints );
+
+    } else { // receive answer
+
+      if ( this instanceof DataConnection ) {
+
+        if ( moz ) return;
+
+        createDefaultChannels( this );
+      } else {
+
+        console.log('[END] - TODO: MediaConnection cleanup + handlers'); // what now ?
+      }
+    }
+
+  }.bind(this), !moz ? loggerr : function(){} ); // FF -> supress warning for missing re-negotiation
+
+};
+
+
+
+/**
+ *  Closing DataChannels and PeerConnection
+ *
+ *  @param {String} channel   -
+ */
+
+Connection.prototype.close = function( channel ) {
+
+  this.conn.close();
+};
+
+
+/**
+ *  Modifying the SDP parameter for interoperability and bandwidth
+ *  (see: RFC - http://tools.ietf.org/html/rfc4566 )
+ *
+ *  @param {Object} sdp   -
+ */
+
+function adjustSDP ( sdp ) {
+
+  // crypto
+  if ( sdp.indexOf('a=crypto') < 0 ) {
+
+    var crypto = [], length = 4;
+
+    while ( length-- ) crypto.push( getToken() );
+
+    sdp += 'a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:' + crypto.join('') + '\r\n';
+  }
+
+  // bandwidth
+  if ( sdp.indexOf('b=AS') >= 0 ) {
+
+    sdp = sdp.replace(/b=AS:([0-9]*)/, function ( match, text ) {
+
+      return 'b=AS:' + config.handlerConfig.BANDWIDTH;
+    });
+  }
+
+  if ( sdp.indexOf('a=mid:data') >= 0 ) {
+
+    sdp = sdp.replace(/a=mid:data\r\n/g, function ( match, text ) {
+
+      return 'a=mid:data\r\nb=AS:' + config.handlerConfig.BANDWIDTH + '\r\n';
+    });
+  }
+
+  return sdp;
+}
+
+
+/**
+ *  Sending the SDP package to your partner
+ *
+ *  @param  {[type]} description [description]
+ */
+
+function exchangeDescription ( desc ) {
+
+  var ready = this._sendSDP; // amount of candidates to expect // improve naming of the variables...
+
+  this._sendSDP = function ( num ) {
+
+    this.send( 'expectPackages', { type: 'candidates', size: num });
+
+    this.send( 'setConfigurations', desc );
+
+  }.bind(this);
+
+  // the remote doesn't set any candidates (ready/num will be 0) on the 2nd exchange + default (null)
+  if ( ready != void 0 ) this._sendSDP( ready );
+}
 
 
 /**
@@ -1294,7 +1893,7 @@ var Handler = function ( channel, remote ) {
 
   this.channel = channel;
 
-  this.stream  = new Stream({ readable: true, writeable: true });
+  this.stream  = new Stream({ readable: true, writable: true });
 
   this.actions = defaultHandlers[ label ] || defaultHandlers.custom;
 
@@ -1519,17 +2118,27 @@ var defaultHandlers = {
     var data = msg.data || {};
 
     // late-join
-    if ( data.request ) return forward( msg.local );
+    if ( data.request ) return forward( msg.local, true );
+    if ( data.belated ) loadSync( JSON.parse(data.sync) );
 
-    // next in chain
-    ensure();
 
-    function ensure(){
+    setImmediate( checkReadyState );
 
-      if ( !ROOM._start ) return setTimeout( ensure, DELAY );
+    // synchronized shared object & next in chain
+    function checkReadyState() {
 
+      if ( data.sync !== JSON.stringify(SYNC) || checkCaches() || !ROOM._start ) {
+
+        return setTimeout( checkReadyState, DELAY );
+      }
+
+      // invoke loop
+      if ( data.loop ) return startLoop();
+
+      // initialize game
       ROOM._start();
     }
+
   },
 
 
@@ -1563,7 +2172,9 @@ var defaultHandlers = {
 
     var data = msg.data;
 
-    if ( !data.resync ) return resync( msg.local, data.key, data.value );
+    // console.log('[VERSION] - ', data.version ); // 0.8 -> version sync
+
+    if ( data.action ) return SYNCFLOW[ data.action ]( msg.local, data.key, data.value );
 
     sync( data.key, data.value, true );
   },
@@ -1577,7 +2188,25 @@ var defaultHandlers = {
 
   message: function ( msg ) {
 
-    PLAYER.emit( 'message', msg );
+    WATCH.emit( 'message', msg );
+  },
+
+
+  /**
+   *  [ description]
+   *  @return {[type]} [description]
+   */
+
+  media: function ( msg ) {
+
+    msg = JSON.parse( msg );
+
+    var data = msg.data;
+
+    if ( !MEDIAS[ msg.local ] ) MANAGER.share( msg.local, false );
+
+    MEDIAS[ msg.local ][ data.action ]( data.data );
+    // default: offer to talk as well // - options can disable it
   },
 
 
@@ -1594,6 +2223,8 @@ var defaultHandlers = {
     msg = JSON.parse( msg );
 
     console.log(msg.action);
+
+    // --> 0.6.0
   }
 
 };
@@ -1806,120 +2437,30 @@ SOCKET = (function(){
 })();
 
 /**
- *  Connection
- *  ==========
+ *  DataConnection
+ *  ==============
  *
- *  A wrapper for PeerConnection - including DataChannel setup.
+ *  Exchanging data based on a connection.
+ *  As these are mandatory and are creatyed automaticly by defualt -> stored internally as CONNECTIONS
  */
 
 
-/**
- *  Constructor to setup up the basic information
- *
- *  @param {String}  local       -
- *  @param {String}  remote      -
- *  @param {Boolean} initiator   -
- *  @param {Object}  transport   -
- */
+var DataConnection = function ( local, remote, initiator, transport ) {
 
-var Connection = function ( local, remote, initiator, transport ) {
-
-  this.info = { local: local, remote: remote, pending: true };
-
-  if ( initiator ) this.info.initiator = true;
-  if ( transport ) this.info.transport = transport;
-
-  this.channels     =   {};
-
-  // internal: remote tracking
-  this._candidates  =   [];
-  this._fragments   =   {};
-
-  // internal: local handling
-  this._counter     =    0;
-  this._sendSDP     = null;
+  Connection.apply( this, arguments );
 
   this.init();
 };
 
 
-/**
- *  Create connection and setup receiver
- */
-
-Connection.prototype.init = function(){
-
-  this.conn = new RTCPeerConnection( config.connectionConfig, config.connectionConstraints );
-
-  this.checkStateChanges();
-
-  this.receiveDataChannels();
-
-  this.findICECandidates();
-
-  if ( this.info.initiator ) {
-
-    this.createOffer();
-  }
-};
-
-
-/**
- *  Setup for re-negotiation and statechange
- */
-
-Connection.prototype.checkStateChanges = function(){
-
-  var conn    = this.conn,
-
-      length  = getKeys( defaultHandlers ).length;
-
-
-  conn.onnegotiationneeded = function ( e ) {
-
-    if ( !--length ) this.createOffer();
-
-  }.bind(this);
-
-
-  conn.onsignalingstatechange = function ( e ) {
-
-    var signalingState = conn.signalingState;
-
-    this.ready = ( signalingState === 'stable' );
-    // if ( signalingState === 'closed' ) MANAGER.disconnect(this.info.remote);
-
-  }.bind(this);
-
-
-  conn.oniceconnectionstatechange = function ( e ) {
-
-    var iceConnectionState = e.currentTarget.iceConnectionState;
-
-    if ( iceConnectionState === 'disconnected' ) {
-
-      if ( this.info.pending ) { // interrupt
-
-        this.closed = true;
-
-      } else { // cleanup closed connection
-
-        MANAGER.disconnect( this.info.remote );
-      }
-
-    }
-
-  }.bind(this);
-
-
-};
+inherits( DataConnection, Connection );
 
 
 /**
  *  Receive remotely create channel and sets up local handler
  */
 
-Connection.prototype.receiveDataChannels = function(){
+DataConnection.prototype.receiveDataChannels = function(){
 
   this.conn.ondatachannel = function ( e ) {
 
@@ -1933,187 +2474,15 @@ Connection.prototype.receiveDataChannels = function(){
 };
 
 
-/**
- *  Find and exchanges ICE candidates
- */
-
-Connection.prototype.findICECandidates = function(){
-
-  var conn     = this.conn,
-
-      length   = getKeys( defaultHandlers ).length - 1,
-
-      advanced = false;
-
-
-  // remote just invokes half
-  if ( !this.info.initiator ) length = ~~( length/2 );
-
-  conn.onicecandidate = function ( e ) {
-
-    var iceGatheringState = conn.iceGatheringState;
-
-    if ( e.candidate ) { this._counter++; this.send( 'setIceCandidates', e.candidate ); }
-
-    // for DataChannel - some candidates are still "gathering", not "complete"
-    if ( advanced ) { if ( !--length ) invokeExchange.call( this ); return; }
-
-    // FF => just 1x exchange with state "new"
-    if ( iceGatheringState === 'complete' || moz ) {
-
-      advanced = true;
-
-      invokeExchange.call( this );
-    }
-
-  }.bind(this);
-
-
-  function invokeExchange(){
-
-    var num = this._counter; this._counter = 0;
-
-    if ( this._sendSDP ) return this._sendSDP(num);
-
-    this._sendSDP = num; // signal to be ready
-  }
-
-};
-
 
 /**
- *  Set the ICE candidates - using an additional container internaly to keep the order
- *
- *  @param {Object} data [description]
- */
-
-Connection.prototype.setIceCandidates = function ( data, release ) {
-
-  if ( this.closed ) throw new Error('Can\'t set ICE candidates!');
-
-  if ( !release ) return this._candidates.push( data );
-
-  var conn = this.conn,
-
-      l    = data.length;
-
-  for ( var i = 0; i < l; i++ ) conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
-
-  data.length = 0;
-
-  delete this._fragments.candidates;
-};
-
-
-/**
- *  Create an offer (called for PeerConnectio & DataChannel)
- */
-
-Connection.prototype.createOffer = function() {
-
-  var conn = this.conn;
-
-  // FF doesn't support re-negiotiation -> requires the setup before
-  if ( moz ) createDefaultChannels( this );
-
-  this._sendSDP = null;
-
-  // start generating ICE candidates
-  conn.createOffer( function ( offer ) {
-
-    offer.sdp = adjustSDP( offer.sdp );
-
-    conn.setLocalDescription( offer, function(){
-
-      exchangeDescription.call( this, offer );
-
-    }.bind(this), loggerr ); // config.SDPConstraints
-
-  }.bind(this), loggerr, config.mediaConstraints );
-};
-
-
-/**
- *  Declare the amount of packages which are
- *
- *  @param  {[type]} msg [description]
- *  @return {[type]}     [description]
- */
-
-Connection.prototype.expectPackages = function ( msg ) {
-
-  this._fragments[ msg.type ] = msg.size;
-};
-
-
-/**
- *  Exchange settings and set the descriptions
- *
- *  @param {Object} msg   -
- */
-
-Connection.prototype.setConfigurations = function ( msg ) {
-
-  // console.log( '[SDP] - ' +  msg.type );  // description
-
-  var conn = this.conn,
-
-      desc = new RTCSessionDescription( msg );
-
-
-  if ( this.closed ) {
-
-    alert('Sorry, but an error occoured. Please revisit the site!');
-
-    throw new Error('The underlying PeerConnection got closed too early...');
-  }
-
-
-  if ( this._candidates.length < this._fragments.candidates ) {
-
-    return setTimeout( this.setConfigurations.bind(this), 1000, msg );
-  }
-
-  conn.setRemoteDescription( desc, function(){  // Chrome -> FF: firefox doesn't trigger the description
-
-    if ( this._candidates.length ) this.setIceCandidates( this._candidates, true );
-
-    this._sendSDP = null;
-
-    if ( msg.type === 'offer' ) {
-
-      conn.createAnswer( function ( answer ) {  // FF -> Chrome: chrome doesn't create an answer
-
-        answer.sdp = adjustSDP( answer.sdp );
-
-        conn.setLocalDescription( answer, function(){
-
-          exchangeDescription.call( this, answer );
-
-        }.bind(this), loggerr ); // config.SDPConstraints
-
-      }.bind(this), null, config.mediaConstraints );
-
-    } else { // receive answer
-
-      if ( moz ) return;
-
-      createDefaultChannels( this );
-    }
-
-  }.bind(this), !moz ? loggerr : function(){} ); // FF -> supress warning for missing re-negotiation
-
-};
-
-
-/**
- *  Creates a handler for the DataChannel
+ *  Creates a handler for the DataChannel // doesnt belong to connection, but datachannel...
  *
  *  @param {String} label     -
  *  @param {Object} options   -
  */
 
-Connection.prototype.createDataChannel = function ( label ) {
+DataConnection.prototype.createDataChannel = function ( label ) {
 
   try {
 
@@ -2128,6 +2497,7 @@ Connection.prototype.createDataChannel = function ( label ) {
 };
 
 
+
 /**
  *  Select the messeneger for communication & transfer
  *
@@ -2136,7 +2506,7 @@ Connection.prototype.createDataChannel = function ( label ) {
  *  @param {Boolean} direct   - defines if the action should only be execute via a direct connection
  */
 
-Connection.prototype.send = function ( action, data, direct ) {
+DataConnection.prototype.send = function ( action, data, direct ) {
 
   if ( !this.info.pending ) {
 
@@ -2168,7 +2538,7 @@ Connection.prototype.send = function ( action, data, direct ) {
  *  @param {String} channel   -
  */
 
-Connection.prototype.close = function( channel ) {
+DataConnection.prototype.close = function( channel ) {
 
   var handler  = this.channels,
       keys     = getKeys( handler );
@@ -2185,69 +2555,6 @@ Connection.prototype.close = function( channel ) {
 
   if ( !getKeys( handler ).length ) this.conn.close();
 };
-
-
-/**
- *  Modifying the SDP parameter for interoperability and bandwidth
- *  (see: RFC - http://www.ietf.org/rfc/rfc2327.txt )
- *
- *  @param {Object} sdp   -
- */
-
-function adjustSDP ( sdp ) {
-
-  // crypto
-  if ( sdp.indexOf('a=crypto') < 0 ) {
-
-    var crypto = [], length = 4;
-
-    while ( length-- ) crypto.push( getToken() );
-
-    sdp += 'a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:' + crypto.join('') + '\r\n';
-  }
-
-  // bandwidth
-  if ( sdp.indexOf('b=AS') >= 0 ) {
-
-    sdp = sdp.replace(/b=AS:([0-9]*)/, function ( match, text ) {
-
-      return 'b=AS:' + config.handlerConfig.BANDWIDTH;
-    });
-  }
-
-  if ( sdp.indexOf('a=mid:data') >= 0 ) {
-
-    sdp = sdp.replace(/a=mid:data\r\n/g, function ( match, text ) {
-
-      return 'a=mid:data\r\nb=AS:' + config.handlerConfig.BANDWIDTH + '\r\n';
-    });
-  }
-
-  return sdp;
-}
-
-
-/**
- *  Sending the SDP package to your partner
- *
- *  @param  {[type]} description [description]
- */
-
-function exchangeDescription ( desc ) {
-
-  var ready = this._sendSDP;
-
-  this._sendSDP = function ( num ) {
-
-    this.send( 'expectPackages', { type: 'candidates', size: num });
-
-    this.send( 'setConfigurations', desc );
-
-  }.bind(this);
-
-  // the remote doesn't set any candidates (ready/num will be 0) on the 2nd exchange + default (null)
-  if ( ready != void 0 ) this._sendSDP( ready );
-}
 
 
 /**
@@ -2310,7 +2617,9 @@ var DELAY    =    0,  // max. latency evaluation
 
     READY    =   {},  // record of current ready users
 
-    TODO     =   {};  // available peers to connect
+    TODO     =   {},  // available peers to connect
+
+    CURRENT  = null;  // current connection which is getting established
 
 
 MANAGER = (function(){
@@ -2329,11 +2638,15 @@ MANAGER = (function(){
 
     if ( !Array.isArray(remoteList) ) remoteList = [ remoteList ];
 
-    var localID  = PLAYER.id,
+    var localID = PLAYER.id, remoteID;
 
-        remoteID = remoteList.pop();
 
-    this.connect( remoteID, true, transport );
+    if ( !CURRENT ) {
+
+      remoteID = remoteList.pop();
+
+      this.connect( remoteID, true, transport );
+    }
 
 
     if ( !remoteList.length ) return;
@@ -2363,9 +2676,28 @@ MANAGER = (function(){
 
     // console.log( '[connect] to - "' + remoteID + '"' );
 
+    CURRENT = remoteID; // currently connecting
+
     PEERS[ remoteID ] = new Peer({ id: remoteID });
 
-    CONNECTIONS[ remoteID ] = new Connection( PLAYER.id, remoteID, initiator, transport );
+    // CONNECTIONS[ remoteID ] = new Connection( PLAYER.id, remoteID, initiator, transport );
+
+    CONNECTIONS[ remoteID ] = new DataConnection( PLAYER.id, remoteID, initiator, transport );
+  }
+
+
+  // TODO -> check for "exchange & create", initiator...
+
+  // use the existing data channel to exchange the credentials, still needs "initiator" flag, as new connection
+  function share ( remoteID, initiator, config, callback ) {
+
+    if ( MEDIAS[remoteID] || remoteID === PLAYER.id ) return;
+
+    var transport = CONNECTIONS[remoteID];
+
+    if ( !transport.ready ) return;
+
+    MEDIAS[ remoteID ] = new MediaConnection( PLAYER.id, remoteID, initiator, transport, config, callback );
   }
 
 
@@ -2383,7 +2715,7 @@ MANAGER = (function(){
 
     delete READY[ remoteID ];
 
-    PLAYER.emit( 'disconnect',      peer );
+    WATCH.emit(  'disconnect',      peer );
     if ( ROOM ) ROOM.emit( 'leave', peer );
 
 
@@ -2396,6 +2728,9 @@ MANAGER = (function(){
 
     order();
   }
+
+
+
 
 
   /**
@@ -2414,7 +2749,7 @@ MANAGER = (function(){
 
 
   /**
-   *  Inform other peers about the key/value change by using a multicast
+   *  Inform other peers about the key/value change by using a broadcast
    *  and updates the local backup
    *
    *  @param  {String}               key     -
@@ -2425,11 +2760,24 @@ MANAGER = (function(){
 
     updateBackup();
 
+    broadcast( 'update', { key: key, value: value }, true );
+  }
+
+
+
+
+  /**
+   *  Transfering data to a specific group (as in this caste to all,
+   *  its just like a broadcast).
+   */
+
+  function broadcast ( action, data, direct ) {
+
     var ids = getKeys( CONNECTIONS );
 
     for ( var i = 0, l = ids.length; i < l; i++ ) {
 
-      CONNECTIONS[ ids[i] ].send( 'update', { key: key, value: value }, true );
+      CONNECTIONS[ ids[i] ].send( action, data, direct );
     }
   }
 
@@ -2456,14 +2804,16 @@ MANAGER = (function(){
 
     if ( --col[0] > 0 ) return;
 
-    var latency = PEERS[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
+    var latency = col.reduce( sum ) / ( col.length - 1 ) >> 1;
+
+    PEERS[ remoteID ].latency = latency;
 
     DELAY = Math.max( DELAY, latency );
 
     ready();
-
-    function sum ( prev, curr ) { return prev + curr; }
   }
+
+  function sum ( prev, curr ) { return prev + curr; }
 
 
   /**
@@ -2519,7 +2869,7 @@ MANAGER = (function(){
    *  Determines if all peers are connected and then emits the connections
    */
 
-  function ready (){
+  function ready(){
 
     var keys  = getKeys( PEERS ),
 
@@ -2545,6 +2895,8 @@ MANAGER = (function(){
 
       delete TODO[ entry ];
 
+      CURRENT = null;
+
       return MANAGER.check( entry, transport );
     }
 
@@ -2557,14 +2909,13 @@ MANAGER = (function(){
     }
 
 
-    function invoke( peer ) {
+    function invoke ( peer ) {
 
       if ( READY[ peer.id ] ) return;
 
       READY[ peer.id ] = true;
 
-      PLAYER.emit( 'connection'     , peer );
-
+      WATCH.emit( 'connection'      , peer );
       if ( ROOM ) ROOM.emit( 'enter', peer );
     }
   }
@@ -2574,7 +2925,7 @@ MANAGER = (function(){
    *  Defines the peer order - ranked by the appearance / inital load
    */
 
-  function order (){
+  function order(){
 
     var keys  = getKeys( PEERS ),
 
@@ -2588,7 +2939,14 @@ MANAGER = (function(){
 
         user;
 
-    if ( list.length !== keys.length + 1 ) throw new Error('[ERROR] Precision time conflict.');
+    if ( list.length !== keys.length + 1 ) {
+
+      var msg = 'Precision time conflict';
+
+      WATCH.emit('error', { msg: msg, line: 340 });
+
+      throw new Error( msg );
+    }
 
     DATA.length = 0;
 
@@ -2606,9 +2964,11 @@ MANAGER = (function(){
 
   return {
 
+    broadcast  : broadcast,
     check      : check,
     connect    : connect,
     disconnect : disconnect,
+    share      : share,
     set        : set,
     update     : update,
     setup      : setup
@@ -2636,30 +2996,51 @@ extend( INFO, {
 // TODO: 0.6.0 -> data & info
 
 /**
+ *  Watch
+ *  =====
+ *
+ *  Global communicator for framework internals (e.g. general public events).
+ *
+ *  - error
+ *  - sync
+ *  - message
+ *  - media
+ *  - permission
+ */
+
+WATCH = new Emitter();
+
+var getWatcher = WATCH.on.bind(WATCH);
+
+/**
  *  Backup
  *  ======
  *
  *  Using local stored information to provide a backup for reconnection.
  */
 
-if ( LOCAL.player ) {
+if ( LOCAL['player'] ) {
 
-  var range = parseFloat( JSON.parse(LOCAL.player).time ) +
+  var range = parseFloat( JSON.parse(LOCAL['player']).time ) +
               config.reconnectConfig.backupDuration - Date.now();
 
-  if ( range >= 0 ) extend( BACKUP, JSON.parse(LOCAL.player) );
+  if ( range >= 0 ) extend( BACKUP, JSON.parse(LOCAL['player']) );
 }
 
-LOCAL.clear();
+delete LOCAL['player'];
 
 
 /**
  *  Overwrites the data in the localStorage
+ *
+ *  TODO: instead of always serializing the whole instance, just update the increment
  */
 
 function updateBackup() {
 
-  LOCAL.player = JSON.stringify(PLAYER);
+  if ( !config.reconnectConfig.restoreEnabled ) return;
+
+  LOCAL['player'] = JSON.stringify(PLAYER);
 }
 
 
@@ -3098,217 +3479,42 @@ Channel.prototype.config = function ( customConfig ) {
 
 
 /**
- *  Game
- *  ====
- *
- *  A room for handling gaming specific requirements.
- */
-
-
-var GAMES   = {},     // record of games
-
-    STARTER = null;   // bootstrap to forward the game start
-
-
-/**
- *  Shortcut to setup a game handler
- */
-
-var setGame = createRoom( Game );
-
-
-/**
- *  Constructor to define the reference and options
- *
- *  @param {String} id   -
- */
-
-function Game ( id ) {
-
-  this.init( id );
-
-  this.info    = {};                             // TODO: 0.6.0 -> data & info
-
-  this.options = { minPlayer: 2, maxPlayer: 8 }; // TODO: 0.5.0 -> room options
-
-  GAMES[ id ] = this;
-}
-
-
-/**
- *  Game <- Channel <- Emitter
- */
-
-inherits( Game, Channel );
-
-
-/**
- *  Starts the game as the minimum amount of players joined
- *
- *  @param {Function} initialize   - bootstrapping function to start the game
- */
-
-Game.prototype.start = function ( initialize ) {
-
-  this._start = function(){ initialize(); INGAME = true; forward.call( this ); };
-
-
-  var ready = getKeys( READY ).length;
-
-  if ( ready  <  this.options.minPlayer ) return;     // less player  - wait
-
-  if ( ready === this.options.minPlayer ) {
-
-    if ( PLAYER.pos === 0 ) {
-
-      if ( !INGAME ) return this._start();
-
-      // re-join to minmum | prevent reset
-      forward.call( this, getKeys(pg.peers)[0] );
-    }
-
-    return;
-  }
-
-  if ( ready > this.options.minPlayer ) {          // more player   - late join
-
-    if ( PLAYER.pos >= this.options.minPlayer ) request();
-
-    return;
-  }
-
-  // TODO: 0.5.0 -> maxPlayer will be handled
-};
-
-
-Game.prototype.end      = function(){ INGAME = false; };  // TODO: 0.6.0 -> player handling
-
-Game.prototype.pause    = function(){};                   // TODO: 0.6.0 -> player handling
-
-Game.prototype.unpause  = function(){};                   // TODO: 0.6.0 -> player handling
-
-
-
-/**
- *  Ask the previous peer if your allowed/ready to start | late-join
- */
-
-function request() {
-
-  var keys = getKeys( PEERS ),
-      curr = PLAYER.pos;
-
-  for ( var i = 0, l = keys.length; i < l; i++ ) {
-
-    if ( curr - 1 === PEERS[ keys[i] ].pos ) {
-
-      return CONNECTIONS[ keys[i] ].send( 'start', { request: true }, true );
-    }
-  }
-}
-
-
-/**
- *  Invokes the start of the next peers
- *
- *  @param {String} remoteID   - will be provided by late join & request
- */
-
-function forward ( remoteID ) {
-
-  STARTER = function(){
-
-    STARTER = null;
-
-    setTimeout(function(){
-
-      var keys = getKeys( PEERS ),
-          curr = PLAYER.pos;
-
-      for ( var i = 0, l = keys.length; i < l; i++ ) {
-
-        if ( curr + 1 === PEERS[ keys[i] ].pos ) {
-
-          CONNECTIONS[ keys[i] ].send( 'start' );
-          break;
-        }
-      }
-
-      if ( this._start ) delete this._start;
-
-    }.bind(this), DELAY * 5 ); // see batching the changes
-
-  }.bind(this);
-
-
-
-  if ( !remoteID ) return;
-
-
-  /** get sync object **/
-
-  var conn = CONNECTIONS[ remoteID ],
-
-      keys = getKeys( pg.sync ),
-
-      prop;
-
-  for ( var i = 0, l = keys.length; i < l; i++ ) {
-
-    prop = keys[i];
-
-    conn.send( 'sync', { resync: true, key: prop, value: pg.sync[prop] }, true );
-  }
-
-  if ( STARTER ) STARTER();
-}
-
-/**
- *  Media
- *  =====
+ *  MediaConnection
+ *  ===============
  *
  *  Wrapper for handling MediaStreams - creating an additional connection asides the DataChannel.
- */
-
-
-/**
- *  Constructor to setup up the basic information
  *
- *  @param  {String}  local       -
- *  @param  {String}  remote      -
- *  @param  {Boolean} initiator   -
- *  @param  {Object}  transport   -
+ *
+    // https://groups.google.com/forum/?fromgroups#!topic/discuss-webrtc/0CsB2dztSJI
+    https://gist.github.com/yoeran/5983887
  */
+  // TODO: automatic errorhandle retrieves mesage etc., if remote result won't be displayed....
+  // send request to create the Media() also on the remote system !
+  // still needs to create a peerconnection as the foundation
 
-var Media = function ( local, remote, initiator, transport ) {
+// inlcude improve audio playback, through using a audio context...
+//
+//
+  // will change to: MediaStreamAudioSourceNode
+  // http://stackoverflow.com/questions/17332711/is-there-any-way-to-use-createmediastreamsource-on-an-audiocontext-in-firefox-23
 
-  this.info = { local: local, remote: remote, pending: true };
 
-  if ( initiator ) this.info.initiator = true;
-  if ( transport ) this.info.transport = transport;
 
-  this.channels = {};
+var MediaConnection = function ( local, remote, initiator, transport, config, callback ) {
+
+  Connection.apply( this, arguments );
 
   this.init();
-};
 
+  this.info.config = config;
 
-/**
- *  Create connection and setup receiver
- */
-
-Media.prototype.init = function(){
-
-  this.conn = new RTCPeerConnection( config.peerConfig, config.connectionConstraints );
-
-  this.checkStateChanges();
-
-  this.findICECandidates();
+  this.attachStream();
 
   if ( this.info.initiator ) {
 
-    this.requestStream();
+    this.requestStream( callback );
   }
+
 };
 
 
@@ -3316,33 +3522,26 @@ Media.prototype.init = function(){
  *  Media <- Connection
  */
 
-inherits( Media, Connection );
+inherits( MediaConnection, Connection );
 
 
 /**
  *  Attach handler for incoming streams
  */
 
-Media.prototype.attachStream = function(){
+MediaConnection.prototype.attachStream = function(){
 
   var conn = this.conn;
 
-  conn.onaddstream = function ( e ) {
+  conn.onaddstream = function ( e ) { // remote via connection != local, -> therefore otherhandler
 
-    console.log('[MEDIA] - Added Stream');
-    console.log(e);
+    var stream = e.stream;
 
-    // var video = document.createElement('video');
-    // video.src = URL.createObjectURL( e.stream );
-    // video.autoplay = true;
+    if ( !eventMap[PLAYER.id].media ) return useDefaultAudio( stream );
 
-    // var box = document.createElement('div');
-    // box.textContent = this.remoteID;
-    // box.className = 'name';
-    // box.appendChild(video);
+    WATCH.emit( 'media', stream, this.info.remote );
 
-    // document.body.appendChild( box );
-  };
+  }.bind(this);
 
 
   conn.onremovestream = function ( e ) {
@@ -3351,7 +3550,8 @@ Media.prototype.attachStream = function(){
 
     // document.getElementById('vid2').src = null;
     URL.revokeObjectURL( e.stream );
-  };
+
+  }.bind(this);
 
 };
 
@@ -3362,30 +3562,86 @@ Media.prototype.attachStream = function(){
  *  @param {String} el   -
  */
 
-Media.prototype.requestStream = function ( el ) {
+MediaConnection.prototype.requestStream = function ( callback ) {
 
-  var permissions = { audio: true, video: true };
+  var permissions = this.info.config || config.permissions;
 
-  win.navigator.getUserMedia( permissions, function ( stream ) {
+  WATCH.emit('permission', permissions );
+  nav.getUserMedia( permissions, success.bind(this), fail.bind(this) );
 
-    var videoTracks = stream.getVideoTracks(),
-        audioTracks = stream.getAudioTracks();
 
-    conn.addStream( stream );
+  function success ( stream ) {
 
-    // this.createOffer();
+    // var videoTracks = stream.getVideoTracks(),
+        // audioTracks = stream.getAudioTracks();
 
-    if ( !el ) return;
+    // filterAudio( stream );
 
-    var video = document.createElement('video');
+    this.conn.addStream( stream );
 
-    video.src      = createObjectURL( stream );
-    video.autoplay = true;
+    this.createOffer();
 
-    document.getElementById( el ).appendChild( video );
-  });
+    if ( callback ) callback( stream );
+  }
+
+  function fail ( err ) {
+
+    console.log('[DENIED] - ', err );
+  }
 
 };
+
+
+/**
+ *  Select the messeneger for communication & transfer
+ *
+ *  @param {String}  action   -
+ *  @param {Object}  data     -
+ *  @param {Boolean} direct   - defines if the action should only be execute via a direct connection
+ */
+
+MediaConnection.prototype.send = function ( action, data ) {
+
+  this.info.transport.send( 'media', { action: action, data: data });
+};
+
+
+
+function filterAudio ( stream ) {
+
+  var atx      = new AudioContext(),
+      input    = atx.createMediaStreamSource( stream ),
+      analyser = atx.createAnalyser(),
+      filter   = atx.createBiquadFilter(),
+      volume   = atx.createGainNode();
+
+
+  input.connect( analyser);
+
+  analyser.connect( filter );
+
+  filter.connect( volume );
+
+  volume.gain.value = 0.8;
+
+  volume.connect( atx.destination );
+
+  console.log('[AUDIO] ', atx);
+}
+
+
+function useDefaultAudio ( stream ) {
+
+  // filterAudio( stream );
+
+  var audio = new Audio();
+
+  audio.src = URL.createObjectURL( stream );
+
+  audio.autoplay = true;
+
+  audio.load();
+}
 
 
 /**
@@ -3411,13 +3667,6 @@ var Peer = function ( params ) {
 
   this.init( params.id, params.account || {}, params.data || {} );
 };
-
-
-/**
- *  Peer <- Emitter
- */
-
-inherits( Peer, Emitter );
 
 
 /**
@@ -3451,23 +3700,6 @@ Peer.prototype.init = function ( id, account, data ) {
 
 
 /**
- *  Allow the declaration of callbacks before the player gets created
- */
-
-var callbackRefs = {};
-
-PLAYER = {
-
-  on: function ( channel, callback, context ) {
-
-    if ( !callbackRefs[ channel ] ) callbackRefs[ channel ] = [];
-
-    callbackRefs[ channel ].push([ callback, context ]);
-  }
-};
-
-
-/**
  *  Constructor to define the basic setup
  *
  *  @param  {Object} account   -
@@ -3487,8 +3719,6 @@ var Player = function ( account, origin ) {
   this.init( id, account, data );
 
   restoreBackup( this );
-
-  if ( getKeys( callbackRefs ).length ) eventMap[ this.id ] = callbackRefs;
 
 
   console.log('\n\t\t:: ' + this.id + ' ::\n');
@@ -3541,8 +3771,8 @@ Player.prototype.join = function ( channel, params ) {
 /**
  *  Sends a message to a specific peer, a list of peers or even all
  *
- *  @param  {Array}  list   -
- *  @param  {String} msg    -
+ *  @param  {String||Array}  list   -
+ *  @param  {String}         msg    -
  */
 
 Player.prototype.send = function ( list, msg ) {
@@ -3563,16 +3793,41 @@ Player.prototype.send = function ( list, msg ) {
 
 
 /**
- *  Creates and offers a MediaStream
+ *  Creates a MediaStream and offers streaming
  *
- *  @param  {String}   id         -
- *  @param  {Object}   config     -
- *  @param  {Function} callback   -
+ *  @param  {String||Array}   list         -
+ *  @param  {Object}          config     -
+ *  @param  {Function}        callback   -
  */
 
-Player.prototype.media = function ( id, config, callback ) {
+var options = {
 
-  // || TODO: 0.5.0 -> mediaStream()
+  'String'   : 'list',
+  'Array'    : 'list',
+  'Object'   : 'config',
+  'Function' : 'callback'
+};
+
+Player.prototype.media = function ( list, config, callback ) {
+
+  var args = {};
+
+  if ( list )     args[ options[ type(list)     ] ] = list;
+  if ( config )   args[ options[ type(config)   ] ] = config;
+  if ( callback ) args[ options[ type(callback) ] ] = callback;
+
+  list     = args.list;
+  config   = args.config;
+  callback = args.callback;
+
+  if ( !list ) list = getKeys( CONNECTIONS );
+
+  if ( !Array.isArray( list ) ) list = [ list ];
+
+  for ( var i = 0, l = list.length; i < l; i++ ) {
+
+    MANAGER.share( list[i], true, config, callback );
+  }
 };
 
 
@@ -3607,40 +3862,92 @@ function createUID() {
  */
 
 
-var RUNNING = false,  // current state of loop
+var WAITING = true, // waiting for the initialization = current state of the loop
 
-    REF     = null;   // refenrece for the callback
+    RENDER  = null, // refenrece for the callback
+
+    FRAME   = null; // reference to the request Animation frmae...
+
 
 /**
- *  Setup the rendering loop and provide inject the time difference
+ *  Provide the rendering function
  *
  *  @param  {Function} render   -
  */
 
 function loop ( render ) {
 
-  if ( RUNNING ) return;
+  if ( !RENDER ) RENDER = render;
+}
 
-  RUNNING = true;
 
-  REF     = render;
+/**
+ *  Invoke the game by starting the loop
+ */
 
-  var time = 0, delta = 0, last = 0;
+function startLoop(){
 
-  requestAnimationFrame( function () { last = win.performance.now(); run(); });
+  // console.log('[LOOP]');
+
+  INGAME = true;
+
+  // cancel on late-join
+  loop.stop();
+
+  loop.resume();
+}
+
+
+/**
+ *  Stop the loop
+ */
+
+loop.stop = function(){
+
+  WAITING = true;
+
+  if ( FRAME ) {
+
+    // console.log('[STOP]');
+    cancelAnimationFrame( FRAME );
+
+    FRAME = null;
+  }
+};
+
+
+/**
+ *  Setup the rendering loop and provide inject the time difference
+ *
+ *  workaround: firefox doesn't use performance.now() but Date.now()
+ */
+
+loop.resume = function(){
+
+  if ( !INGAME || !WAITING ) return;
+
+  WAITING = false;
+
+  // console.log('[RESUME]');
+
+  var time = 0, delta = 0, last = 0, render = RENDER;
+
+  FRAME = requestAnimationFrame( function(){ last = win.performance.now(); run(); });
 
   function run() {
 
-    // workaround: firefox doesn't use performance.now() but Date.now()
     time  = win.performance.now();
     delta = time - last;
     last  = time;
 
-    render( delta ); // throttle( render, delta );
+    render( delta );
+    // throttle( render, delta );
 
-    if ( RUNNING ) requestAnimationFrame( run );
+    if ( WAITING ) return;
+
+    FRAME = requestAnimationFrame( run );
   }
-}
+};
 
 
 var LOOP_TIME = DELAY,   // treshhold for fix framerate
@@ -3665,26 +3972,6 @@ function throttle ( render, delta ) {
     render( delta );
   }
 }
-
-
-/**
- *  Stop the loop
- */
-
-loop.stop = function(){
-
-  RUNNING = false;
-};
-
-
-/**
- *  Restart the loop
- */
-
-loop.resume = function(){
-
-  loop(REF);
-};
 
 
 /**
@@ -3728,14 +4015,24 @@ doc.addEventListener( visibilityChange, checkPause );
 SYNC = getReactor( batch(sync) );
 
 
-var CACHE  = {},  // record of still pending properties
+var CACHE    = {},  // record of still pending properties
 
-    SOLVED = {};  // temporary list for confirmed values
+    SOLVED   = {},  // temporary list for confirmed values
+
+    // SYNCNO   =  0,  // version tracking , 0.8
+
+    SYNCFLOW = {    // steps for synchronisation
+
+      'request' : requestSync,
+      'confirm' : confirmSync
+    };
 
 
 /**
- *  Combine multiplee changes to one batch,
- *  to process them as one and avoid unrequired network transfer
+ *  Combine multiple changes to one batch,
+ *  to process them as one and avoid unrequired network transfer,
+ *  especially as complex objects or arrays can be transfered and
+ *  else each property would be synced with one transmission !
  *
  *  @param  {Function} fn    -
  *  @return {Function}
@@ -3765,8 +4062,6 @@ function batch ( fn ) {
       delete list[ prop ];
     }
 
-    /** defined in game -> forward **/
-    if ( STARTER ) STARTER();
   }
 
 
@@ -3789,72 +4084,405 @@ function batch ( fn ) {
  *  @param  {Boolean}              confirmed   -
  */
 
-function sync ( key, value, confirmed ) {
+function sync ( key, value, resync ) {
 
-  if ( confirmed ) {
+  var resolved = !handleCaches.apply( this, arguments );
 
-    if ( !CACHE[key] || CACHE[key].results[ PLAYER.pos ] !== value ) {
-
-      SOLVED[ key ]  = true;
-      pg.sync[ key ] = value;
-    }
-
-    delete CACHE[key];        // console.log( '[CONFIRMED]', value    );
-    return;
-  }
-
-
-  if ( CACHE[ key ] ) return; // console.log( '[CACHED]', CACHE[key]  );
-
-  if ( SOLVED[ key ] ) {      // console.log( '[SOLVED]', SOLVED[key] );
-
-    delete SOLVED[key];
-    return;
-  }
+  if ( resolved ) return;
 
   var ids = getKeys( CONNECTIONS );
 
-  // TODO: 0.6.0 -> conflict with multiple ? - currently just one
   CACHE[key] = { list: ids, results: [] };
 
   CACHE[key].results[ PLAYER.pos ] = value;
 
-  for ( var i = 0, l = ids.length; i < l; i++ ) {
+  MANAGER.broadcast( 'sync', { action: 'request', key: key, value: value }, true );
 
-    CONNECTIONS[ ids[i] ].send( 'sync', { key: key, value: value }, true );
+  if ( !config.synchronConfig.naiveSync ) {
+
+    // advancedSync
+    pg.sync[ key ] = void 0;
+    loop.stop();
   }
+
+  // SYNCNO++;   // 0.8 -> improve conflict solving, using versioning for the caches & sync
+  // MANAGER.broadcast( 'sync', { version: SYNCNO, action: 'request', key: key, value: value }, true );
 }
 
 
 /**
- *  Exchange value with remote data & merge on conflict
+ *  [handleCaches description]
+ *
+ *  // returns true if it shouldn't be shared/sent to remote peers
+ *  // remote setting their local value || // also not set on the local environment
+ *
+ *  @param  {[type]} key    [description]
+ *  @param  {[type]} value  [description]
+ *  @param  {[type]} resync [description]
+ *  @return {[type]}        [description]
+ */
+
+function handleCaches ( key, value, resync ) {
+
+  if ( resync ) {
+
+    // console.log('[SOLVED]');
+
+    if ( CACHE[key] ) delete CACHE[key];
+
+    SOLVED[  key ] = true;
+    pg.sync[ key ] = value;
+
+    return;                                           // console.log( '[CONFIRMED]', value    );
+  }
+
+  if ( CACHE[key]  ) return;                          // console.log( '[CACHED]', CACHE[key]  );
+
+  if ( SOLVED[key] ) {
+
+    delete SOLVED[key];
+
+    WATCH.emit('sync', key, value );
+
+    return loop.resume();                             // console.log( '[SOLVED]', SOLVED[key] );
+  }
+
+  return true;
+}
+
+
+/**
+ *  Check the status of the caches, e.g. they are ready (empty)
+ */
+
+function checkCaches(){
+
+  return getKeys(CACHE).length || getKeys(SOLVED).length;
+}
+
+
+/**
+ *
  *
  *  @param  {String} remoteID   -
  *  @param  {String} key        -
  *  @param  {String} value      -
  */
 
-function resync ( remoteID, key, value ) {
+function requestSync ( remoteID, key, value ) {
+
+  if ( !config.synchronConfig.naiveSync ) loop.stop();
 
   var entry = CACHE[key];
 
-  if ( !entry ) { // noConflict
+  if ( entry != void 0 ) {
 
-    sync( key, value, true );
+    // console.log('[CACHE HIT]');
 
-    return CONNECTIONS[ remoteID ].send( 'sync', { resync: true, key: key, value: value }, true );
+    value = entry;
+
+  } else {
+
+    // console.log('[CACHE MISS]');
+
+    CACHE[key] = value;
   }
 
-  // TODO: 0.6.0 -> handle conflict (lower pos)
-  console.log('[CONFLICT]');
+  CONNECTIONS[ remoteID ].send( 'sync', { action: 'confirm', key: key, value: value }, true );
+}
 
-  // take the reslt from the element which is lower -> can be called multiple times on mulit conflicts etc.
 
-  // entry.list.length -= 1;
+/**
+ *  Exchange value with remote data & merge on conflict / merge....
+ */
 
-  // entry.results[ PEERS[remoteID].pos ] = value;
+function confirmSync ( remoteID, key, value ) { // resync to all
 
-  // if ( entry.list.length ) return;
+  var entry = CACHE[key];
+
+  entry.results[ PEERS[remoteID].pos ] = value;
+
+  entry.list.length--;
+
+  // TODO: requires responses from all requests or deadlock
+  if ( entry.list.length > 0 ) return;
+
+  value = getSyncValue( entry.results );
+
+  MANAGER.broadcast( 'sync', { key: key, value: value }, true );
+
+  sync( key, value, true ); // set local
+}
+
+
+/**
+ *  Determine which value should be picked for the resynchronisation.
+ *
+ *  Compares the frequency and picks the one with most votes,
+ *  the position is used as the criteria for priority (regarding a tie).
+ *
+ *  @param  {[type]} results [description]
+ *  @return {[type]}         [description]
+ */
+
+function getSyncValue ( results ) {
+
+  if ( config.synchronConfig.naiveSync ) return results[0];
+
+
+  var serialResults = [],
+
+      frequency     = {},
+
+      entry;
+
+  for ( var i = 0, l = results.length; i < l; i++ ) {
+
+    entry = JSON.stringify( results[i] );
+
+    serialResults.push( entry );
+
+    if ( !frequency[entry] ) frequency[entry] = 0;
+
+    frequency[entry]++;
+  }
+
+
+  var keys  = getKeys( frequency ),
+
+      votes =  0,
+
+      most  = [],
+
+      value;
+
+  for ( i = 0, l = keys.length; i < l; i++ ) {
+
+    entry = keys[i];
+
+    value = frequency[entry];
+
+    if ( value >= votes ) {
+
+      if ( value > votes ) {
+
+        most.length = 0;
+
+        votes = value;
+      }
+
+      most.push( entry );
+    }
+  }
+
+
+  var priority = serialResults.length;
+
+  for ( i = 0, l = most.length; i < l; i++ ) {
+
+    value = serialResults.indexOf( most[i] );
+
+    if ( value < priority ) priority = value;
+  }
+
+  return results[priority];
+}
+
+
+/**
+ *  Refreshes the value from another object, writing it directly to the synced data
+ *
+ *  @param  {Object} obj [description]
+ */
+
+function loadSync ( obj ) {
+
+  var keys = getKeys( obj ), prop;
+
+  for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+    prop = keys[i];
+
+    sync( prop, obj[prop], true );
+  }
+}
+
+/**
+ *  Game
+ *  ====
+ *
+ *  A room for handling gaming specific requirements.
+ */
+
+
+var GAMES = {}; // record of games
+
+
+/**
+ *  Shortcut to setup a game handler
+ */
+
+var setGame = createRoom( Game );
+
+
+/**
+ *  Constructor to define the reference and options
+ *
+ *  @param {String} id   -
+ */
+
+function Game ( id ) {
+
+  this.init( id );
+
+  this.info    = {};                              // TODO: 0.6.0 -> data & info
+
+  this.options = { minPlayer: 2, maxPlayer: 10 }; // TODO: 0.6.0 -> room options
+
+  GAMES[ id ] = this;
+}
+
+
+/**
+ *  Game <- Channel <- Emitter
+ */
+
+inherits( Game, Channel );
+
+
+/**
+ *  Starts the game as the minimum amount of players joined
+ *
+ *  @param {Function} initialize   - bootstrapping function to start the game
+ */
+
+Game.prototype.start = function ( initialize ) {
+
+  this._start = function(){ initialize(); forward.call( this ); };
+
+
+  var ready = getKeys( READY ).length;
+
+  if ( INGAME ) return;
+
+  if ( ready  <  this.options.minPlayer ) return;   // less player - wait
+
+  if ( ready === this.options.minPlayer ) {
+
+    if ( PLAYER.pos === 0 ) {
+
+      if ( !INGAME ) return this._start();
+
+      // re-join to minmum | prevent reset (won't be called cause the return in line 57 ?)
+      forward.call( this, getKeys(PEERS)[0] );
+    }
+
+    return;
+  }
+
+  if ( ready  >  this.options.maxPlayer ) return;   // too much player
+
+  request();
+
+  // TODO: 0.6.0 -> handle min-/maxPlayer messages
+};
+
+
+
+/**
+ *  Define game options like the amount of players
+ *
+ *  @param  {Object} options    -
+ */
+
+// Game.prototype.config = function ( options ) {
+
+//   extend( this.options, options );
+// };
+
+
+Game.prototype.end      = function(){ INGAME = false; };  // TODO: 0.6.0 -> player handling
+
+Game.prototype.pause    = function(){};                   // TODO: 0.6.0 -> player handling
+
+Game.prototype.unpause  = function(){};                   // TODO: 0.6.0 -> player handling
+
+
+
+/**
+ *  Ask the previous peer if your allowed/ready to start | late-join
+ */
+
+function request(){
+
+  var remoteID = getPrevious();
+
+  if ( !remoteID ) return; // entry
+
+  CONNECTIONS[ remoteID ].send( 'start', { request: true }, true );
+}
+
+
+/**
+ *  Invokes the start of the next peers
+ *
+ *  Provide a snapshot from the current pg.sync object from the previous player,
+ *  used to ensure sync (!= cache) and data.
+ *
+ *  @param {String} remoteID   - will be provided by late join & request
+ */
+
+function forward ( remoteID, late ) {
+
+  if ( !remoteID ) remoteID = getNext();
+
+  if ( checkCaches() ) return setTimeout( forward, DELAY, remoteID );
+
+  if ( !remoteID ) { // end of chain - start loop
+
+    MANAGER.broadcast( 'start', { sync: JSON.stringify(SYNC), loop: true });
+
+    return setTimeout( startLoop, SYNCDELAY+DELAY ); // local delay for synchronized order
+  }
+
+  CONNECTIONS[ remoteID ].send( 'start', { sync: JSON.stringify(SYNC), belated: late }, true );
+}
+
+
+
+/**
+ *  Returns the ID of the next player in the peerchain
+ *  @return {String}   - remoteID
+ */
+
+function getNext(){
+
+  var keys = getKeys( PEERS ),
+      curr = PLAYER.pos;
+
+  for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+    if ( curr + 1 === PEERS[ keys[i] ].pos ) return keys[i];
+  }
+
+}
+
+
+/**
+ *  Returns the ID of the previous player in the peerchain
+ *  @return {String}   - remoteID
+ */
+
+function getPrevious(){
+
+  var keys = getKeys( PEERS ),
+      curr = PLAYER.pos;
+
+  for ( var i = 0, l = keys.length; i < l; i++ ) {
+
+    if ( curr - 1 === PEERS[ keys[i] ].pos ) return keys[i];
+  }
+
 }
 
 
@@ -3868,6 +4496,7 @@ function resync ( remoteID, key, value ) {
     'info'        : INFO,             // -> meta/_info.js
 
     'config'      : setConfig,        // -> core/_config.js
+    'watch'       : getWatcher,       // -> meta/_watch.js
     'login'       : login,            // -> meta/_login.js
 
     'player'      : PLAYER,           // -> game/_player.js
