@@ -7,23 +7,6 @@
 
 
 /**
- *  Allow the declaration of callbacks before the player gets created
- */
-
-var callbackRefs = {};
-
-PLAYER = {
-
-  on: function ( channel, callback, context ) {
-
-    if ( !callbackRefs[ channel ] ) callbackRefs[ channel ] = [];
-
-    callbackRefs[ channel ].push([ callback, context ]);
-  }
-};
-
-
-/**
  *  Constructor to define the basic setup
  *
  *  @param  {Object} account   -
@@ -43,8 +26,6 @@ var Player = function ( account, origin ) {
   this.init( id, account, data );
 
   restoreBackup( this );
-
-  if ( getKeys( callbackRefs ).length ) eventMap[ this.id ] = callbackRefs;
 
 
   console.log('\n\t\t:: ' + this.id + ' ::\n');

@@ -24,13 +24,6 @@ var Peer = function ( params ) {
 
 
 /**
- *  Peer <- Emitter
- */
-
-inherits( Peer, Emitter );
-
-
-/**
  *  Assign properties for basic the structure
  *
  *  @param  {String} id        -

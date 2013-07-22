@@ -5,9 +5,6 @@
  *  A Mediator for handling messages via events.
  */
 
-// user: player - peers
-var eventMap = {};
-
 
 /**
  *  Constructor to setup the container for the topics
@@ -17,14 +14,7 @@ var eventMap = {};
 
 var Emitter = function() {
 
-  if ( Peer && this instanceof Peer ) {
-
-    eventMap[ this.id ] = {};
-
-  } else {
-
-    this._events        = {};
-  }
+  this._events = {};
 
   return this;
 };
@@ -45,7 +35,7 @@ Emitter.prototype.on = function ( topics, callback, context ) {
 
   topics = topics.split(' ');
 
-  var events  = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+  var events  = this._events,
       length  = topics.length,
       topic;
 
@@ -95,7 +85,7 @@ Emitter.prototype.once = function ( topics, callback, context ) {
 
 Emitter.prototype.emit = function ( topic ) {
 
-  var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+  var events    = this._events,
 
       listeners = events[ topic ];
 
@@ -125,7 +115,7 @@ Emitter.prototype.emit = function ( topic ) {
 
 Emitter.prototype.off = function ( topic, callback ) {
 
-  var events    = ( this instanceof Peer ) ? eventMap[ this.id ] : this._events,
+  var events    = this._events,
       listeners = events[ topic ];
 
   if ( !listeners ) return;
