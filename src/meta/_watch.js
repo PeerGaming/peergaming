@@ -6,6 +6,9 @@
  *
  *  - error
  *  - sync
+ *  - message
+ *  - media
+ *  - permission
  */
 
 WATCH = new Emitter();

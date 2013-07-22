@@ -110,7 +110,7 @@ MANAGER = (function(){
 
     delete READY[ remoteID ];
 
-    PLAYER.emit( 'disconnect',      peer );
+    WATCH.emit(  'disconnect',      peer );
     if ( ROOM ) ROOM.emit( 'leave', peer );
 
 
@@ -199,14 +199,16 @@ MANAGER = (function(){
 
     if ( --col[0] > 0 ) return;
 
-    var latency = PEERS[ remoteID ].latency = col.reduce( sum ) / ( col.length - 1 );
+    var latency = col.reduce( sum ) / ( col.length - 1 ) >> 1;
+
+    PEERS[ remoteID ].latency = latency;
 
     DELAY = Math.max( DELAY, latency );
 
     ready();
-
-    function sum ( prev, curr ) { return prev + curr; }
   }
+
+  function sum ( prev, curr ) { return prev + curr; }
 
 
   /**
@@ -308,8 +310,7 @@ MANAGER = (function(){
 
       READY[ peer.id ] = true;
 
-      PLAYER.emit( 'connection'     , peer );
-
+      WATCH.emit( 'connection'      , peer );
       if ( ROOM ) ROOM.emit( 'enter', peer );
     }
   }
@@ -333,7 +334,14 @@ MANAGER = (function(){
 
         user;
 
-    if ( list.length !== keys.length + 1 ) throw new Error('[ERROR] Precision time conflict.');
+    if ( list.length !== keys.length + 1 ) {
+
+      var msg = 'Precision time conflict';
+
+      WATCH.emit('error', { msg: msg, line: 340 });
+
+      throw new Error( msg );
+    }
 
     DATA.length = 0;
 

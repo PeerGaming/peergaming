@@ -181,7 +181,7 @@ var defaultHandlers = {
 
   message: function ( msg ) {
 
-    PLAYER.emit( 'message', msg );
+    WATCH.emit( 'message', msg );
   },
 
 

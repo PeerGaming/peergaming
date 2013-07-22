@@ -59,7 +59,7 @@ MediaConnection.prototype.attachStream = function(){
 
     if ( !eventMap[PLAYER.id].media ) return useDefaultAudio( stream );
 
-    PLAYER.emit( 'media', stream, this.info.remote );
+    WATCH.emit( 'media', stream, this.info.remote );
 
   }.bind(this);
 
@@ -86,6 +86,7 @@ MediaConnection.prototype.requestStream = function ( callback ) {
 
   var permissions = this.info.config || config.permissions;
 
+  WATCH.emit('permission', permissions );
   nav.getUserMedia( permissions, success.bind(this), fail.bind(this) );
 
 
