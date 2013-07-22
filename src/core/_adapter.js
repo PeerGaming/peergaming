@@ -89,7 +89,7 @@ if ( !win.setImmediate ) {
 
     win.addEventListener( 'message', handle, true );
 
-    function handle() { callbacks.shift()(); }
+    function handle ( e ) { if ( e.data === 'setImmediate' ) callbacks.shift()(); }
 
     return function ( fn ) {
 
@@ -97,20 +97,26 @@ if ( !win.setImmediate ) {
 
       callbacks.push( fn );
 
-      win.postMessage( 'setImmediate', '*' );
+      win.postMessage( 'setImmediate', win.location.href );
     };
 
   })();
 }
 
 
-/** user MediaStream **/
+/** MediaStream **/
 
 if ( !nav.getUserMedia ) {
 
   nav.getUserMedia =  ( nav.mozGetUserMedia     ||
                         nav.webkitGetUserMedia  ||
                         nav.msGetUserMedia          ).bind(nav);
+}
+
+
+if ( !win.AudioContext ) {
+
+  win.AudioContext = win.webkitAudioContext;
 }
 
 
