@@ -1,5 +1,5 @@
 /**
- *	peergaming.js - v0.5.0 | 2013-07-23
+ *	peergaming.js - v0.5.0 | 2013-09-08
  *	http://peergaming.net
  *	Copyright (c) 2013, Stefan Dühring
  *	MIT License
@@ -65,7 +65,7 @@ var ROOM        = '',        // current room
     BACKUP      = {};        // store player data for reconnection
 
 
-/** references **/
+/** references - local shortcuts **/
 
 var VERSION     = null,      // pg.VERSION
     INFO        =   {},      // pg.info
@@ -203,67 +203,68 @@ if ( typeof win.RTCPeerConnection !== 'function' ) {
 
   win.RTCPeerConnection = win.mozRTCPeerConnection    ||
                           win.webkitRTCPeerConnection;
+}
 
 
-  /** Modify the configurations to adjust the different address formats **/
-  win.RTCPeerConnection = (function(){
+/** Modify the configurations to adjust the different address formats **/
+win.RTCPeerConnection = (function(){
 
-    var vendorConnection = win.RTCPeerConnection;
+  var vendorConnection = win.RTCPeerConnection;
 
-    // innerReference ?
-    var Chrome  = chrome,
-        Firefox = moz;
+  // innerReference ?
+  var Chrome  = chrome,
+      Firefox = moz;
 
-    return function adjustServer ( addresses, constraints ) {
+  return function adjustServer ( addresses, constraints ) {
 
-      var iceServers = addresses.iceServers,
+    var iceServers = addresses.iceServers,
 
-          current, server, url, type;
+        current, server, url, type;
 
-      for ( var i = 0, l = iceServers.length; i < l; i++ ) {
+    for ( var i = 0, l = iceServers.length; i < l; i++ ) {
 
-        current = iceServers[i];
-        server  = null;
+      current = iceServers[i];
+      server  = null;
 
-        url     = current.url;
-        type    = url.split(':')[0];
+      url     = current.url;
+      type    = url.split(':')[0];
 
-        if ( type === 'stun' ) server = { url: url };
+      if ( type === 'stun' ) server = { url: url };
 
-        if ( type === 'turn' ) server = parseTURN( url, current.username, current.credential ) || {};
+      if ( type === 'turn' ) server = parseTURN( url, current.username, current.credential ) || {};
 
-        if ( !server.url ) throw new Error('Invalid server address!', current, server );
+      if ( !server.url ) throw new Error('Invalid server address!', current, server );
 
-        iceServers[i] = server;
-      }
+      iceServers[i] = server;
+    }
 
-      return new vendorConnection( addresses, constraints );
-    };
+    return new vendorConnection( addresses, constraints );
+  };
 
 
-    /** Select the appropriate TURN version **/
+  /** Select the appropriate TURN version **/
 
-    function parseTURN ( url, username, credential ) {
+  function parseTURN ( url, username, credential ) {
 
-      if ( Firefox ) {
+    if ( Firefox ) {
 
-        if ( url.indexOf('transport=udp') !== -1 || url.indexOf('?transport') === -1 ) {
+      if ( url.indexOf('transport=udp') !== -1 || url.indexOf('?transport') === -1 ) {
 
-          return { url: url.split('?')[0], credential: credential, username: username };
-        }
-      }
-
-      if ( Chrome ) {
-
-        if ( Chrome > 28 ) return { url: url, credential: credential, username: username };
-
-        return { url: 'turn:' + username + '@' + url.split('turn:')[1], credential: credential };
+        return { url: url.split('?')[0], credential: credential, username: username };
       }
     }
 
-  })();
+    if ( Chrome ) {
 
-}
+      if ( Chrome > 28 ) return { url: url, credential: credential, username: username };
+
+      return { url: 'turn:' + username + '@' + url.split('turn:')[1], credential: credential };
+    }
+  }
+
+})();
+
+
 
 
 /** Firefox **/
@@ -383,10 +384,10 @@ var reservedReference = context.pg,
 VERSION = {
 
   codeName    : 'spicy-phoenix',
-  full        : '0.5.0',
+  full        : '0.5.1',
   major       : 0,
   minor       : 5,
-  dot         : 0
+  dot         : 1
 };
 
 
@@ -407,7 +408,7 @@ function noConflict(){
  *  Config
  *  ======
  *
- *  Settinings & default configurations for the network.
+ *  Settings & default configurations for the network.
  */
 
 
@@ -450,14 +451,21 @@ var config = {
   /**
    *  Handler attributes
    *
+   *  Changing the bandwith default, which is throttled to a speed limitation of 30kb/s.
+   *  Also defines defines a max byte size, as it will just send messages of 1280bytes.
+   *
+   *  See: https://code.google.com/p/chromium/codesearch#chromium/src/third_party/libjingle/source/
+   *       talk/media/sctp/sctpdataengine.cc&l=52
+   *
+   *
    *  @type {Object} handlerConfig
    */
 
   handlerConfig: {
 
     BANDWIDTH   : 0x100000,   // 1MB  - increase DataChannel capacity
-    MAX_BYTES   :     1024,   // 1kb  - max data size before splitting
-    CHUNK_SIZE  :      600    //      - size of the chunks
+    MAX_BYTES   :     1200,   // 1kb  - max data size before splitting
+    CHUNK_SIZE  :      800    //      - size of the chunks
   },
 
 
@@ -506,7 +514,11 @@ var config = {
 
   connectionConstraints: {
 
-    'optional': [{ RtpDataChannels: true }]  // enable DataChannel
+    'optional': [
+
+      { RtpDataChannels: true }            // enable DataChannel
+      // { DtlsSrtpKeyAgreement: true }    // using SRTP (Chrome - Firefox)
+    ]
   },
 
 
@@ -516,7 +528,7 @@ var config = {
 
   channelConfig: {
 
-    reliable: false
+    reliable: true, // false
     // outOfOrderAllowed: true,
     // maxRetransmitNum : 0
   },
@@ -1459,14 +1471,14 @@ Stream.prototype.write = function write ( msg ) {
 
   this.writeBuffer.push( msg );
 
-  if ( this.ready ) {
+  // if ( this.ready ) {
 
     this.emit( 'write', this.writeBuffer.shift() );
 
-  } else {
+  // } else {
 
     // TODO: handle blocking simultaneous usage
-  }
+  // }
 
   return this.ready;
 };
@@ -1582,11 +1594,11 @@ Connection.prototype.checkStateChanges = function(){
   }.bind(this);
 
 
+  // TODO: minimize interuption , perhaps workaround - just on connecting ?
   conn.oniceconnectionstatechange = function ( e ) {
 
     var iceConnectionState = e.currentTarget.iceConnectionState;
 
-    // TODO: minimize interuption , perhaps workaround - just on connecting ?
     // console.log(iceConnectionState);
     if ( iceConnectionState === 'disconnected' ) {
 
@@ -1603,7 +1615,6 @@ Connection.prototype.checkStateChanges = function(){
 
   }.bind(this);
 
-
 };
 
 
@@ -1613,15 +1624,11 @@ Connection.prototype.checkStateChanges = function(){
 
 Connection.prototype.findICECandidates = function(){
 
-  var conn     = this.conn,
+  var conn      = this.conn,
 
-      length   = 4,
+      isRemote  = !this.info.initiator,
 
-      advanced = false;
-
-  // TODO: hardcoded value, any reason behind this magic numbers ?
-  // length   = ~~(( getKeys( defaultHandlers ).length - 1 ) / 2),
-  if ( !this.info.initiator ) length--;
+      track     = null;
 
   conn.onicecandidate = function ( e ) {
 
@@ -1629,13 +1636,17 @@ Connection.prototype.findICECandidates = function(){
 
     if ( e.candidate ) { this._counter++; this.send( 'setIceCandidates', e.candidate ); }
 
-    // for DataChannel - some candidates are still "gathering", not "complete"
-    if ( advanced ) { if ( !--length ) invokeExchange.call( this ); return; }
+    // some candidates got a 'complete state || FF => just 1x exchange with state "new"
+    if ( (iceGatheringState === 'complete' && !e.candidate) || moz ) {
 
-    // FF => just 1x exchange with state "new"
-    if ( iceGatheringState === 'complete' || moz ) {
+      if ( isRemote ) { // just consider the remote peer P2
 
-      advanced = true;
+        if ( track == void 0 ) {
+
+          track = this._counter/2;
+
+        } else if ( --track > 0 ) return;
+      }
 
       invokeExchange.call( this );
     }
@@ -1647,35 +1658,11 @@ Connection.prototype.findICECandidates = function(){
 
     var num = this._counter; this._counter = 0;
 
-    if ( this._sendSDP ) return this._sendSDP(num);
+    if ( typeof this._sendSDP == 'function' ) return this._sendSDP(num);
 
     this._sendSDP = num; // signal to be ready
   }
 
-};
-
-
-/**
- *  Set the ICE candidates - using an additional container internaly to keep the order
- *
- *  @param {Object} data [description]
- */
-
-Connection.prototype.setIceCandidates = function ( data, release ) {
-
-  if ( this.closed ) throw new Error('Can\'t set ICE candidates!');
-
-  if ( !release ) return this._candidates.push( data );
-
-  var conn = this.conn,
-
-      l    = data.length;
-
-  for ( var i = 0; i < l; i++ ) conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
-
-  data.length = 0;
-
-  delete this._fragments.candidates;
 };
 
 
@@ -1687,11 +1674,8 @@ Connection.prototype.createOffer = function() {
 
   var conn = this.conn;
 
-  if ( this instanceof DataConnection ) {
-
-    // FF doesn't support re-negiotiation -> requires the setup before
-    if ( moz ) createDefaultChannels( this );
-  }
+  // FF doesn't support re-negiotiation -> requires the setup before
+  if ( this instanceof DataConnection && moz ) createDefaultChannels( this );
 
   this._sendSDP = null;
 
@@ -1724,6 +1708,30 @@ Connection.prototype.expectPackages = function ( msg ) {
 
 
 /**
+ *  Set the ICE candidates - using an additional container internaly to keep the order
+ *
+ *  @param {Object} data [description]
+ */
+
+Connection.prototype.setIceCandidates = function ( data, release ) {
+
+  if ( this.closed ) throw new Error('Can\'t set ICE candidates!');
+
+  if ( !release ) return this._candidates.push( data );
+
+  var conn = this.conn,
+
+      l    = data.length;
+
+  for ( var i = 0; i < l; i++ ) conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
+
+  data.length = 0;
+
+  delete this._fragments.candidates;
+};
+
+
+/**
  *  Exchange settings and set the descriptions
  *
  *  @param {Object} msg   -
@@ -1731,7 +1739,7 @@ Connection.prototype.expectPackages = function ( msg ) {
 
 Connection.prototype.setConfigurations = function ( msg ) {
 
-  // console.log( '[SDP] - ' +  msg.type );  // description
+  console.log( '[SDP] - ' +  msg.type );  // description
 
   var conn = this.conn,
 
@@ -1751,22 +1759,25 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
   // console.log( desc.sdp );
 
+  // waiting for expected packages
   if ( this._candidates.length < this._fragments.candidates ) {
 
     return setTimeout( this.setConfigurations.bind(this), 1000, msg );
   }
 
-  conn.setRemoteDescription( desc, function(){  // Chrome -> FF: firefox doesn't trigger the description
+  // Chrome -> FF: firefox doesn't trigger the description
+  conn.setRemoteDescription( desc, function(){
 
     if ( this._candidates.length ) this.setIceCandidates( this._candidates, true );
 
-    this._sendSDP = null;
-
     if ( msg.type === 'offer' ) {
 
-      conn.createAnswer( function ( answer ) {  // FF -> Chrome: chrome doesn't create an answer
+      this._sendSDP = null;
 
-        answer.sdp = adjustSDP( answer.sdp );
+      // FF -> Chrome: chrome doesn't create an answer
+      conn.createAnswer( function ( answer ) {
+
+        answer.sdp = adjustSDP( answer.sdp ); // complete, false
 
         conn.setLocalDescription( answer, function(){
 
@@ -1783,6 +1794,7 @@ Connection.prototype.setConfigurations = function ( msg ) {
         if ( moz ) return;
 
         createDefaultChannels( this );
+
       } else {
 
         console.log('[END] - TODO: MediaConnection cleanup + handlers'); // what now ?
@@ -1792,7 +1804,6 @@ Connection.prototype.setConfigurations = function ( msg ) {
   }.bind(this), !moz ? loggerr : function(){} ); // FF -> supress warning for missing re-negotiation
 
 };
-
 
 
 /**
@@ -1855,9 +1866,9 @@ function adjustSDP ( sdp ) {
 
 function exchangeDescription ( desc ) {
 
-  var ready = this._sendSDP; // amount of candidates to expect // improve naming of the variables...
+  var ready = this._sendSDP;
 
-  this._sendSDP = function ( num ) {
+  this._sendSDP = function ( num ) { // TODO: sometimes 3 x "offer" !?
 
     this.send( 'expectPackages', { type: 'candidates', size: num });
 
@@ -1865,7 +1876,7 @@ function exchangeDescription ( desc ) {
 
   }.bind(this);
 
-  // the remote doesn't set any candidates (ready/num will be 0) on the 2nd exchange + default (null)
+  // trigger if gathering already happend (see P2 on re-negotioation != candidates)
   if ( ready != void 0 ) this._sendSDP( ready );
 }
 
@@ -1899,6 +1910,8 @@ var Handler = function ( channel, remote ) {
 
   if ( typeof this.actions === 'function' ) this.actions = { end: this.actions };
 
+  channel.binaryType = 'arraybuffer'; // binary
+
   channel.addEventListener( 'open', this.init.bind(this) );
 };
 
@@ -1921,13 +1934,29 @@ Handler.prototype.init = function ( e ) {
 
       events = [ 'open', 'data', 'end', 'close', 'error' ];
 
-
-  for ( var i = 0, l = events.length; i < l; i++ ) {
+  for ( var i = 0, l = events.length; i < l; i++ ) { // defined service (see label)
 
     stream.on( events[i], actions[ events[i] ], connection );
   }
 
-  stream.on( 'write', function send ( msg ) { channel.send( msg ); });
+  stream.on( 'write', function send ( msg ) {
+
+    // setTimeout( function(){
+
+      try {
+
+        channel.send( msg );
+
+      } catch ( e ) {
+
+        console.log('[FAILED]', e );
+
+        // setTimeout( send, 100, msg );
+      }
+
+    // }, 100 );
+
+  });
 
 
   channel.onmessage = stream.handle.bind( stream );
@@ -1952,16 +1981,8 @@ Handler.prototype.send = function ( msg ) {
 
       buffer  = data; //stringToBuffer( data );
 
-
-  if ( buffer.length > config.handlerConfig.MAX_BYTES ) {
   // if ( buffer.byteLength > config.handlerConfig.MAX_BYTES ) {
-
-    buffer = createChunks( buffer );
-
-  } else {
-
-    buffer = [ buffer ];
-  }
+  buffer = ( buffer.length <= config.handlerConfig.MAX_BYTES ) ? [buffer] : createChunks( buffer );
 
   for ( var i = 0, l = buffer.length; i < l; i++ ) {
 
@@ -2053,7 +2074,11 @@ var defaultHandlers = {
       peer.account = data.account;
 
       MANAGER.check( data.list, this  );
-      MANAGER.setup( this.info.remote );
+
+      if ( this.info.initiator ) { // invoke further setup// }
+
+        MANAGER.setup( this.info.remote );
+      }
     },
 
     /* previous unreliable - see gatheringstatechange */
@@ -2099,9 +2124,13 @@ var defaultHandlers = {
 
     var data = msg.data;
 
+    // invoke partner after local establishement
+    if ( data.remoteSetup ) return MANAGER.setup( msg.local );
+
+    // distinguish between request/answer
     if ( !data.pong ) return this.send( 'ping', { pong: true, index: data.index });
 
-    MANAGER.setup( msg.local, data.index, data.pong );
+    MANAGER.setup( msg.local, data.index, this.info.initiator );
   },
 
 
@@ -2403,7 +2432,7 @@ SOCKET = (function(){
 
       req( msg, next );
 
-    } else {  // WS
+    } else { // WS
 
       if ( next ) QUEUE.push( next );
 
@@ -2440,8 +2469,8 @@ SOCKET = (function(){
  *  DataConnection
  *  ==============
  *
- *  Exchanging data based on a connection.
- *  As these are mandatory and are creatyed automaticly by defualt -> stored internally as CONNECTIONS
+ *  Exchanging data based on a connection. As these are mandatory and are created automaticaly
+ *  by default -> stored internally as CONNECTIONS
  */
 
 
@@ -2452,6 +2481,10 @@ var DataConnection = function ( local, remote, initiator, transport ) {
   this.init();
 };
 
+
+/**
+ *  DataConnection <-- Connection
+ */
 
 inherits( DataConnection, Connection );
 
@@ -2472,7 +2505,6 @@ DataConnection.prototype.receiveDataChannels = function(){
 
   }.bind(this);
 };
-
 
 
 /**
@@ -2497,13 +2529,13 @@ DataConnection.prototype.createDataChannel = function ( label ) {
 };
 
 
-
 /**
  *  Select the messeneger for communication & transfer
  *
  *  @param {String}  action   -
  *  @param {Object}  data     -
  *  @param {Boolean} direct   - defines if the action should only be execute via a direct connection
+ *                              (!= delegation via proxy or server)
  */
 
 DataConnection.prototype.send = function ( action, data, direct ) {
@@ -2586,12 +2618,13 @@ function createDefaultChannels ( connection )  {
 
 function useChannels ( channel, data, proxy ) {
 
-  var msg = { action: channel, local: PLAYER.id, data: data, remote: this.info.remote };
+  var ready     = this.ready,
 
-  extend( msg, proxy );
+      channels  = this.channels,
 
-  var ready    = this.ready,
-      channels = this.channels;
+      message   = { 'local': PLAYER.id, 'remote': this.info.remote, 'action': channel, 'data': data };
+
+  extend( message, proxy );
 
   if ( !channel ) channel = getKeys( channels );
 
@@ -2599,7 +2632,7 @@ function useChannels ( channel, data, proxy ) {
 
   for ( var i = 0, l = channel.length; i < l; i++ ) {
 
-    if ( ready && channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
+    if ( ready && channels[ channel[i] ] ) channels[ channel[i] ].send( message );
   }
 }
 
@@ -2613,7 +2646,7 @@ function useChannels ( channel, data, proxy ) {
 
 var DELAY    =    0,  // max. latency evaluation
 
-    PINGS    =  100,  // amount of packages to exchange for the latency test
+    PINGS    =    3,  // amount of packages to exchange for the latency test // 100
 
     READY    =   {},  // record of current ready users
 
@@ -2674,13 +2707,11 @@ MANAGER = (function(){
 
     if ( CONNECTIONS[ remoteID ] || remoteID === PLAYER.id ) return;
 
-    // console.log( '[connect] to - "' + remoteID + '"' );
+    console.log( '[connect] to - "' + remoteID + '"' );
 
     CURRENT = remoteID; // currently connecting
 
     PEERS[ remoteID ] = new Peer({ id: remoteID });
-
-    // CONNECTIONS[ remoteID ] = new Connection( PLAYER.id, remoteID, initiator, transport );
 
     CONNECTIONS[ remoteID ] = new DataConnection( PLAYER.id, remoteID, initiator, transport );
   }
@@ -2730,9 +2761,6 @@ MANAGER = (function(){
   }
 
 
-
-
-
   /**
    *  Set credentials and create entries as SDP & candidates arrives
    *
@@ -2764,8 +2792,6 @@ MANAGER = (function(){
   }
 
 
-
-
   /**
    *  Transfering data to a specific group (as in this caste to all,
    *  its just like a broadcast).
@@ -2792,19 +2818,28 @@ MANAGER = (function(){
    *  @param {Boolean} pong       -
    */
 
-  function setup ( remoteID, index, pong ) {
+  function setup ( remoteID, index, initiator ) {
 
-    if ( !pong ) return ping( remoteID );
+    var data = timer[remoteID];
 
-    var col = timer[ remoteID ];
+    if ( !data ) { // initial call - pong doesnt exist || ignore first time
 
-    col[index] = win.performance.now() - col[index];
+      data = timer[remoteID] = [ PINGS + 1 ];
 
-    if ( !INGAME ) progress( col[0] );
+      return ping( remoteID, data, data[0] );
+    }
 
-    if ( --col[0] > 0 ) return;
 
-    var latency = col.reduce( sum ) / ( col.length - 1 ) >> 1;
+    data[index] = win.performance.now() - data[index];
+
+    if ( !INGAME ) progress( data[0] );
+
+    if ( --data[0] > 0 ) return ping( remoteID, data, data[0] );
+
+    // invoke partner afterwards
+    if ( initiator ) CONNECTIONS[ remoteID ].send( 'ping', { 'remoteSetup': true }, true );
+
+    var latency = data.reduce( sum ) / ( PINGS );
 
     PEERS[ remoteID ].latency = latency;
 
@@ -2819,24 +2854,17 @@ MANAGER = (function(){
   /**
    *  Sends pings to other peers
    *
-   *  @param {String} remoteID   -
+   *  @param {String} remoteID  -
+   *  @param {Array}  data      -
+   *  @param {Number} next      -
    */
+  function ping ( remoteID, data, next ) {
 
-  function ping ( remoteID ) {
+    data[next] = win.performance.now();
 
-    var conn = CONNECTIONS[ remoteID ],
-
-        num  = PINGS,
-
-        col = timer[ remoteID ] = [ num ];
-
-    for ( var i = 1; i <= num; i++ ) { col[i] = win.performance.now(); test( i ); }
-
-    function test ( i ) {
-
-      setTimeout( function(){ conn.send( 'ping', { index: i }, true ); }, Math.random() * num );
-    }
+    CONNECTIONS[ remoteID ].send( 'ping', { 'index': next }, true );
   }
+
 
 
   var perc = 0;
@@ -2855,7 +2883,7 @@ MANAGER = (function(){
         diff  = getKeys( TODO  ).length,
         max   = diff + curr;
 
-    part = ~~( curr * part / max );
+    part = ( curr * part / max ) |0;
 
     if ( part <= perc ) return;
 
@@ -2975,8 +3003,6 @@ MANAGER = (function(){
   };
 
 })();
-
-
 
 
 /**
@@ -3650,11 +3676,6 @@ function useDefaultAudio ( stream ) {
  *
  *  Model for a "peer" - a representation of an other player.
  */
-
-
-// pg.peers = {}; // collection of all connected peers
-
-// DATA  = []; // shortcut to access the stored data
 
 
 /**

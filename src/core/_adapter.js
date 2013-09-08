@@ -126,67 +126,68 @@ if ( typeof win.RTCPeerConnection !== 'function' ) {
 
   win.RTCPeerConnection = win.mozRTCPeerConnection    ||
                           win.webkitRTCPeerConnection;
+}
 
 
-  /** Modify the configurations to adjust the different address formats **/
-  win.RTCPeerConnection = (function(){
+/** Modify the configurations to adjust the different address formats **/
+win.RTCPeerConnection = (function(){
 
-    var vendorConnection = win.RTCPeerConnection;
+  var vendorConnection = win.RTCPeerConnection;
 
-    // innerReference ?
-    var Chrome  = chrome,
-        Firefox = moz;
+  // innerReference ?
+  var Chrome  = chrome,
+      Firefox = moz;
 
-    return function adjustServer ( addresses, constraints ) {
+  return function adjustServer ( addresses, constraints ) {
 
-      var iceServers = addresses.iceServers,
+    var iceServers = addresses.iceServers,
 
-          current, server, url, type;
+        current, server, url, type;
 
-      for ( var i = 0, l = iceServers.length; i < l; i++ ) {
+    for ( var i = 0, l = iceServers.length; i < l; i++ ) {
 
-        current = iceServers[i];
-        server  = null;
+      current = iceServers[i];
+      server  = null;
 
-        url     = current.url;
-        type    = url.split(':')[0];
+      url     = current.url;
+      type    = url.split(':')[0];
 
-        if ( type === 'stun' ) server = { url: url };
+      if ( type === 'stun' ) server = { url: url };
 
-        if ( type === 'turn' ) server = parseTURN( url, current.username, current.credential ) || {};
+      if ( type === 'turn' ) server = parseTURN( url, current.username, current.credential ) || {};
 
-        if ( !server.url ) throw new Error('Invalid server address!', current, server );
+      if ( !server.url ) throw new Error('Invalid server address!', current, server );
 
-        iceServers[i] = server;
-      }
+      iceServers[i] = server;
+    }
 
-      return new vendorConnection( addresses, constraints );
-    };
+    return new vendorConnection( addresses, constraints );
+  };
 
 
-    /** Select the appropriate TURN version **/
+  /** Select the appropriate TURN version **/
 
-    function parseTURN ( url, username, credential ) {
+  function parseTURN ( url, username, credential ) {
 
-      if ( Firefox ) {
+    if ( Firefox ) {
 
-        if ( url.indexOf('transport=udp') !== -1 || url.indexOf('?transport') === -1 ) {
+      if ( url.indexOf('transport=udp') !== -1 || url.indexOf('?transport') === -1 ) {
 
-          return { url: url.split('?')[0], credential: credential, username: username };
-        }
-      }
-
-      if ( Chrome ) {
-
-        if ( Chrome > 28 ) return { url: url, credential: credential, username: username };
-
-        return { url: 'turn:' + username + '@' + url.split('turn:')[1], credential: credential };
+        return { url: url.split('?')[0], credential: credential, username: username };
       }
     }
 
-  })();
+    if ( Chrome ) {
 
-}
+      if ( Chrome > 28 ) return { url: url, credential: credential, username: username };
+
+      return { url: 'turn:' + username + '@' + url.split('turn:')[1], credential: credential };
+    }
+  }
+
+})();
+
+
 
 
 /** Firefox **/
