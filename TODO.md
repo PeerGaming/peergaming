@@ -1,3 +1,8 @@
+## 0.5.2 / 2013-XX-XX
+
+(* update towards Chrome 31 and Firefox 26)
+
+
 ## 0.6.0 / 2013-XX-XX
 
 __Codename: Sweet Dragon__
