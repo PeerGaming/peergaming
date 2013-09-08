@@ -8,7 +8,7 @@
 
 var DELAY    =    0,  // max. latency evaluation
 
-    PINGS    =  100,  // amount of packages to exchange for the latency test
+    PINGS    =    3,  // amount of packages to exchange for the latency test // 100
 
     READY    =   {},  // record of current ready users
 
@@ -69,13 +69,11 @@ MANAGER = (function(){
 
     if ( CONNECTIONS[ remoteID ] || remoteID === PLAYER.id ) return;
 
-    // console.log( '[connect] to - "' + remoteID + '"' );
+    console.log( '[connect] to - "' + remoteID + '"' );
 
     CURRENT = remoteID; // currently connecting
 
     PEERS[ remoteID ] = new Peer({ id: remoteID });
-
-    // CONNECTIONS[ remoteID ] = new Connection( PLAYER.id, remoteID, initiator, transport );
 
     CONNECTIONS[ remoteID ] = new DataConnection( PLAYER.id, remoteID, initiator, transport );
   }
@@ -125,9 +123,6 @@ MANAGER = (function(){
   }
 
 
-
-
-
   /**
    *  Set credentials and create entries as SDP & candidates arrives
    *
@@ -159,8 +154,6 @@ MANAGER = (function(){
   }
 
 
-
-
   /**
    *  Transfering data to a specific group (as in this caste to all,
    *  its just like a broadcast).
@@ -187,19 +180,28 @@ MANAGER = (function(){
    *  @param {Boolean} pong       -
    */
 
-  function setup ( remoteID, index, pong ) {
+  function setup ( remoteID, index, initiator ) {
 
-    if ( !pong ) return ping( remoteID );
+    var data = timer[remoteID];
 
-    var col = timer[ remoteID ];
+    if ( !data ) { // initial call - pong doesnt exist || ignore first time
 
-    col[index] = win.performance.now() - col[index];
+      data = timer[remoteID] = [ PINGS + 1 ];
 
-    if ( !INGAME ) progress( col[0] );
+      return ping( remoteID, data, data[0] );
+    }
 
-    if ( --col[0] > 0 ) return;
 
-    var latency = col.reduce( sum ) / ( col.length - 1 ) >> 1;
+    data[index] = win.performance.now() - data[index];
+
+    if ( !INGAME ) progress( data[0] );
+
+    if ( --data[0] > 0 ) return ping( remoteID, data, data[0] );
+
+    // invoke partner afterwards
+    if ( initiator ) CONNECTIONS[ remoteID ].send( 'ping', { 'remoteSetup': true }, true );
+
+    var latency = data.reduce( sum ) / ( PINGS );
 
     PEERS[ remoteID ].latency = latency;
 
@@ -214,24 +216,17 @@ MANAGER = (function(){
   /**
    *  Sends pings to other peers
    *
-   *  @param {String} remoteID   -
+   *  @param {String} remoteID  -
+   *  @param {Array}  data      -
+   *  @param {Number} next      -
    */
+  function ping ( remoteID, data, next ) {
 
-  function ping ( remoteID ) {
+    data[next] = win.performance.now();
 
-    var conn = CONNECTIONS[ remoteID ],
-
-        num  = PINGS,
-
-        col = timer[ remoteID ] = [ num ];
-
-    for ( var i = 1; i <= num; i++ ) { col[i] = win.performance.now(); test( i ); }
-
-    function test ( i ) {
-
-      setTimeout( function(){ conn.send( 'ping', { index: i }, true ); }, Math.random() * num );
-    }
+    CONNECTIONS[ remoteID ].send( 'ping', { 'index': next }, true );
   }
+
 
 
   var perc = 0;
@@ -250,7 +245,7 @@ MANAGER = (function(){
         diff  = getKeys( TODO  ).length,
         max   = diff + curr;
 
-    part = ~~( curr * part / max );
+    part = ( curr * part / max ) |0;
 
     if ( part <= perc ) return;
 
@@ -370,5 +365,3 @@ MANAGER = (function(){
   };
 
 })();
-
-

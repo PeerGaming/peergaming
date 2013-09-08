@@ -46,7 +46,11 @@ var defaultHandlers = {
       peer.account = data.account;
 
       MANAGER.check( data.list, this  );
-      MANAGER.setup( this.info.remote );
+
+      if ( this.info.initiator ) { // invoke further setup// }
+
+        MANAGER.setup( this.info.remote );
+      }
     },
 
     /* previous unreliable - see gatheringstatechange */
@@ -92,9 +96,13 @@ var defaultHandlers = {
 
     var data = msg.data;
 
+    // invoke partner after local establishement
+    if ( data.remoteSetup ) return MANAGER.setup( msg.local );
+
+    // distinguish between request/answer
     if ( !data.pong ) return this.send( 'ping', { pong: true, index: data.index });
 
-    MANAGER.setup( msg.local, data.index, data.pong );
+    MANAGER.setup( msg.local, data.index, this.info.initiator );
   },
 
 
