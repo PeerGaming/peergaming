@@ -94,11 +94,11 @@ Connection.prototype.checkStateChanges = function(){
   }.bind(this);
 
 
+  // TODO: minimize interuption , perhaps workaround - just on connecting ?
   conn.oniceconnectionstatechange = function ( e ) {
 
     var iceConnectionState = e.currentTarget.iceConnectionState;
 
-    // TODO: minimize interuption , perhaps workaround - just on connecting ?
     // console.log(iceConnectionState);
     if ( iceConnectionState === 'disconnected' ) {
 
@@ -115,7 +115,6 @@ Connection.prototype.checkStateChanges = function(){
 
   }.bind(this);
 
-
 };
 
 
@@ -125,15 +124,11 @@ Connection.prototype.checkStateChanges = function(){
 
 Connection.prototype.findICECandidates = function(){
 
-  var conn     = this.conn,
+  var conn      = this.conn,
 
-      length   = 4,
+      isRemote  = !this.info.initiator,
 
-      advanced = false;
-
-  // TODO: hardcoded value, any reason behind this magic numbers ?
-  // length   = ~~(( getKeys( defaultHandlers ).length - 1 ) / 2),
-  if ( !this.info.initiator ) length--;
+      track     = null;
 
   conn.onicecandidate = function ( e ) {
 
@@ -141,13 +136,17 @@ Connection.prototype.findICECandidates = function(){
 
     if ( e.candidate ) { this._counter++; this.send( 'setIceCandidates', e.candidate ); }
 
-    // for DataChannel - some candidates are still "gathering", not "complete"
-    if ( advanced ) { if ( !--length ) invokeExchange.call( this ); return; }
+    // some candidates got a 'complete state || FF => just 1x exchange with state "new"
+    if ( (iceGatheringState === 'complete' && !e.candidate) || moz ) {
 
-    // FF => just 1x exchange with state "new"
-    if ( iceGatheringState === 'complete' || moz ) {
+      if ( isRemote ) { // just consider the remote peer P2
 
-      advanced = true;
+        if ( track == void 0 ) {
+
+          track = this._counter/2;
+
+        } else if ( --track > 0 ) return;
+      }
 
       invokeExchange.call( this );
     }
@@ -159,35 +158,11 @@ Connection.prototype.findICECandidates = function(){
 
     var num = this._counter; this._counter = 0;
 
-    if ( this._sendSDP ) return this._sendSDP(num);
+    if ( typeof this._sendSDP == 'function' ) return this._sendSDP(num);
 
     this._sendSDP = num; // signal to be ready
   }
 
-};
-
-
-/**
- *  Set the ICE candidates - using an additional container internaly to keep the order
- *
- *  @param {Object} data [description]
- */
-
-Connection.prototype.setIceCandidates = function ( data, release ) {
-
-  if ( this.closed ) throw new Error('Can\'t set ICE candidates!');
-
-  if ( !release ) return this._candidates.push( data );
-
-  var conn = this.conn,
-
-      l    = data.length;
-
-  for ( var i = 0; i < l; i++ ) conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
-
-  data.length = 0;
-
-  delete this._fragments.candidates;
 };
 
 
@@ -199,11 +174,8 @@ Connection.prototype.createOffer = function() {
 
   var conn = this.conn;
 
-  if ( this instanceof DataConnection ) {
-
-    // FF doesn't support re-negiotiation -> requires the setup before
-    if ( moz ) createDefaultChannels( this );
-  }
+  // FF doesn't support re-negiotiation -> requires the setup before
+  if ( this instanceof DataConnection && moz ) createDefaultChannels( this );
 
   this._sendSDP = null;
 
@@ -236,6 +208,30 @@ Connection.prototype.expectPackages = function ( msg ) {
 
 
 /**
+ *  Set the ICE candidates - using an additional container internaly to keep the order
+ *
+ *  @param {Object} data [description]
+ */
+
+Connection.prototype.setIceCandidates = function ( data, release ) {
+
+  if ( this.closed ) throw new Error('Can\'t set ICE candidates!');
+
+  if ( !release ) return this._candidates.push( data );
+
+  var conn = this.conn,
+
+      l    = data.length;
+
+  for ( var i = 0; i < l; i++ ) conn.addIceCandidate( new RTCIceCandidate( data[i] ) );
+
+  data.length = 0;
+
+  delete this._fragments.candidates;
+};
+
+
+/**
  *  Exchange settings and set the descriptions
  *
  *  @param {Object} msg   -
@@ -243,7 +239,7 @@ Connection.prototype.expectPackages = function ( msg ) {
 
 Connection.prototype.setConfigurations = function ( msg ) {
 
-  // console.log( '[SDP] - ' +  msg.type );  // description
+  console.log( '[SDP] - ' +  msg.type );  // description
 
   var conn = this.conn,
 
@@ -263,22 +259,25 @@ Connection.prototype.setConfigurations = function ( msg ) {
 
   // console.log( desc.sdp );
 
+  // waiting for expected packages
   if ( this._candidates.length < this._fragments.candidates ) {
 
     return setTimeout( this.setConfigurations.bind(this), 1000, msg );
   }
 
-  conn.setRemoteDescription( desc, function(){  // Chrome -> FF: firefox doesn't trigger the description
+  // Chrome -> FF: firefox doesn't trigger the description
+  conn.setRemoteDescription( desc, function(){
 
     if ( this._candidates.length ) this.setIceCandidates( this._candidates, true );
 
-    this._sendSDP = null;
-
     if ( msg.type === 'offer' ) {
 
-      conn.createAnswer( function ( answer ) {  // FF -> Chrome: chrome doesn't create an answer
+      this._sendSDP = null;
 
-        answer.sdp = adjustSDP( answer.sdp );
+      // FF -> Chrome: chrome doesn't create an answer
+      conn.createAnswer( function ( answer ) {
+
+        answer.sdp = adjustSDP( answer.sdp ); // complete, false
 
         conn.setLocalDescription( answer, function(){
 
@@ -295,6 +294,7 @@ Connection.prototype.setConfigurations = function ( msg ) {
         if ( moz ) return;
 
         createDefaultChannels( this );
+
       } else {
 
         console.log('[END] - TODO: MediaConnection cleanup + handlers'); // what now ?
@@ -304,7 +304,6 @@ Connection.prototype.setConfigurations = function ( msg ) {
   }.bind(this), !moz ? loggerr : function(){} ); // FF -> supress warning for missing re-negotiation
 
 };
-
 
 
 /**
@@ -367,9 +366,9 @@ function adjustSDP ( sdp ) {
 
 function exchangeDescription ( desc ) {
 
-  var ready = this._sendSDP; // amount of candidates to expect // improve naming of the variables...
+  var ready = this._sendSDP;
 
-  this._sendSDP = function ( num ) {
+  this._sendSDP = function ( num ) { // TODO: sometimes 3 x "offer" !?
 
     this.send( 'expectPackages', { type: 'candidates', size: num });
 
@@ -377,6 +376,6 @@ function exchangeDescription ( desc ) {
 
   }.bind(this);
 
-  // the remote doesn't set any candidates (ready/num will be 0) on the 2nd exchange + default (null)
+  // trigger if gathering already happend (see P2 on re-negotioation != candidates)
   if ( ready != void 0 ) this._sendSDP( ready );
 }
