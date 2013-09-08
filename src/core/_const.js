@@ -41,7 +41,7 @@ var ROOM        = '',        // current room
     BACKUP      = {};        // store player data for reconnection
 
 
-/** references **/
+/** references - local shortcuts **/
 
 var VERSION     = null,      // pg.VERSION
     INFO        =   {},      // pg.info

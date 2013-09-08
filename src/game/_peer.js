@@ -6,11 +6,6 @@
  */
 
 
-// pg.peers = {}; // collection of all connected peers
-
-// DATA  = []; // shortcut to access the stored data
-
-
 /**
  *  Constructor to diverge the intial parameters
  *

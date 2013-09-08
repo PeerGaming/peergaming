@@ -2,8 +2,8 @@
  *  DataConnection
  *  ==============
  *
- *  Exchanging data based on a connection.
- *  As these are mandatory and are creatyed automaticly by defualt -> stored internally as CONNECTIONS
+ *  Exchanging data based on a connection. As these are mandatory and are created automaticaly
+ *  by default -> stored internally as CONNECTIONS
  */
 
 
@@ -14,6 +14,10 @@ var DataConnection = function ( local, remote, initiator, transport ) {
   this.init();
 };
 
+
+/**
+ *  DataConnection <-- Connection
+ */
 
 inherits( DataConnection, Connection );
 
@@ -34,7 +38,6 @@ DataConnection.prototype.receiveDataChannels = function(){
 
   }.bind(this);
 };
-
 
 
 /**
@@ -59,13 +62,13 @@ DataConnection.prototype.createDataChannel = function ( label ) {
 };
 
 
-
 /**
  *  Select the messeneger for communication & transfer
  *
  *  @param {String}  action   -
  *  @param {Object}  data     -
  *  @param {Boolean} direct   - defines if the action should only be execute via a direct connection
+ *                              (!= delegation via proxy or server)
  */
 
 DataConnection.prototype.send = function ( action, data, direct ) {
@@ -148,12 +151,13 @@ function createDefaultChannels ( connection )  {
 
 function useChannels ( channel, data, proxy ) {
 
-  var msg = { action: channel, local: PLAYER.id, data: data, remote: this.info.remote };
+  var ready     = this.ready,
 
-  extend( msg, proxy );
+      channels  = this.channels,
 
-  var ready    = this.ready,
-      channels = this.channels;
+      message   = { 'local': PLAYER.id, 'remote': this.info.remote, 'action': channel, 'data': data };
+
+  extend( message, proxy );
 
   if ( !channel ) channel = getKeys( channels );
 
@@ -161,6 +165,6 @@ function useChannels ( channel, data, proxy ) {
 
   for ( var i = 0, l = channel.length; i < l; i++ ) {
 
-    if ( ready && channels[ channel[i] ] ) channels[ channel[i] ].send( msg );
+    if ( ready && channels[ channel[i] ] ) channels[ channel[i] ].send( message );
   }
 }

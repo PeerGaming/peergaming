@@ -78,14 +78,14 @@ Stream.prototype.write = function write ( msg ) {
 
   this.writeBuffer.push( msg );
 
-  if ( this.ready ) {
+  // if ( this.ready ) {
 
     this.emit( 'write', this.writeBuffer.shift() );
 
-  } else {
+  // } else {
 
     // TODO: handle blocking simultaneous usage
-  }
+  // }
 
   return this.ready;
 };
