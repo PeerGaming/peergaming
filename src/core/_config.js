@@ -2,7 +2,7 @@
  *  Config
  *  ======
  *
- *  Settinings & default configurations for the network.
+ *  Settings & default configurations for the network.
  */
 
 
@@ -45,14 +45,21 @@ var config = {
   /**
    *  Handler attributes
    *
+   *  Changing the bandwith default, which is throttled to a speed limitation of 30kb/s.
+   *  Also defines defines a max byte size, as it will just send messages of 1280bytes.
+   *
+   *  See: https://code.google.com/p/chromium/codesearch#chromium/src/third_party/libjingle/source/
+   *       talk/media/sctp/sctpdataengine.cc&l=52
+   *
+   *
    *  @type {Object} handlerConfig
    */
 
   handlerConfig: {
 
     BANDWIDTH   : 0x100000,   // 1MB  - increase DataChannel capacity
-    MAX_BYTES   :     1024,   // 1kb  - max data size before splitting
-    CHUNK_SIZE  :      600    //      - size of the chunks
+    MAX_BYTES   :     1200,   // 1kb  - max data size before splitting
+    CHUNK_SIZE  :      800    //      - size of the chunks
   },
 
 
@@ -101,7 +108,11 @@ var config = {
 
   connectionConstraints: {
 
-    'optional': [{ RtpDataChannels: true }]  // enable DataChannel
+    'optional': [
+
+      { RtpDataChannels: true }            // enable DataChannel
+      // { DtlsSrtpKeyAgreement: true }    // using SRTP (Chrome - Firefox)
+    ]
   },
 
 
@@ -111,7 +122,7 @@ var config = {
 
   channelConfig: {
 
-    reliable: false
+    reliable: true, // false
     // outOfOrderAllowed: true,
     // maxRetransmitNum : 0
   },
