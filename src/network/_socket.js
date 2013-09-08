@@ -172,7 +172,7 @@ SOCKET = (function(){
 
       req( msg, next );
 
-    } else {  // WS
+    } else { // WS
 
       if ( next ) QUEUE.push( next );
 

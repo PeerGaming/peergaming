@@ -27,6 +27,8 @@ var Handler = function ( channel, remote ) {
 
   if ( typeof this.actions === 'function' ) this.actions = { end: this.actions };
 
+  channel.binaryType = 'arraybuffer'; // binary
+
   channel.addEventListener( 'open', this.init.bind(this) );
 };
 
@@ -49,13 +51,29 @@ Handler.prototype.init = function ( e ) {
 
       events = [ 'open', 'data', 'end', 'close', 'error' ];
 
-
-  for ( var i = 0, l = events.length; i < l; i++ ) {
+  for ( var i = 0, l = events.length; i < l; i++ ) { // defined service (see label)
 
     stream.on( events[i], actions[ events[i] ], connection );
   }
 
-  stream.on( 'write', function send ( msg ) { channel.send( msg ); });
+  stream.on( 'write', function send ( msg ) {
+
+    // setTimeout( function(){
+
+      try {
+
+        channel.send( msg );
+
+      } catch ( e ) {
+
+        console.log('[FAILED]', e );
+
+        // setTimeout( send, 100, msg );
+      }
+
+    // }, 100 );
+
+  });
 
 
   channel.onmessage = stream.handle.bind( stream );
@@ -80,16 +98,8 @@ Handler.prototype.send = function ( msg ) {
 
       buffer  = data; //stringToBuffer( data );
 
-
-  if ( buffer.length > config.handlerConfig.MAX_BYTES ) {
   // if ( buffer.byteLength > config.handlerConfig.MAX_BYTES ) {
-
-    buffer = createChunks( buffer );
-
-  } else {
-
-    buffer = [ buffer ];
-  }
+  buffer = ( buffer.length <= config.handlerConfig.MAX_BYTES ) ? [buffer] : createChunks( buffer );
 
   for ( var i = 0, l = buffer.length; i < l; i++ ) {
 
